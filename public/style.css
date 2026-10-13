@@ -253,3 +253,34 @@ table.list th { color: var(--muted); font-weight: 800; }
 @media (min-width: 600px) {
   #app { padding-top: 28px; }
 }
+
+/* ---------- v2: tussenstappen, keuze, badges ---------- */
+.progress.light { background: rgba(255, 255, 255, .25); }
+.progress.light > i { background: var(--coin); }
+.streak-chip { background: #ffe8d6; color: #c2410c; animation: pop .4s; }
+@media (prefers-color-scheme: dark) { .streak-chip { background: #3d2414; color: #ffb27a; } }
+.guide { display: grid; gap: 8px; margin-top: 12px; }
+.g-step { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 14px; background: var(--bg); border: 2px solid var(--line); }
+.g-step .n { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 14px; background: var(--primary-soft); color: var(--primary); }
+.g-step.ok { border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.g-step.ok .n { background: var(--good-soft); color: var(--good); }
+.g-step.shown .n { background: var(--coin-soft); }
+.g-step.now { border-color: var(--primary); background: var(--card); box-shadow: var(--shadow); }
+.g-step.final { border-style: dashed; }
+.g-step .answer-box { min-height: 52px; font-size: 26px; margin-top: 8px; }
+.step-msg { margin-top: 8px; padding: 8px 10px; border-radius: 10px; font-weight: 700; font-size: 15px; }
+.step-msg.tip { background: var(--coin-soft); }
+.choice.small { font-size: 16px; padding: 10px 12px; }
+.choice-big {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: 14px 16px; border-radius: 18px; border: 3px solid var(--line); background: var(--key);
+}
+.choice-big span { font-size: 20px; font-weight: 900; }
+.choice-big small { font-size: 14px; color: var(--muted); font-weight: 800; }
+.choice-big.good { border-color: var(--good); background: var(--good-soft); }
+.choice-big:active { transform: translateY(2px); }
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; margin-top: 8px; }
+.badge { display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border-radius: 14px; background: var(--bg); opacity: .45; text-align: center; }
+.badge span { font-size: 26px; }
+.badge small { font-size: 11px; font-weight: 800; line-height: 1.2; }
+.badge.on { opacity: 1; background: var(--coin-soft); }

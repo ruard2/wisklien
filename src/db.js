@@ -81,6 +81,21 @@ export async function migrate() {
       content text NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS badges (
+      id text PRIMARY KEY,
+      earned_at timestamptz NOT NULL DEFAULT now()
+    );
+    -- v2: adaptief niveau, tussenstappen en beloningsregels
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS recent jsonb NOT NULL DEFAULT '[]';
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS scaffold int NOT NULL DEFAULT 0;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS guided_wins int NOT NULL DEFAULT 0;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS solo_bonus int NOT NULL DEFAULT 0;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS transition_seen boolean NOT NULL DEFAULT false;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS plan jsonb NOT NULL DEFAULT '[]';
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS state jsonb NOT NULL DEFAULT '{}';
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS points_acc real NOT NULL DEFAULT 0;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS guided boolean NOT NULL DEFAULT false;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS mult real NOT NULL DEFAULT 1;
   `);
 }
 

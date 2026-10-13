@@ -9,7 +9,7 @@ Webapp die op de telefoon werkt als een echte app (PWA). Eerst een starttoets, d
 - **Leerlijn groep 8** van de gangbare methodes (o.a. Pluspunt 4): ongelijknamige breuken, breuk × breuk, delen door een breuk, kommagetallen × en : (komma plaatsen via schatten), kolomsgewijs/cijferend vermenigvuldigen (22 × 64), kolomsgewijs delen ("happen", 5819 : 23), procenten en korting, schaal 1 : xx, maten omrekenen (ook m², m³, liter), inhoud van een balk, tijd/snelheid, grafieken aflezen en gemiddelde.
 - Uitleg gebruikt de strategieën uit die methodes: verhoudingstabel, splitsen, happen, de "maten-trap", 10%/1% eerst, gelijknamig maken.
 
-### 13 onderdelen × 3 niveaus
+### 13 onderdelen × 4 niveaus
 
 | Domein | Onderdelen |
 |---|---|
@@ -18,25 +18,40 @@ Webapp die op de telefoon werkt als een echte app (PWA). Eerst een starttoets, d
 | Meten & meetkunde | Maten omrekenen · Omtrek, oppervlakte & inhoud · Tijd & snelheid |
 | Verbanden | Tabellen & grafieken |
 
-Niveau 1 = basis (groep 6/7-stof), 2 = 1F, 3 = 1S. Alle sommen worden gegenereerd (duizenden varianten) en hebben een eigen stappenplan. `npm test` controleert per onderdeel en niveau 3000 sommen.
+Niveaus: **opstap** (groep 5/6, als groep 8 echt nog te moeilijk is) · **basis** (groep 6/7) · **1F** · **1S**. Alle sommen worden gegenereerd, met een stappenplan én invulbare tussenstappen (96% van de sommen). `npm test` controleert per onderdeel en niveau duizenden sommen, inclusief elke tussenstap.
 
 ## Hoe het werkt
 
-1. **Starttoets**: 39 sommen (elk onderdeel op 3 niveaus, eerst makkelijk). Pauzeren mag. Daarna een ranglijst van sterk naar zwak.
-2. **Dagtaak** (ma–vr): 20 sommen. Zwakke onderdelen krijgen meer sommen, sterke minder (wel af en toe een onderhoudssom). Sommen door elkaar, beginnen met iets wat hij goed kan.
-3. **Bijhouden**: per onderdeel een beheersingsscore. Genoeg goed → niveau omhoog; blijft het fout gaan → een niveau terug. Hints gebruiken telt iets minder zwaar.
-4. **Blijft hij vastlopen** (score laag en 3 oefendagen geen vooruitgang, of 8 pogingen bijna allemaal fout): onderdeel krijgt extra sommen, een opstapje van een niveau lager, en vooraf een **uitlegkaart** van Rekenmaatje (AI) met stappenplan, voorbeeld en "let op!" op basis van zijn eigen fouten.
-5. **Bij elke som**: hints stap voor stap, na een fout het hele stappenplan, en (met AI) "Leg het anders uit" en doorvragen.
+1. **Starttoets (adaptief)**: 39 sommen, per onderdeel 3. Begint op basis: goed → moeilijker, fout → makkelijker. Geen hulp (eerlijk meten), wel een "Weet ik niet"-knop.
+2. **Dagtaak** (ma–vr): 20 sommen. Zwakke onderdelen krijgen meer sommen, sterke minder. Elke volgende som wordt pas gemaakt na het vorige antwoord, zodat de app live bijstuurt.
+3. **Niveau per onderdeel**:
+   - Meer dan de helft fout (laatste 6, min. 4) → **een niveau lager** + extra hulp (tussenstappen staan klaar).
+   - Pas weer **omhoog bij 80%** (laatste 10, min. 8). Goed mét hulp telt als half.
+4. **Altijd succeservaringen**:
+   - Na een fout: **herkansing** — zelfde soort som, nieuwe getallen, samen stap voor stap.
+   - Twee keer fout op rij: een **opsteker** uit zijn sterkste onderdeel.
+   - Gaat het slecht (minder dan de helft van de laatste 4): **rustig-aan-modus**, sommen een niveau lager met hulp, tot hij 3 op rij goed heeft.
+   - Een zware sessie eindigt altijd met een som die lukt.
+5. **Tussenstappen ("samen stap voor stap")**: hij rekent elke tussenstap zelf uit. Fout → tip; nog eens fout → we laten zien hoe het moet en gaan door. Daarna het eindantwoord.
+6. **Rekenmaatje (AI)**: "Leg het anders uit", doorvragen, en uitlegkaarten bij onderdelen waar extra hulp aan staat.
 
 ### Beloning
 - Centen, 100 cent = € 1. **Alleen voor goede antwoorden.**
-- Starttoets: tot **100 cent** (goed/39 × 100).
-- Dagtaak: tot **50 cent** per schooldag (2,5 cent per goede som).
-- Extra oefenen en weekend: geen centen.
+- Starttoets: tot **100 cent**. Dagtaak: tot **50 cent** per schooldag (2,5 cent per goede som). Oefenen/weekend: geen centen.
+- **Tussenstappen** (per onderdeel):
+  - De eerste **5 keer** goed met tussenstappen: gewone beloning (leerfase, gaat vanzelf aan als het nodig is).
+  - Daarna een **"Nu moet je het zelf kunnen"**-moment, met de stappen die hij steeds deed op een rij.
+  - Vanaf dan **kiest Christo zelf**: *met tussenstappen* = halve beloning, *helemaal zelf* = **dubbele beloning** (de eerste 5 keer, daarna gewoon).
 - Ouder ziet saldo en boekt uitbetalingen af in het ouderscherm (Spaarpot → "Voor ouders", pincode).
 
+### Motivatie
+- Reeks goed op rij in de sessie (🔥), schooldagen op rij, persoonlijk record.
+- 16 badges: eerste dagtaak, 3/5/10 dagen op rij, 5/10 op rij goed, niveau omhoog, opstap gehaald, sterk, comeback (herkansing goed), zelf gedaan, foutloos, record, doorzetter, stappenmeester.
+- Feedback prijst aanpak en inzet (groei-mindset), fouten worden als leermoment gebracht.
+- Niveau omhoog = feestje; niveau omlaag = rustig uitgelegd ("stapje terug om het stevig op te bouwen, bij 8/10 weer omhoog").
+
 ### Ouderscherm
-Saldo + uitbetalen, score/niveau/trend per onderdeel, recente fouten (wat hij invulde vs. goed), sessies met tijd, AI-advies ("wat kan ik thuis doen"), naam wijzigen, starttoets opnieuw.
+Saldo + uitbetalen, score/niveau/trend per onderdeel (incl. leerfase-teller en hoeveel met tussenstappen), badges, recente fouten (wat hij invulde vs. goed), sessies met tijd, AI-advies ("wat kan ik thuis doen"), naam wijzigen, starttoets opnieuw.
 
 ## Lokaal draaien (zonder Docker)
 

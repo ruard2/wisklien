@@ -1,16 +1,19 @@
-// Leerlogica: intake, beheersing per categorie, verdeling van de dagelijkse 20 sommen.
-import { q, one } from './db.js';
-import { CATEGORIES, CAT_IDS, generate } from './generators.js';
+// Leerlogica: adaptieve starttoets, niveau per onderdeel, live bijsturen tijdens
+// een sessie, beloningsregels en badges.
+import { q } from './db.js';
+import { CAT_IDS, generate, catById } from './generators.js';
 import { shuffle, todayNL } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden
 export const DAILY_POINTS = 50;
 export const DAILY_COUNT = 20;
 export const PRACTICE_COUNT = 10;
+export const FREE_GUIDED = 5;   // eerste 5 keer tussenstappen: gewone beloning
+export const SOLO_BONUS = 5;    // daarna 5 keer dubbel als hij kiest om het zelf te doen
 
-// ---------- score per categorie ----------
-// level 1..3, mastery 0..100 op dat niveau → één score 0..100 voor de ranglijst
-export const skillScore = (s) => Math.round(Math.min(100, (s.level - 1) * 33.34 + s.mastery / 3));
+// ---------- score per onderdeel ----------
+// niveau 0..3 (opstap, basis, 1F, 1S) en beheersing 0..100 → één score 0..100
+export const skillScore = (s) => Math.round(Math.min(100, s.level * 25 + s.mastery / 4));
 export function skillLabel(score) {
   if (score >= 85) return 'Sterk';
   if (score >= 60) return 'Goed';
@@ -18,69 +21,83 @@ export function skillLabel(score) {
   return 'Oefenen';
 }
 
+const DEFAULT_SKILL = (cat) => ({ cat, level: 1, mastery: 40, recent: [], scaffold: 0, guided_wins: 0, solo_bonus: 0, transition_seen: false, attempts: 0, correct: 0 });
 export async function getSkills() {
   const rows = (await q('SELECT * FROM skills')).rows;
   const byCat = Object.fromEntries(rows.map((r) => [r.cat, r]));
-  return CAT_IDS.map((cat) => byCat[cat] || { cat, level: 1, mastery: 40, level_attempts: 0, attempts: 0, correct: 0 });
+  return CAT_IDS.map((cat) => byCat[cat] || DEFAULT_SKILL(cat));
 }
 
-// Na elk antwoord: mastery schuift richting 100 (goed) of 0 (fout).
-// Met hints goed telt minder zwaar. Genoeg goed op een niveau → niveau omhoog.
-export function updateSkill(s, correct, hints) {
-  const alpha = 0.2;
-  const target = correct ? (hints > 0 ? 65 : 100) : 0;
-  let { level, mastery, level_attempts } = s;
-  mastery = mastery + alpha * (target - mastery);
-  level_attempts += 1;
+// ---------- niveauregels ----------
+// Elke poging telt: 1 = zelf goed, 0,5 = goed met hulp (hints/tussenstappen), 0 = fout.
+// Meer dan de helft fout (van de laatste 6, min. 4 pogingen) → niveau omlaag + extra hulp.
+// Daarna pas omhoog bij 80% (gemiddelde van de laatste 10, min. 8 pogingen).
+export function updateSkill(s, correct, helped) {
+  const val = correct ? (helped ? 0.5 : 1) : 0;
+  const recent = [...(s.recent || []), val].slice(-10);
+  const target = correct ? (helped ? 65 : 100) : 0;
+  let mastery = Math.round((s.mastery + 0.2 * (target - s.mastery)) * 10) / 10;
+  let { level, scaffold } = s;
   let event = null;
-  if (level < 3 && mastery >= 80 && level_attempts >= 6) {
-    level += 1; mastery = 50; level_attempts = 0; event = 'up';
-  } else if (level > 1 && mastery < 30 && level_attempts >= 5) {
-    level -= 1; mastery = 55; level_attempts = 0; event = 'down';
+  const last6 = recent.slice(-6);
+  const wrong = last6.filter((v) => v === 0).length;
+  const avg10 = recent.reduce((a, b) => a + b, 0) / recent.length;
+  let newRecent = recent;
+  if (recent.length >= 4 && wrong / last6.length > 0.5 && level > 0) {
+    level -= 1; mastery = 60; newRecent = []; scaffold = 3; event = 'down';
+  } else if (recent.length >= 8 && avg10 >= 0.8 && level < 3) {
+    level += 1; mastery = 45; newRecent = []; event = 'up';
+  } else if (recent.length >= 4 && wrong / last6.length > 0.5) {
+    scaffold = Math.max(scaffold, 3); // al op het laagste niveau: wel extra hulp
   }
-  return { ...s, level, mastery: Math.round(mastery * 10) / 10, level_attempts, attempts: s.attempts + 1, correct: s.correct + (correct ? 1 : 0), event };
+  if (correct && !helped && scaffold > 0) scaffold -= 1;
+  return { ...s, level, mastery, recent: newRecent, scaffold, attempts: s.attempts + 1, correct: s.correct + (correct ? 1 : 0), event };
 }
 
-export async function saveSkill(s) {
-  await q(`INSERT INTO skills(cat, level, mastery, level_attempts, attempts, correct, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6, now())
-           ON CONFLICT (cat) DO UPDATE SET level=$2, mastery=$3, level_attempts=$4, attempts=$5, correct=$6, updated_at=now()`,
-  [s.cat, s.level, s.mastery, s.level_attempts, s.attempts, s.correct]);
+export async function saveSkill(s, client = { query: q }) {
+  await client.query(`INSERT INTO skills(cat, level, mastery, recent, scaffold, guided_wins, solo_bonus, transition_seen, attempts, correct, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+      ON CONFLICT (cat) DO UPDATE SET level=$2, mastery=$3, recent=$4, scaffold=$5, guided_wins=$6, solo_bonus=$7, transition_seen=$8, attempts=$9, correct=$10, updated_at=now()`,
+  [s.cat, s.level, s.mastery, JSON.stringify(s.recent || []), s.scaffold || 0, s.guided_wins || 0, s.solo_bonus || 0, !!s.transition_seen, s.attempts || 0, s.correct || 0]);
 }
 
-// ---------- intake ----------
-// 13 categorieën × 3 niveaus = 39 sommen. Eerst alle makkelijke, dan 1F, dan 1S.
-export function buildIntake() {
-  const out = [];
-  for (const level of [1, 2, 3]) out.push(...shuffle(CAT_IDS).map((cat) => generate(cat, level)));
-  return out;
+// ---------- adaptieve starttoets ----------
+// Per onderdeel 3 sommen: begin op basis; goed → moeilijker, fout → makkelijker.
+// Zo krijgt hij geen 1S-sommen als basis nog niet lukt.
+export function intakePlan() {
+  return [0, 1, 2].flatMap(() => shuffle(CAT_IDS));
 }
-
-// Startniveau per categorie uit de intake-resultaten.
-export function skillFromIntake(cat, byLevel) {
-  const [c1, c2, c3] = [1, 2, 3].map((l) => byLevel[l]);
+export function intakeLevel(history) {
+  // history: [{level, correct}] voor dit onderdeel in de starttoets
+  if (!history.length) return 1;
+  const last = history.at(-1);
+  if (last.correct) return Math.min(3, last.level + 1);
+  return Math.max(0, last.level - 1);
+}
+export function skillFromIntake(cat, history) {
+  // hoogste niveau dat goed ging, en of het daarboven fout ging
+  const ok = history.filter((h) => h.correct).map((h) => h.level);
+  const bad = history.filter((h) => !h.correct).map((h) => h.level);
+  const best = ok.length ? Math.max(...ok) : -1;
   let level, mastery;
-  if (c1 && c2 && c3) { level = 3; mastery = 70; }
-  else if (c1 && c2) { level = 2; mastery = 55; }
-  else if (c1) { level = 1; mastery = 60; }
-  else if (c2 || c3) { level = 1; mastery = 45; }
-  else { level = 1; mastery = 20; }
-  return { cat, level, mastery, level_attempts: 0, attempts: 3, correct: [c1, c2, c3].filter(Boolean).length };
+  if (best === -1) { level = 0; mastery = 25; }
+  else if (best === 3) { level = 3; mastery = 70; }
+  else if (bad.some((l) => l === best + 1)) { level = best; mastery = 60; }
+  else { level = best; mastery = 50; }
+  if (bad.some((l) => l <= best)) mastery -= 15; // wisselvallig
+  return { ...DEFAULT_SKILL(cat), level, mastery, attempts: history.length, correct: ok.length };
 }
 
-// ---------- probleemcategorieën ----------
-// "Blijft hij slecht gaan": score laag én geen vooruitgang over 3 oefendagen,
-// of de laatste 8 pogingen bijna allemaal fout.
+// ---------- probleemonderdelen ----------
 export async function getStruggling(skills) {
   const out = [];
   for (const s of skills) {
-    const score = skillScore(s);
-    if (score >= 50) continue;
+    if (skillScore(s) >= 50) continue;
     const snaps = (await q('SELECT score FROM skill_snapshots WHERE cat=$1 ORDER BY day DESC LIMIT 4', [s.cat])).rows.map((r) => r.score);
     const recent = (await q('SELECT correct FROM attempts WHERE cat=$1 ORDER BY id DESC LIMIT 8', [s.cat])).rows;
     const stuck = snaps.length >= 4 && snaps[0] - snaps[3] < 5;
     const failing = recent.length >= 8 && recent.filter((r) => r.correct).length <= 3;
-    if (stuck || failing) out.push(s.cat);
+    if (stuck || failing || s.scaffold > 0) out.push(s.cat);
   }
   return out;
 }
@@ -88,13 +105,11 @@ export async function getStruggling(skills) {
 export async function snapshotSkills() {
   const day = todayNL();
   for (const s of await getSkills()) {
-    await q(`INSERT INTO skill_snapshots(day, cat, score) VALUES ($1,$2,$3)
-             ON CONFLICT (day, cat) DO UPDATE SET score = $3`, [day, s.cat, skillScore(s)]);
+    await q(`INSERT INTO skill_snapshots(day, cat, score) VALUES ($1,$2,$3) ON CONFLICT (day, cat) DO UPDATE SET score = $3`, [day, s.cat, skillScore(s)]);
   }
 }
 
 // ---------- verdeling van de dagelijkse sommen ----------
-// Zwakke categorieën krijgen meer sommen; sterke krijgen er minder (soms 0, ter onderhoud af en toe 1).
 export function allocate(skills, n, struggling = []) {
   const weights = skills.map((s) => {
     const score = skillScore(s);
@@ -104,18 +119,12 @@ export function allocate(skills, n, struggling = []) {
   });
   const sum = weights.reduce((a, b) => a + b.w, 0);
   const CAP = Math.max(3, Math.ceil(n * 0.3));
-  let alloc = weights.map((x) => ({ ...x, n: Math.min(CAP, Math.floor((n * x.w) / sum)), rem: ((n * x.w) / sum) % 1 }));
+  const alloc = weights.map((x) => ({ ...x, n: Math.min(CAP, Math.floor((n * x.w) / sum)), rem: ((n * x.w) / sum) % 1 }));
   let left = n - alloc.reduce((a, b) => a + b.n, 0);
-  // restplekken: eerst grootste rest, dan zwakste categorie
   const order = [...alloc].sort((a, b) => b.rem - a.rem || a.score - b.score);
-  let guard = 0;
-  while (left > 0 && guard++ < 500) {
-    for (const x of order) {
-      if (left <= 0) break;
-      if (x.n < CAP) { x.n++; left--; }
-    }
+  for (let guard = 0; left > 0 && guard < 500; guard++) {
+    for (const x of order) { if (left <= 0) break; if (x.n < CAP) { x.n++; left--; } }
   }
-  // onderhoud: zorg dat minstens 2 sterke categorieën af en toe langskomen
   const zero = alloc.filter((x) => x.n === 0);
   if (zero.length && n >= 10) {
     for (const z of shuffle(zero).slice(0, 2)) {
@@ -126,33 +135,136 @@ export function allocate(skills, n, struggling = []) {
   return Object.fromEntries(alloc.filter((x) => x.n > 0).map((x) => [x.cat, x.n]));
 }
 
-// Sommen maken op het niveau van elke categorie, door elkaar (interleaving),
-// en beginnen met een sterke categorie voor een goed gevoel.
-export function buildSession(skills, alloc) {
+// Volgorde van onderdelen: door elkaar, beginnen met een sterk onderdeel.
+export function buildPlan(skills, alloc) {
   const byCat = Object.fromEntries(skills.map((s) => [s.cat, s]));
-  const buckets = Object.entries(alloc).map(([cat, k]) => {
-    const s = byCat[cat];
-    return Array.from({ length: k }, (_, i) => {
-      // bij een zwakke categorie op niveau >1 af en toe een opstapje van een niveau lager
-      const lvl = s.level > 1 && skillScore(s) < 45 && i % 3 === 0 ? s.level - 1 : s.level;
-      return generate(cat, lvl);
-    });
-  });
-  buckets.sort((a, b) => skillScore(byCat[b[0].cat]) - skillScore(byCat[a[0].cat]));
+  const buckets = Object.entries(alloc).map(([cat, k]) => Array(k).fill(cat));
+  buckets.sort((a, b) => skillScore(byCat[b[0]]) - skillScore(byCat[a[0]]));
   const first = buckets[0].shift();
   const rest = [];
   const pool = shuffle(buckets.filter((b) => b.length));
-  let last = first.cat;
+  let last = first;
   while (pool.some((b) => b.length)) {
     pool.sort((a, b) => b.length - a.length);
-    const b = pool.find((x) => x.length && x[0].cat !== last) || pool.find((x) => x.length);
-    const item = b.shift();
-    rest.push(item);
-    last = item.cat;
+    const b = pool.find((x) => x.length && x[0] !== last) || pool.find((x) => x.length);
+    last = b.shift();
+    rest.push(last);
   }
   return [first, ...rest];
 }
 
-export function catMeta(cat) {
-  return CATEGORIES.find((c) => c.id === cat);
+// ---------- de volgende som kiezen (live bijsturen) ----------
+// state: { easy, streak, wrongStreak, retry: {cat, level} | null }
+export function nextQuestion(session, skills) {
+  const i = session.questions.length;
+  const byCat = Object.fromEntries(skills.map((s) => [s.cat, s]));
+  const st = session.state || {};
+
+  if (session.kind === 'intake') {
+    const cat = session.plan[i];
+    const history = session.questions.map((qq, k) => ({ cat: qq.cat, level: qq.level, correct: session.results[k]?.correct })).filter((h) => h.cat === cat);
+    const qq = generate(cat, intakeLevel(history));
+    qq.noHelp = true; // starttoets: eerlijk meten, geen tussenstappen
+    return qq;
+  }
+
+  const strongest = [...skills].sort((a, b) => skillScore(b) - skillScore(a))[0];
+  const done = session.results.length;
+  const rate = done ? session.results.filter((r) => r.correct).length / done : 1;
+  let qq;
+
+  if (st.retry) {
+    // herkansing: zelfde soort som, nieuwe getallen, samen stap voor stap
+    qq = generate(st.retry.cat, st.retry.level);
+    qq.retry = true;
+    qq.suggestGuide = true;
+  } else if (st.wrongStreak === 2 || (i === session.total - 1 && rate < 0.6 && done > 3)) {
+    // twee keer fout op rij, of laatste som van een zware sessie: iets wat zeker lukt
+    qq = generate(strongest.cat, Math.max(0, strongest.level - 1));
+    qq.booster = true;
+  } else {
+    // planwijzer: herkansingen en opstekers schuiven het plan op, ze slaan niets over
+    const p = st.planIdx || 0;
+    const cat = session.plan[p] || session.plan[p % session.plan.length] || strongest.cat;
+    const s = byCat[cat];
+    let level = s.level;
+    let suggest = (s.scaffold || 0) > 0;
+    if (st.easy && level > 0) { level -= 1; suggest = true; }
+    qq = generate(cat, level);
+    qq.suggestGuide = suggest && qq.guide.length > 0;
+    qq.fromPlan = true;
+  }
+  return qq;
 }
+
+// Werk de sessie-toestand bij na een antwoord.
+export function updateState(session, qq, correct) {
+  const st = { streak: 0, wrongStreak: 0, easy: false, retry: null, ...(session.state || {}) };
+  st.streak = correct ? st.streak + 1 : 0;
+  st.wrongStreak = correct ? 0 : st.wrongStreak + 1;
+  st.best = Math.max(st.best || 0, st.streak);
+  // herkansing alleen na een fout, niet na een mislukte herkansing en niet in de starttoets
+  st.retry = !correct && !qq.retry && !qq.booster && session.kind !== 'intake' && qq.guide.length ? { cat: qq.cat, level: qq.level } : null;
+  if (qq.fromPlan) st.planIdx = (st.planIdx || 0) + 1;
+  // "rustig aan"-modus: laatste 4 antwoorden minder dan de helft goed
+  const last = [...session.results.slice(-3).map((r) => r.correct), correct];
+  const wasEasy = st.easy;
+  if (last.length >= 4) st.easy = last.filter(Boolean).length < 2;
+  if (wasEasy && st.streak >= 3) st.easy = false;
+  st.easyChanged = st.easy !== wasEasy ? (st.easy ? 'on' : 'off') : null;
+  return st;
+}
+
+// ---------- beloning per som ----------
+// Basis = max centen / aantal sommen. Tussenstappen: eerste 5 keer (per onderdeel) gewoon,
+// daarna de helft. Kiest hij daarna "helemaal zelf": 5 keer dubbel, daarna gewoon.
+export function rewardFor(qq, skill, correct) {
+  if (!correct) return { mult: 0, kind: 'none' };
+  if (qq.guided) {
+    if ((skill.guided_wins || 0) < FREE_GUIDED) return { mult: 1, kind: 'guided-free' };
+    return { mult: 0.5, kind: 'guided-half' };
+  }
+  if (qq.chose === 'solo' && (skill.solo_bonus || 0) < SOLO_BONUS) return { mult: 2, kind: 'solo-double' };
+  return { mult: 1, kind: 'normal' };
+}
+
+// Wat er rond een som te kiezen valt (voor de client).
+export function helpOffer(qq, skill) {
+  if (qq.noHelp || !qq.guide?.length) return { mode: 'none' };
+  const free = (skill.guided_wins || 0) < FREE_GUIDED;
+  const bonusLeft = Math.max(0, SOLO_BONUS - (skill.solo_bonus || 0));
+  if (qq.suggestGuide && free) return { mode: 'auto', freeLeft: FREE_GUIDED - (skill.guided_wins || 0) };
+  if (qq.suggestGuide && !free) return { mode: 'choose', bonusLeft, transition: !skill.transition_seen };
+  return { mode: 'optional', free, freeLeft: Math.max(0, FREE_GUIDED - (skill.guided_wins || 0)) };
+}
+
+// ---------- badges ----------
+export const BADGES = {
+  start: { icon: '🚀', title: 'Gestart!', text: 'Je hebt de starttoets gedaan.' },
+  dag1: { icon: '✏️', title: 'Eerste dagtaak', text: 'Je eerste dagtaak is af.' },
+  reeks3: { icon: '🔥', title: '3 dagen op rij', text: 'Drie schooldagen achter elkaar geoefend.' },
+  reeks5: { icon: '🔥', title: 'Hele week!', text: 'Vijf schooldagen op rij.' },
+  reeks10: { icon: '🌋', title: '10 dagen op rij', text: 'Twee weken volgehouden!' },
+  rij5: { icon: '⚡', title: '5 op rij', text: 'Vijf sommen achter elkaar goed.' },
+  rij10: { icon: '⚡⚡', title: '10 op rij', text: 'Tien sommen achter elkaar goed!' },
+  omhoog: { icon: '⬆️', title: 'Niveau omhoog', text: 'Je bent bij een onderdeel een niveau gestegen.' },
+  opstap: { icon: '🪜', title: 'Opstap gehaald', text: 'Van opstap naar basis: knap doorgezet!' },
+  sterk: { icon: '💪', title: 'Sterk!', text: 'Een onderdeel staat op "Sterk".' },
+  comeback: { icon: '🦸', title: 'Comeback', text: 'Eerst fout, daarna de herkansing goed.' },
+  zelf: { icon: '🎯', title: 'Zelf gedaan', text: 'Je koos "helemaal zelf" en had het goed.' },
+  perfect: { icon: '🏆', title: 'Foutloos', text: 'Een hele dagtaak zonder fouten.' },
+  record: { icon: '📈', title: 'Nieuw record', text: 'Meer sommen goed dan ooit in een dagtaak.' },
+  doorzetter: { icon: '🧗', title: 'Doorzetter', text: 'Een lastige dag, maar je hebt hem afgemaakt.' },
+  stappen: { icon: '🪄', title: 'Stappenmeester', text: '10 sommen goed met tussenstappen.' },
+};
+export async function awardBadge(id, client = { query: q }) {
+  if (!BADGES[id]) return null;
+  const r = await client.query('INSERT INTO badges(id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING id', [id]);
+  return r.rowCount ? { id, ...BADGES[id] } : null;
+}
+export async function getBadges() {
+  const got = Object.fromEntries((await q('SELECT id, earned_at FROM badges')).rows.map((r) => [r.id, r.earned_at]));
+  return Object.entries(BADGES).map(([id, b]) => ({ id, ...b, earned: !!got[id], earned_at: got[id] || null }));
+}
+
+export const catLabel = (cat) => catById[cat]?.label || cat;
