@@ -1,7 +1,9 @@
+import '../src/env.js';
 // Controle: genereer veel sommen per categorie/niveau en kijk of alles klopt,
 // inclusief de invulbare tussenstappen. Start met: npm test
-import { CATEGORIES, LEVELS, generate, checkAnswer } from '../src/generators.js';
-import { fracStr, hhmm } from '../src/util.js';
+import { CATEGORIES, LEVELS, generate, checkAnswer, hintsFor } from '../src/generators.js';
+import { fracStr, hhmm, fmt } from '../src/util.js';
+import { intakePlan } from '../src/engine.js';
 
 const N = Number(process.argv[2] || 1500);
 let fails = 0;
@@ -31,6 +33,17 @@ for (const { id } of CATEGORIES) {
       if (!q.steps?.length) bad(q, 'geen stappen');
       const texts2 = [...q.steps, q.text, ...(q.options || []), q.guideFinal || '', ...q.guide.flatMap((g) => [g.ask, g.tip, ...(g.options || [])])];
       if (texts2.some((t) => decimalDot.test(t))) bad(q, 'punt als decimaalteken: ' + texts2.join(' | '));
+      // hints mogen het eindantwoord nooit verklappen
+      if (q.type === 'number' || q.type === 'fraction' || q.type === 'time') {
+        const ans = q.type === 'number' ? fmt(q.answer) : q.type === 'fraction' ? fracStr(q.answer) : hhmm(q.answer);
+        const esc = ans.replace(/[.*+?^${}()|[\]\/]/g, '\\$&');
+        const re = new RegExp('(^|[^\\d,/:])' + esc + '($|[^\\d,/:])');
+        const stepHints = hintsFor(q).slice(1); // [0] is de algemene aanpak
+        // een hint mag nooit een uitkomst tonen ("= 287"), alleen een vraag ("= ?")
+        if (stepHints.some((h) => /=\s*[−\d€]/.test(h) && !/\?\s*=/.test(h))) bad(q, 'hint toont een uitkomst: ' + stepHints.join(' | '));
+        // en het eindantwoord mag er niet in staan, tenzij het al in de som zelf staat of een getal is om mee te rekenen
+        if (!re.test(q.text) && stepHints.some((h) => re.test(h.replace(/[^=]*$/, '')) && !/= \?$/.test(h))) bad(q, `hint bevat eindantwoord ${ans}: ` + stepHints.join(' | '));
+      }
       if (q.guide.length) {
         withGuide++;
         if (!q.guideFinal) bad(q, 'tussenstappen zonder slotzin');

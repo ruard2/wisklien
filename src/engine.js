@@ -64,8 +64,11 @@ export async function saveSkill(s, client = { query: q }) {
 // ---------- adaptieve starttoets ----------
 // Per onderdeel 3 sommen: begin op basis; goed → moeilijker, fout → makkelijker.
 // Zo krijgt hij geen 1S-sommen als basis nog niet lukt.
+export const INTAKE_MAX = 40;
 export function intakePlan() {
-  return [0, 1, 2].flatMap(() => shuffle(CAT_IDS));
+  // ronde 1 en 2: alle onderdelen; ronde 3 vult aan tot maximaal 40 sommen
+  const r3 = shuffle(CAT_IDS).slice(0, Math.max(0, INTAKE_MAX - 2 * CAT_IDS.length));
+  return [...shuffle(CAT_IDS), ...shuffle(CAT_IDS), ...r3];
 }
 export function intakeLevel(history) {
   // history: [{level, correct}] voor dit onderdeel in de starttoets

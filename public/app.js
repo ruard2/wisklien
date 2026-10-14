@@ -73,7 +73,8 @@ const TIPS = {
   metriek: 'Gebruik de trap: km – hm – dam – m – dm – cm – mm. Elke stap omlaag × 10. Bij m² × 100, bij m³ × 1000. 1 liter = 1 dm³.',
   oppervlakte: 'Omtrek = rondom (optellen). Oppervlakte = lengte × breedte (m²). Inhoud = lengte × breedte × hoogte (m³ of liter).',
   tijd: '1 uur = 60 minuten. Tel eerst door naar een heel uur. Snelheid: km per uur. In een half uur ga je de helft zo ver.',
-  grafieken: 'Lees eerst de titel en wat er op de assen staat. Gemiddelde = alles optellen en delen door hoeveel getallen het zijn.',
+  grafieken: 'Lees eerst de titel en wat er op de assen staat. Gemiddelde = alles optellen en delen door hoeveel getallen het zijn. Getallenrij: kijk wat er steeds bij komt of keer gaat. Combinaties: keer elkaar (3 shirts × 4 broeken = 12).',
+  meetkunde: 'Een rechte hoek is 90°, een kwartslag ook. Driehoek: hoeken samen 180°, vierhoek 360°. Kompas rechtsom: noord – oost – zuid – west ("Nooit Oost Zonder Wafels").',
 };
 
 // Groei-mindset: prijs de aanpak en de inzet, niet "slim zijn".
@@ -149,7 +150,7 @@ async function renderHome() {
     main = `<div class="card hero stack">
       <div class="big-emoji">🚀</div>
       <div><div class="task-title">Starttoets</div>
-      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : 'Eerst kijken wat je al kunt. 39 sommen uit alle onderdelen. Gaat het goed, dan worden ze moeilijker; gaat het fout, dan makkelijker. Je kunt tussendoor stoppen.'}</p></div>
+      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : 'Eerst kijken wat je al kunt. 40 sommen uit alle onderdelen. Gaat het goed, dan worden ze moeilijker; gaat het fout, dan makkelijker. Je kunt tussendoor stoppen.'}</p></div>
       <div class="row"><span class="chip coin">🪙 tot ${s.points.intake} cent</span></div>
       <button class="btn light block" data-start="intake">${s.intakeActive ? 'Verder met de starttoets' : 'Start de starttoets'}</button>
       <p class="small muted">Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.</p></div>`;
@@ -343,6 +344,7 @@ async function openSession(id) {
   STATE ||= await api('/api/state');
   const data = SESSION_CACHE?.id === Number(id) ? SESSION_CACHE : await api(`/api/session/${id}`);
   SESSION_CACHE = null;
+  if (data.status === 'stopped') { location.hash = '#/'; return; }
   S = { data, cur: data.current, input: '', choice: null, stepInput: '', stepChoice: null, phase: 'ask', t0: Date.now(), chat: [], last: null, badges: [], stepMsg: null };
   if (!data.current) return renderSummary({ kind: data.kind, correct: data.correct, total: data.total, points: Math.round(data.points), maxPoints: data.maxPoints });
   startQuestion();
@@ -501,7 +503,7 @@ function helpRow() {
     const cost = S.data.maxPoints ? (o.free ? '' : ' (½ centen)') : '';
     btns.push(`<button class="btn ghost" data-guide>🪜 Samen stap voor stap${cost}</button>`);
   }
-  if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false ? 'disabled' : ''}>💡 ${(c.hints || []).length ? 'Nog een hint' : 'Hint'}</button>`);
+  if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false || (c.hints || []).length >= (c.hintCount || 99) ? 'disabled' : ''}>💡 ${(c.hints || []).length ? 'Nog een hint' : 'Hint'}</button>`);
   if (STATE?.ai && !q.noHelp) btns.push('<button class="btn ghost" data-ask>🧑‍🏫 Rekenmaatje</button>');
   btns.push('<button class="btn ghost" data-dunno>🤷 Weet ik niet</button>');
   return `<div class="help-row">${btns.join('')}</div>`;

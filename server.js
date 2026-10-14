@@ -2,7 +2,7 @@ import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
 import { q, one, migrate, getSetting, setSetting, pool } from './src/db.js';
-import { checkAnswer, publicQuestion, publicStep, CATEGORIES, catById, LEVEL_NAMES } from './src/generators.js';
+import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES } from './src/generators.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, skillFromIntake, getStruggling, snapshotSkills,
@@ -118,7 +118,8 @@ function currentPayload(s, skills) {
     guideDone: (qq.guideDone || []),
     guideStep: qq.guided && qq.guideStep < qq.guide.length ? publicStep(qq.guide[qq.guideStep]) : null,
     guideFinal: qq.guided && qq.guideStep >= qq.guide.length ? qq.guideFinal : null,
-    hints: (qq.steps || []).slice(0, qq.hints || 0),
+    hints: hintsFor(qq).slice(0, qq.hints || 0),
+    hintCount: hintsFor(qq).length,
     base: s.max_points / s.total,
   };
 }
@@ -263,11 +264,11 @@ app.post('/api/session/:id/hint', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const { s, qq } = await lockCurrent(c, req.params.id, req.body.index);
     if (!qq || qq.noHelp) return { error: 'Geen hint mogelijk.' };
-    const used = qq.hints || 0, usable = Math.max(0, qq.steps.length - 1);
-    if (used >= usable) return { hint: null, more: false, hints: qq.steps.slice(0, used) };
+    const all = hintsFor(qq), used = qq.hints || 0;
+    if (used >= all.length) return { hint: null, more: false, hints: all.slice(0, used) };
     qq.hints = used + 1;
     await c.query('UPDATE sessions SET questions=$2 WHERE id=$1', [s.id, JSON.stringify(s.questions)]);
-    return { hint: qq.steps[used], hints: qq.steps.slice(0, used + 1), more: used + 1 < usable };
+    return { hint: all[used], hints: all.slice(0, used + 1), more: used + 1 < all.length };
   });
   if (out.error) return res.status(400).json(out);
   res.json(out);

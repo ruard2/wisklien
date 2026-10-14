@@ -56,10 +56,10 @@ await api('/api/parent/reset', { what: 'all', confirm: 'RESET' });
 // ---- Starttoets: adaptief ----
 const intake = await play('intake', (i, cur, full) => (full.level >= 2 ? 'bad' : 'good'));
 const lv = intake.log.map((l) => l.full.level);
-assert(intake.log.length === 39, `starttoets 39 sommen (${intake.log.length})`);
+assert(intake.log.length === 40, `starttoets 40 sommen (${intake.log.length})`);
 assert(!lv.includes(3), 'starttoets: na fout op 1F geen 1S-sommen');
 assert(intake.log.every((l) => l.cur.offer.mode === 'none'), 'starttoets: geen tussenstappen (eerlijk meten)');
-assert(intake.last.summary.points === Math.round(intake.last.summary.correct * 100 / 39), `starttoets ${intake.last.summary.points} cent voor ${intake.last.summary.correct} goed`);
+assert(intake.last.summary.points === Math.round(intake.last.summary.correct * 100 / 40), `starttoets ${intake.last.summary.points} cent voor ${intake.last.summary.correct} goed`);
 let st = await api('/api/state');
 assert(st.skills.every((s) => s.level === 1), `iedereen op basis na "1F fout" (${st.skills.map((s) => s.levelName).join(',')})`);
 assert(st.badges.find((b) => b.id === 'start').earned, 'badge starttoets');
