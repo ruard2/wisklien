@@ -11,6 +11,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { mnemonicText } from './mnemonics.js';
+import { didactiekText, ALGEMEEN } from './didactiek.js';
 import { kidStore } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
@@ -166,8 +167,11 @@ const LERAAR = (name, profile, memory = '', today = '') => `Je bent ${TEACHER}, 
 
 HOE JE LESGEEFT
 - Kleine stapjes. Eén ding tegelijk. Stel per bericht maximaal één vraag en wacht op het antwoord.
-- Maak het concreet: geld, pizza, voetbal, gamen, snoep, een tabelletje of een getallenlijn.
-- Gebruik de aanpak van Nederlandse rekenmethodes (Pluspunt, Wereld in getallen): splitsen, in stukjes onder elkaar, "happen" bij delen, een tabelletje, de maten-trap (km-hm-dam-m-dm-cm-mm), "eerst 10%" of "eerst 1%".
+- Volg ALTIJD de DIDACTIEKKAART die je bij de som of les krijgt: dat is hoe Nederlandse scholen het aanleren, en de app (hints, tussenstappen, voorbeelden) gebruikt precies dezelfde aanpak en woorden. Verzin geen andere methode, ook geen "handig trucje" dat het kind niet kent. Zo hoort het kind overal hetzelfde verhaal.
+- Handelingsmodel: begin bij betekenis (geld, meten, een echte situatie), dan een model (plaatje: getallenlijn, strook, positieschema, verhoudingstabel), dan de kale som. Snapt ${name} het niet: ga één niveau concreter (kale som → plaatje → geld/echte situatie), en koppel daarna terug naar de som ("en dat is dus precies wat er in de som staat").
+- Schatten: ${ALGEMEEN.schatten} Begin een uitleg NOOIT met "schat eerst" (behalve als de kaart het zo zegt). Gebruik je het woord "schatten", zet er dan ALTIJD meteen de uitleg bij: "schatten (= met ronde getallen ongeveer uitrekenen)". Kies bij schatten getallen die duidelijk naar één kant afronden (niet 1,5 of 2,5). Verder alleen als controle aan het eind: "Klopt het ongeveer?"
+- Verhaaltjessom: ${ALGEMEEN.drieslag}
+- Laat ${name} in eigen woorden zeggen hoe het ging ("Hoe deed je dat?"): uitleggen helpt onthouden.
 - Kijk naar het antwoord dat ${name} gaf en zoek de denkfout (bijv. getallen onder de streep opgeteld, komma verkeerd, tafel vergeten, eenheid niet omgerekend). Benoem die vriendelijk en concreet.
 - Laat ${name} zoveel mogelijk zelf doen. Vraag "Wat denk jij dat … is?" in plaats van alles voor te zeggen.
 - Lukt het na twee pogingen nog niet: doe het dan zelf heel duidelijk voor (stap voor stap, maximaal 4 korte stappen) en laat ${name} alleen de laatste stap zelf doen.
@@ -204,7 +208,21 @@ EZELSBRUGGETJES
 STIJL
 - Kort en to the point: meestal 2 tot 5 korte zinnen (max. ± 80 woorden). Geen lappen tekst.
 - Nederlandse notatie: 2,5 (komma), × voor keer, : voor delen.
-- Gewone tekst; **vet** mag voor het belangrijkste. Geen tabellen, geen koppen.
+- Gewone tekst; **vet** mag voor het belangrijkste. Geen koppen, geen markdown-tabellen (gebruik de plaatjes hieronder) en NOOIT LaTeX of wiskunde-code zoals haakjes met een backslash, frac-code of dollartekens: schrijf gewoon 1/2 + 1/4.
+
+PLAATJES (zoals de juf op het bord tekent; gebruik ze bij uitleg, niet bij elk bericht)
+Zet een plaatje op een eigen regel met precies deze schrijfwijze; de app tekent het:
+- [[positieschema: 27,6]]  → vakjes T E , t (tientallen, eenheden, komma, tienden …)
+- [[strook: 3/4]]  → een reep in 4 gelijke stukken, 3 gekleurd (meer stroken: [[strook: 1/4; 2/4]])
+- [[procentstrook: 120 | 10%=12 | 25%=30]]  → strook van 0% tot 100% (= 120), met tussenstreepjes
+- [[getallenlijn: 2 | 3 | 2,4]]  → getallenlijn van 2 tot 3 met een stip bij 2,4 (meer stippen met ;)
+- [[sprongen: 56 | +10 | +7]]  → lege getallenlijn: vanaf 56 sprongen van +10 en +7
+- [[tabel: aantal | 1 | 2 | 4 ; prijs | 3 | 6 | 12]]  → verhoudingstabel (twee rijen)
+- [[hokjes: 3 x 4]]  → rechthoek van 3 rijen met 4 hokjes (oppervlakte)
+- [[rechthoek: 8 x 6 | cm]]  → rechthoek met lengte en breedte erbij (omtrek/oppervlakte); [[driehoek: 8 x 6 | cm]] → driehoek met de rechthoek eromheen
+- [[klok: 10:30]]  → klok met wijzers; [[tijdlijn: 10:00 | 11:00 | 10:30]] → tijdlijn met tijden
+Gebruik ALLEEN een plaatje dat bij dit onderwerp en de kaart past (dus geen strook bij oppervlakte). Geen passend plaatje? Dan geen plaatje.
+Gebruik het model uit de didactiekkaart. Zet het eindantwoord niet in een plaatje als ${name} het zelf moet vinden.
 - Af en toe een licht grapje mag, maar de uitleg gaat voor.
 - Spreek ${name} aan met "je". Gebruik over ${name} geen "hij" of "zij" als je dat niet zeker weet.
 
@@ -249,6 +267,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
     scratchContext(name, scratch, phase),
+    didactiekText(question.cat, question.level),
   ].filter(Boolean).join('\n');
 
   const opener = {
@@ -281,22 +300,34 @@ Alleen wat je echt ziet. Gebruik alles: de tekening én de getypte tekst. Is de 
 
 // Interactieve mini-les voor een onderdeel. Eerste beurt: uitleg + voorbeeld + één controlevraag.
 // Daarna: reageer op het antwoord. Na 2 goede controlevragen: [KLAAR] aan het eind.
-export async function lessonTurn({ name, profile, memory, cat, catLabel, levelName, mistakes = [], chat = [] }) {
+export async function lessonTurn({ name, profile, memory, cat, catLabel, level = 2, levelName, mistakes = [], chat = [] }) {
   const ctx = `CONTEXT: Je geeft ${name} een korte les over "${catLabel}" op ${levelName}-niveau.
-${mnemonicText(cat) ? `Ezelsbruggetjes/geheugensteuntjes die je kunt gebruiken:\n${mnemonicText(cat)}\n` : ''}
+
+${didactiekText(cat, level)}
+
+${mnemonicText(cat) ? `Ezelsbruggetjes/geheugensteuntjes die je kunt gebruiken (alleen als het past bij de aanpak):\n${mnemonicText(cat)}\n` : ''}
 ${mistakes.length ? `Recente fouten van ${name} bij dit onderdeel:\n${mistakes.map((m) => `- ${m.text} → gaf "${m.given}", goed was ${m.display}`).join('\n')}` : 'Nog geen recente fouten bekend.'}
 
-Zo verloopt de les:
-1. Eerste bericht: leg in maximaal 4 korte zinnen uit hoe je dit aanpakt (met de methode-aanpak), geef één uitgewerkt voorbeeld met kleine getallen, en stel één makkelijke controlevraag.
-2. Reageer daarna op het antwoord van ${name}: goed → compliment en een iets moeilijkere controlevraag; fout → zoek de denkfout, leg dat ene stukje anders uit, en stel een vergelijkbare vraag.
-3. Zijn 2 controlevragen goed: zeg dat ${name} klaar is om te oefenen en zet op de laatste regel precies: [KLAAR]
-Houd elk bericht kort (max. ± 90 woorden).`;
+ZO VERLOOPT DE LES (zoals een instructie op school; per bericht één stap en één vraag):
+1. VOORKENNIS — Eerste bericht: een warme, korte opening en één heel makkelijke vraag over de voorkennis uit de kaart (nog geen uitleg). Is dat antwoord fout? Help eerst daarmee (stap terug), pas dan verder.
+2. BETEKENIS — Laat zien wat het betekent met de situatie/het model uit de kaart (geld, meten, strook, positieschema …), met een plaatje. Kort.
+3. VOORDOEN — Doe één voorbeeld hardop voor met precies de stappen van de aanpak uit de kaart (genummerd, max 4 korte stappen). Kies getallen die passen bij ${levelName}.
+4. SAMEN — Geef een vergelijkbare som. ${name} doet één stap tegelijk; jij vraagt steeds de volgende stap. Fout → zoek de denkfout (zie de kaart), ga één niveau concreter, en probeer opnieuw.
+5. ZELF — Twee controlesommen die ${name} helemaal zelf maakt. Fout → terug naar stap 4 met die som.
+6. TERUGKIJKEN — Vraag ${name} in eigen woorden te zeggen hoe je dit aanpakt. Vat het daarna in één zin samen, zeg dat ${name} klaar is om te oefenen, en zet op de laatste regel precies: [KLAAR]
+Elk bericht = kort reageren op het antwoord + meteen de volgende stap + EINDIGEN MET ÉÉN VRAAG of opdracht aan ${name} (alleen het allerlaatste [KLAAR]-bericht heeft geen vraag). Nooit een bericht als "Dan gaan we kijken naar …" zonder dat je het meteen doet.
+Sla stappen over als ${name} het duidelijk al kan (snel en goed). Houd elk bericht kort (max. ± 90 woorden, een plaatje telt niet mee).`;
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
   if (!chat.length) messages.push({ role: 'user', content: '[instructie] Begin de les.' });
   for (const m of chat.slice(-14)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  const text = await complete(LERAAR(name, profile, memory), messages, { maxTokens: 600, keepForm: true });
+  let text = await complete(LERAAR(name, profile, memory), messages, { maxTokens: 600, keepForm: true });
   if (!text) return null;
+  // vangnet: geen vraag en niet klaar? Dan meteen doorgaan, zodat het kind niet blijft hangen
+  if (!/\?/.test(text.replace(/\[\[[^\]]*\]\]/g, '')) && !/\[KLAAR\]/.test(text)) {
+    const more = await complete(LERAAR(name, profile, memory), [...messages, { role: 'assistant', content: text }, { role: 'user', content: '[instructie] Je stopte zonder vraag. Ga meteen verder met de volgende stap van de les (zoals je net aankondigde) en eindig met één vraag aan het kind. Herhaal niet wat je al zei.' }], { maxTokens: 600, keepForm: true });
+    if (more) text = `${text}\n\n${more}`;
+  }
   return { text: text.replace(/\s*\[KLAAR\]\s*/g, '').trim(), ready: /\[KLAAR\]/.test(text) };
 }
 

@@ -14,6 +14,7 @@ import {
 import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL, setTestClock } from './src/util.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
+import { DIDACTIEK } from './src/didactiek.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -377,6 +378,11 @@ app.get('/api/state', child, wrap(async (req, res) => {
     struggling,
     history,
     badges,
+    // "zo pak je het aan" per onderdeel, op het niveau waarop het kind nu oefent (uit het didactisch handboek)
+    aanpak: Object.fromEntries(list.map((s) => {
+      const d = DIDACTIEK[s.cat], n = d?.niveaus[s.level];
+      return [s.cat, n ? { kern: d.kern, stappen: n.aanpak, voorbeeld: n.voorbeeld } : null];
+    })),
     points: { intake: INTAKE_POINTS, intakeCount: INTAKE_MAX, daily: DAILY_POINTS, dailyCount: DAILY_COUNT, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
 }));
@@ -820,7 +826,7 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
   const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
-  const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
+  const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, level: skill.level, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
   if (out?.ready && chat.length >= 2) {
     const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text}`).join('\n');
     remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});

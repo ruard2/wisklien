@@ -191,6 +191,17 @@ p { margin: 0; }
 .choice.sel { border-color: var(--primary); background: var(--primary-soft); }
 .help-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .hints { margin-top: 12px; display: grid; gap: 8px; }
+/* rekenmodellen in de uitleg van Max */
+.model { margin: 8px 0; background: var(--card); border-radius: 12px; padding: 8px; overflow-x: auto; }
+.m-svg { display: block; width: 100%; max-width: 360px; }
+.m-t { font-size: 13px; font-weight: 800; fill: var(--ink); }
+.m-t.muted { fill: var(--muted); }
+.m-pos, .m-tab { border-collapse: collapse; margin: 2px auto; font-weight: 900; }
+.m-pos th, .m-pos td, .m-tab th, .m-tab td { border: 2px solid var(--primary-soft); padding: 4px 10px; text-align: center; min-width: 30px; }
+.m-pos th, .m-tab th { color: var(--muted); font-size: 13px; }
+.m-pos td { font-size: 20px; }
+.m-pos td.komma { border: none; font-size: 24px; color: var(--primary); min-width: 10px; padding: 4px 2px; }
+.m-leg { font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px; }
 /* overzicht ouder/leerkracht */
 .ov-list { margin: 6px 0 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .ov-levels td { padding: 4px 6px; }

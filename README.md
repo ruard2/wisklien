@@ -82,6 +82,26 @@ npm run dev               # terminal 2: http://localhost:3000
 4. Railway start met `npm start`. Er is geen build-stap nodig (de frontend is gewoon `public/`).
 5. Op de telefoon: open de URL → iPhone: Safari → Deel → *Zet op beginscherm*; Android: Chrome → *App installeren*.
 
+## Didactiek: één aanpak, zoals op Nederlandse scholen
+`src/didactiek.js` is het didactisch handboek en de enige bron voor hoe iets wordt uitgelegd. Hints, tussenstappen,
+voorbeelden, "Zo doe je het" en Meester Max volgen allemaal dezelfde aanpak en dezelfde woorden.
+
+- **Bronnen**: TAL-leerlijnen/SLO-tussendoelen (Freudenthal Instituut), het handelingsmodel en de drieslag uit het
+  Protocol ERWD (Van Groenestijn e.a., 2011), de UU-kwaliteitskaarten breuken en procenten, directe instructie (IGDI).
+- **Per onderwerp**: kern (wat moet het kind snappen), voorkennis, modellen, schoolwoorden met uitleg, per groep-niveau
+  (5 t/m 8) één vaste aanpak in stappen + voorbeeld, typische fouten met wat helpt, controle, en wat je níet doet.
+- **Handelingsmodel**: eerst betekenis (geld, meten), dan een model (getallenlijn, strook, positieschema,
+  verhoudingstabel), dan de kale som. Lukt het niet: één niveau concreter, daarna terugkoppelen naar de som.
+- **Schatten** (= met ronde getallen ongeveer uitrekenen) is een controle achteraf, nooit een onuitgelegde eerste stap.
+  Alleen bij kommagetal × kommagetal (groep 8) om de komma te plaatsen, en dan altijd uitgelegd en met keuzes.
+- **Procenten** via de ankers 50% / 25% / 10% / 5% en de strook; de 1%-regel pas als het niet anders kan.
+- **Kommagetallen** via geld en het positieschema: 27,6 : 6 = € 27,60 eerlijk verdelen (eerst euro's, dan centen);
+  × 10 = het getal wordt 10 keer zo groot (elk cijfer schuift één plek).
+- **Lessen van Max** volgen een instructie zoals op school: voorkennis → betekenis (met plaatje) → voordoen →
+  samen → zelf → in eigen woorden terugzeggen. Elk bericht eindigt met één vraag.
+- **Plaatjes in de uitleg**: Max kan tekenen zoals de juf op het bord — positieschema, strook, procentenstrook,
+  getallenlijn, sprongen, verhoudingstabel, hokjes, rechthoek/driehoek, klok en tijdlijn.
+
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).
 - **Na een fout** kijkt Max wat er misging en begint een gesprekje: één vraag tegelijk, het kind doet zoveel mogelijk zelf, na twee pogingen doet hij het voor.

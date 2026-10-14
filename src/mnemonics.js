@@ -31,8 +31,9 @@ export const MNEMONICS = {
   ],
   kommagetallen: [
     { soort: 'steun', kort: 'Komma onder komma, net als bij geld', uitleg: '3,5 is hetzelfde als 3,50 (3 euro 50). Vul aan met een 0.' },
-    { soort: 'steun', kort: 'Keer 10: komma één stap naar rechts. Delen door 10: naar links', uitleg: '2,45 × 100 = 245 (2 stappen naar rechts).' },
-    { soort: 'steun', kort: 'Eerst schatten, dan de komma zetten', uitleg: '2,9 × 8,1 is ongeveer 3 × 8 = 24, dus 23,49 en niet 2,349.' },
+    { soort: 'steun', kort: 'Keer 10 = 10 keer zo groot: elk cijfer schuift één plek op (het lijkt of de komma naar rechts gaat)', uitleg: '2,45 × 100 = 245. Met geld: 100 keer € 2,45 = € 245.' },
+    { soort: 'steun', kort: 'Delen met een komma? Denk aan geld eerlijk verdelen', uitleg: '27,6 : 6 = € 27,60 over 6: eerst € 24 : 6 = € 4, dan 360 cent : 6 = 60 cent. Samen € 4,60.' },
+    { soort: 'steun', kort: 'Groep 8, kommagetal keer kommagetal: schat met ronde getallen waar de komma moet', uitleg: 'Schatten = ongeveer uitrekenen met ronde getallen. 2,9 × 8,1 is ongeveer 3 × 8 = 24. 29 × 81 = 2349, dus 23,49 (dat ligt bij 24), niet 2,349.' },
   ],
   getalbegrip: [
     { soort: 'steun', kort: '0 t/m 4: laten liggen. 5 t/m 9: naar boven', uitleg: 'Kijk naar het cijfer rechts van de plek waarop je afrondt.' },

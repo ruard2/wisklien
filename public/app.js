@@ -5,7 +5,7 @@ const $toast = document.getElementById('toast');
 
 // ---------- hulpjes ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const rich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const rich = (s) => withModels(esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'));
 const euro = (cents) => '€ ' + (cents / 100).toFixed(2).replace('.', ',');
 const cents = (c) => (Math.round(c * 10) / 10).toString().replace('.', ',') + ' cent';
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -65,6 +65,7 @@ const ORD = { 2: 'halve', 3: 'derde', 4: 'vierde', 5: 'vijfde', 6: 'zesde', 7: '
 const UNIT = { km: 'kilometer', m: 'meter', dm: 'decimeter', cm: 'centimeter', mm: 'millimeter' };
 function speakable(t) {
   return String(t)
+    .replace(/\[\[[^\]]*\]\]/g, ' ')
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
     .replace(/\*\*/g, '')
     .replace(/(\d{1,2}):(\d{2})/g, (m, h, mi) => `${h} uur ${mi === '00' ? '' : mi}`)
@@ -132,22 +133,17 @@ async function api(path, body) {
 }
 
 // Korte vaste uitleg per onderdeel (werkt ook zonder AI)
-const TIPS = {
-  optellen: 'Splits het tweede getal: 486 + 37 = 486 + 30 + 7. Bij aftrekken mag je ook "rijgen": 7203 − 2648 = 7203 − 2000 − 600 − 40 − 8.',
-  vermenigvuldigen: 'Splits het lastige getal: 24 × 36 = 20 × 36 + 4 × 36 = 720 + 144 = 864. Tafel vergeten? 7 × 8 = 5 × 8 + 2 × 8 = 40 + 16.',
-  delen: 'Kolomsgewijs delen = happen. Haal steeds een grote hap eraf: 864 : 6 → 100 × 6 = 600, 40 × 6 = 240, 4 × 6 = 24. Samen 144.',
-  kommagetallen: 'Zet de komma\'s onder elkaar en vul aan met nullen: 3,5 = 3,50. Bij × en : eerst schatten, dan zonder komma rekenen, dan de komma terugzetten.',
-  getalbegrip: 'Afronden: kijk naar het cijfer rechts van de plek waarop je afrondt. 5 of meer = omhoog. Kommagetallen vergelijken: maak ze even lang (0,4 = 0,400).',
-  breuken: 'Noemer = in hoeveel stukken, teller = hoeveel stukken je hebt. Gelijknamig maken: 1/3 + 1/4 = 4/12 + 3/12 = 7/12. "3/4 van 20": eerst 1/4 = 5, dan × 3 = 15.',
-  procenten: 'Begin met 10% (deel door 10) of 1% (deel door 100). 15% = 10% + 5%. 25% = 1/4, 50% = 1/2, 20% = 1/5.',
-  verhoudingen: 'Maak een verhoudingstabel. Ga eerst naar 1 (per stuk, per persoon), dan naar wat gevraagd wordt.',
-  schaal: '1 : 25 000 betekent: 1 cm op de kaart is 25 000 cm echt. Van cm naar m: : 100. Van m naar km: : 1000.',
-  metriek: 'Gebruik de trap: km – hm – dam – m – dm – cm – mm. Elke stap omlaag × 10. Bij m² × 100, bij m³ × 1000. 1 liter = 1 dm³.',
-  oppervlakte: 'Omtrek = rondom (optellen). Oppervlakte = lengte × breedte (m²). Inhoud = lengte × breedte × hoogte (m³ of liter).',
-  tijd: '1 uur = 60 minuten. Tel eerst door naar een heel uur. Snelheid: km per uur. In een half uur ga je de helft zo ver.',
-  grafieken: 'Lees eerst de titel en wat er op de assen staat. Gemiddelde = alles optellen en delen door hoeveel getallen het zijn. Getallenrij: kijk wat er steeds bij komt of keer gaat. Combinaties: keer elkaar (3 shirts × 4 broeken = 12).',
-  meetkunde: 'Een rechte hoek is 90°, een kwartslag ook. Driehoek: hoeken samen 180°, vierhoek 360°. Kompas rechtsom: noord – oost – zuid – west ("Nooit Oost Zonder Wafels").',
-};
+// "Zo pak je het aan": uit het didactisch handboek (server), op het niveau waarop het kind nu oefent.
+// Overal dezelfde aanpak als in de hints, tussenstappen en bij Max.
+function tipText(cat) {
+  const a = STATE?.aanpak?.[cat];
+  return a ? `${a.stappen.join(' ')} Bijvoorbeeld: ${a.voorbeeld}` : '';
+}
+function tipHTML(cat) {
+  const a = STATE?.aanpak?.[cat];
+  if (!a) return '';
+  return `<p class="small muted" style="margin-top:4px">${esc(a.kern)}</p><ol class="steps" style="margin-top:6px">${a.stappen.map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="small" style="margin-top:6px"><b>Voorbeeld:</b> ${esc(a.voorbeeld)}</p>`;
+}
 
 // Groei-mindset: prijs de aanpak en de inzet, niet "slim zijn".
 const PRAISE = {
@@ -241,6 +237,117 @@ async function renderOverview() {
   </div>`;
   $app.querySelectorAll('[data-open]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.open) }); location.hash = '#/ouder'; }));
   $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
+}
+
+// ---------- rekenmodellen in de uitleg van Max (zoals de juf op het bord tekent) ----------
+// Max schrijft bijv. [[strook: 3/4]]; dat wordt hier een plaatje. Zelfde modellen als op school.
+const numNL = (x) => parseFloat(String(x).trim().replace(/\s/g, '').replace(',', '.'));
+const fmtNL = (x) => String(Math.round(x * 1000) / 1000).replace('.', ',');
+const MODEL = {
+  positieschema(arg) {
+    const v = String(arg).trim().replace(/\s/g, '');
+    const [heel, dec = ''] = v.split(',');
+    const H = ['E', 'T', 'H', 'D', 'TD', 'HD', 'M'], HN = { E: 'eenheden', T: 'tientallen', H: 'honderdtallen', D: 'duizendtallen', TD: 'tienduizendtallen', HD: 'honderdduizendtallen', M: 'miljoenen' };
+    const D = ['t', 'h', 'd'], DN = { t: 'tienden', h: 'honderdsten', d: 'duizendsten' };
+    const hc = heel.split('').reverse().map((c, i) => [H[i], c]).reverse(), dc = dec.split('').map((c, i) => [D[i], c]);
+    const cols = [...hc, ...(dc.length ? [[',', ',']] : []), ...dc];
+    return `<table class="m-pos"><tr>${cols.map(([k]) => `<th title="${HN[k] || DN[k] || ''}">${k}</th>`).join('')}</tr><tr>${cols.map(([k, c]) => `<td class="${k === ',' ? 'komma' : ''}">${c}</td>`).join('')}</tr></table>
+      <div class="m-leg">${cols.filter(([k]) => k !== ',').map(([k]) => `${k} = ${HN[k] || DN[k]}`).join(' · ')}</div>`;
+  },
+  strook(arg) {
+    return String(arg).split(';').map((f) => {
+      const m = f.trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+      if (!m) return '';
+      const k = +m[1], n = +m[2];
+      if (!n || n > 24) return '';
+      const W = 300, w = W / n, rows = Math.max(1, Math.ceil(k / n));
+      let out = '';
+      for (let r = 0; r < rows; r++) {
+        out += `<svg viewBox="0 0 ${W + 70} 34" class="m-svg">${Array.from({ length: n }, (_, i) => `<rect x="${i * w + 1}" y="4" width="${w - 2}" height="24" rx="3" fill="${r * n + i < k ? 'var(--primary)' : 'var(--primary-soft)'}"/>`).join('')}<text x="${W + 10}" y="22" class="m-t">${r === rows - 1 ? `${k}/${n}` : ''}</text></svg>`;
+      }
+      return out;
+    }).join('');
+  },
+  procentstrook(arg) {
+    const parts = String(arg).split('|').map((x) => x.trim());
+    const total = parts[0];
+    const marks = parts.slice(1).map((p) => { const m = p.match(/^([\d,]+)\s*%\s*=\s*(.+)$/); return m ? [numNL(m[1]), m[2]] : null; }).filter(Boolean);
+    const W = 300, x = (p) => 20 + (p / 100) * W;
+    return `<svg viewBox="0 0 ${W + 40} 74" class="m-svg"><rect x="20" y="26" width="${W}" height="20" rx="3" fill="var(--primary-soft)" stroke="var(--primary)"/>
+      ${[[0, '0'], [100, total], ...marks].map(([p, a]) => `<line x1="${x(p)}" y1="22" x2="${x(p)}" y2="50" stroke="var(--ink)"/><text x="${x(p)}" y="16" text-anchor="middle" class="m-t">${a}</text><text x="${x(p)}" y="66" text-anchor="middle" class="m-t muted">${fmtNL(p)}%</text>`).join('')}</svg>`;
+  },
+  getallenlijn(arg) {
+    if (/\d:\d\d/.test(arg)) return MODEL.tijdlijn(arg);
+    const [a, b, ms = ''] = String(arg).split('|');
+    const from = numNL(a), to = numNL(b), marks = ms.split(';').map(numNL).filter((v) => !Number.isNaN(v));
+    if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return '';
+    const W = 300, x = (v) => 20 + ((v - from) / (to - from)) * W;
+    const step = (to - from) / 10;
+    return `<svg viewBox="0 0 ${W + 40} 60" class="m-svg"><line x1="20" y1="30" x2="${W + 20}" y2="30" stroke="var(--ink)" stroke-width="2"/>
+      ${Array.from({ length: 11 }, (_, i) => `<line x1="${x(from + i * step)}" y1="${i % 5 ? 25 : 21}" x2="${x(from + i * step)}" y2="${i % 5 ? 35 : 39}" stroke="var(--ink)"/>`).join('')}
+      <text x="20" y="54" text-anchor="middle" class="m-t">${fmtNL(from)}</text><text x="${W + 20}" y="54" text-anchor="middle" class="m-t">${fmtNL(to)}</text>
+      ${marks.map((v) => `<circle cx="${x(v)}" cy="30" r="5" fill="var(--primary)"/><text x="${x(v)}" y="14" text-anchor="middle" class="m-t" fill="var(--primary)">${fmtNL(v)}</text>`).join('')}</svg>`;
+  },
+  sprongen(arg) {
+    const parts = String(arg).split('|').map((x) => x.trim());
+    let cur = numNL(parts[0]);
+    if (Number.isNaN(cur)) return '';
+    const pts = [cur], labels = [];
+    for (const j of parts.slice(1)) { const v = numNL(j.replace('−', '-').replace('+', '')); if (Number.isNaN(v)) continue; cur += v; pts.push(cur); labels.push(j.replace('-', '−')); }
+    const lo = Math.min(...pts), hi = Math.max(...pts), W = 300, x = (v) => 20 + (hi === lo ? 0 : ((v - lo) / (hi - lo)) * W);
+    return `<svg viewBox="0 0 ${W + 40} 80" class="m-svg"><line x1="10" y1="55" x2="${W + 30}" y2="55" stroke="var(--ink)" stroke-width="2"/>
+      ${pts.map((v) => `<line x1="${x(v)}" y1="50" x2="${x(v)}" y2="60" stroke="var(--ink)"/><text x="${x(v)}" y="74" text-anchor="middle" class="m-t">${fmtNL(v)}</text>`).join('')}
+      ${pts.slice(1).map((v, i) => { const x1 = x(pts[i]), x2 = x(v), mx = (x1 + x2) / 2; return `<path d="M${x1},50 Q${mx},12 ${x2},50" fill="none" stroke="var(--primary)" stroke-width="2"/><text x="${mx}" y="22" text-anchor="middle" class="m-t" fill="var(--primary)">${labels[i]}</text>`; }).join('')}</svg>`;
+  },
+  tabel(arg) {
+    const rows = String(arg).split(';').map((r) => r.split('|').map((c) => c.trim()));
+    return `<table class="m-tab">${rows.map((r) => `<tr>${r.map((c, i) => (i === 0 && /[a-z]/i.test(c) ? `<th>${c}</th>` : `<td>${c}</td>`)).join('')}</tr>`).join('')}</table>`;
+  },
+  hokjes(arg) {
+    const m = String(arg).match(/(\d+)\s*[x×]\s*(\d+)/);
+    if (!m) return '';
+    const rows = Math.min(12, +m[1]), cols = Math.min(16, +m[2]), s = Math.min(26, 300 / cols);
+    let cells = '';
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) cells += `<rect x="${2 + x * s}" y="${2 + y * s}" width="${s}" height="${s}" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="1.5"/>`;
+    return `<svg viewBox="0 0 ${cols * s + 4} ${rows * s + 4}" class="m-svg" style="max-width:${cols * s + 4}px">${cells}</svg><div class="m-leg">${rows} rijen van ${cols} hokjes</div>`;
+  },
+  rechthoek(arg, tri = false) {
+    const [dims, unit = ''] = String(arg).split('|').map((x) => x.trim());
+    const m = dims.match(/([\d,]+)\s*[x×]\s*([\d,]+)/);
+    if (!m) return '';
+    const L = numNL(m[1]), B = numNL(m[2]), k = Math.min(220 / L, 110 / B), w = L * k, h = B * k, x0 = 20, y0 = 22;
+    const shape = tri ? `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="var(--ink)" stroke-dasharray="5 4" opacity=".4"/><polygon points="${x0},${y0 + h} ${x0 + w},${y0 + h} ${x0 + w * 0.35},${y0}" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="3"/>`
+      : `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="3" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="3"/>`;
+    return `<svg viewBox="0 0 ${w + 110} ${h + 50}" class="m-svg">${shape}<text x="${x0 + w / 2}" y="${tri ? y0 + h + 18 : 15}" text-anchor="middle" class="m-t">${m[1]} ${unit}</text><text x="${x0 + w + 8}" y="${y0 + h / 2 + 5}" class="m-t">${m[2]} ${unit}</text></svg>`;
+  },
+  driehoek(arg) { return MODEL.rechthoek(arg, true); },
+  klok(arg) {
+    const m = String(arg).match(/(\d{1,2}):(\d{2})/);
+    if (!m) return '';
+    const hh = +m[1] % 12, mm = +m[2], c = 60, r = 52;
+    const hand = (deg, len, wdt) => { const a = (deg - 90) * Math.PI / 180; return `<line x1="${c}" y1="${c}" x2="${c + Math.cos(a) * len}" y2="${c + Math.sin(a) * len}" stroke="var(--ink)" stroke-width="${wdt}" stroke-linecap="round"/>`; };
+    const ticks = Array.from({ length: 12 }, (_, i) => { const a = (i * 30 - 90) * Math.PI / 180; return `<text x="${c + Math.cos(a) * 42}" y="${c + Math.sin(a) * 42 + 4}" text-anchor="middle" class="m-t" style="font-size:10px">${i || 12}</text>`; }).join('');
+    return `<svg viewBox="0 0 120 120" class="m-svg" style="max-width:130px;margin:0 auto"><circle cx="${c}" cy="${c}" r="${r}" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="3"/>${ticks}${hand(hh * 30 + mm / 2, 26, 4)}${hand(mm * 6, 40, 2.5)}<circle cx="${c}" cy="${c}" r="3" fill="var(--ink)"/></svg><div class="m-leg">${m[1]}:${m[2]}</div>`;
+  },
+  tijdlijn(arg) {
+    const toMin = (t) => { const m = String(t).trim().match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : NaN; };
+    const lab = (v) => `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
+    const [a, b, ms = ''] = String(arg).split('|');
+    const from = toMin(a), to = toMin(b), marks = ms.split(';').map(toMin).filter((v) => !Number.isNaN(v));
+    if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return '';
+    const W = 300, x = (v) => 20 + ((v - from) / (to - from)) * W;
+    return `<svg viewBox="0 0 ${W + 40} 60" class="m-svg"><line x1="20" y1="30" x2="${W + 20}" y2="30" stroke="var(--ink)" stroke-width="2"/>
+      <text x="20" y="54" text-anchor="middle" class="m-t">${lab(from)}</text><text x="${W + 20}" y="54" text-anchor="middle" class="m-t">${lab(to)}</text>
+      <line x1="20" y1="22" x2="20" y2="38" stroke="var(--ink)"/><line x1="${W + 20}" y1="22" x2="${W + 20}" y2="38" stroke="var(--ink)"/>
+      ${marks.map((v) => `<circle cx="${x(v)}" cy="30" r="5" fill="var(--primary)"/><text x="${x(v)}" y="14" text-anchor="middle" class="m-t" fill="var(--primary)">${lab(v)}</text>`).join('')}</svg>`;
+  },
+};
+// tekst van Max → HTML met plaatjes (de tekst is al ge-escaped)
+function withModels(html) {
+  html = html.replace(/\\[()[\]]/g, '').replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1/$2').replace(/\\(times|cdot)/g, '×').replace(/\\div/g, ':');
+  return html.replace(/\[\[(\w+)\s*:\s*([^\]]+)\]\]/g, (m, kind, arg) => {
+    try { const out = MODEL[kind.toLowerCase()]?.(arg); return out ? `<div class="model">${out}</div>` : ''; } catch { return ''; }
+  });
 }
 
 // ---------- wie ben jij? (profielen, alleen een naam) ----------
@@ -442,7 +549,7 @@ async function showCoach(cat, intro = '') {
   const L = { chat: [], busy: false, ready: false };
   sheet(`<div class="row between"><h2>${meta?.icon || ''} ${esc(meta?.label || '')}</h2><button class="btn ghost" data-close>Sluit</button></div>
     ${intro ? `<p>${intro}</p>` : ''}
-    ${STATE.ai ? '<div id="lesson"></div>' : `<div class="card flat"><b>Zo pak je het aan</b><p style="margin-top:4px">${esc(TIPS[cat] || '')}</p></div>`}
+    ${STATE.ai ? '<div id="lesson"></div>' : `<div class="card flat"><b>Zo pak je het aan</b>${tipHTML(cat)}</div>`}
     <div id="lesson-end">${!STATE.ai ? (inSession ? '<button class="btn block" data-close>Begrepen, verder!</button>' : '<button class="btn block" data-practice>Oefen dit onderdeel</button>') : ''}</div>`,
   (bg, close) => {
     const box = bg.querySelector('#lesson');
@@ -474,7 +581,7 @@ async function showCoach(cat, intro = '') {
       try {
         const r = await api('/api/lesson', { cat, chat: L.chat });
         if (r.reply) { L.chat.push({ role: 'teacher', text: r.reply }); L.ready = r.ready; }
-        else L.chat.push({ role: 'teacher', text: r.reason || TIPS[cat] });
+        else L.chat.push({ role: 'teacher', text: r.reason || tipText(cat) });
       } catch (e) { L.chat.push({ role: 'teacher', text: e.message }); }
       L.busy = false; draw();
     };
@@ -554,7 +661,7 @@ async function renderCategory(cat) {
     <div class="card stack"><div class="row"><span class="big-emoji">${x.icon}</span><div><h2>${esc(x.label)}</h2><p class="muted small">${x.domain} · niveau ${x.levelName}</p></div></div>
     <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
     <p class="small muted">${x.correct} van de ${x.attempts} sommen goed${x.trend ? ` · deze week ${x.trend > 0 ? '+' : ''}${x.trend}` : ''}</p></div>
-    <div class="card flat"><b>Zo doe je het</b><p style="margin-top:4px">${esc(TIPS[cat])}</p></div>
+    <div class="card flat"><b>Zo doe je het</b>${tipHTML(cat)}</div>
     ${(STATE.mnemonics?.[cat] || []).length ? `<div class="card flat"><b>🧠 Onthoud-trucs</b>${STATE.mnemonics[cat].map((m) => `<div class="trick"><b>${esc(m.kort)}</b>${m.soort === 'ezelsbrug' ? ' <span class="chip coin">ezelsbruggetje</span>' : ''}<div class="small muted">${esc(m.uitleg)}</div></div>`).join('')}</div>` : ''}
     <button class="btn block" data-start="practice" data-cat="${cat}">Oefen dit (20 sommen, zonder centen)</button>
     ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 Korte les van ${esc(STATE.teacher)}</button>` : ''}

@@ -16,6 +16,7 @@
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
+import { DIDACTIEK, hintAanpak } from './didactiek.js';
 
 export const LEVELS = [0, 1, 2, 3];
 // Niveaus als groep: groep 7 bevat de meeste 1F-stof (breuken, procenten, schaal),
@@ -382,12 +383,20 @@ const kommagetallen = {
       const m = pick([10, 100, 1000]), z = String(m).length - 1;
       if (Math.random() < 0.5) {
         const a = rnd(1001, 9999) / 1000;
-        return { ...num(`${fmt(a)} × ${fmt(m)} =`, a * m, [`Bij × ${m} schuift de komma ${z} plaats(en) naar rechts.`, `${fmt(a)} → ${fmt(a * m)}`]),
-          guide: [st(`Hoeveel plaatsen schuift de komma bij × ${fmt(m)}?`, z, `Tel de nullen van ${fmt(m)}.`)], guideFinal: `Schuif de komma ${z} plaats${z > 1 ? 'en' : ''} naar rechts` };
+        return { ...num(`${fmt(a)} × ${fmt(m)} =`, a * m, [
+          `× ${fmt(m)} betekent: het getal wordt ${fmt(m)} keer zo groot.`,
+          `In het positieschema schuift elk cijfer ${z} plek${z > 1 ? 'ken' : ''} op naar de grotere kant (links). Het lijkt alsof de komma ${z} plek${z > 1 ? 'ken' : ''} naar rechts gaat.`,
+          `${fmt(a)} wordt ${fmt(a * m)}.`]),
+          guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken schuiven de cijfers op)`, z, `Tel de nullen van ${fmt(m)}.`)],
+          guideFinal: `Het getal wordt ${fmt(m)} keer zo groot: elk cijfer schuift ${z} plek${z > 1 ? 'ken' : ''} naar links (de komma ${z} naar rechts)` };
       }
       const b = rnd(12, 980);
-      return { ...num(`${b} : ${m} =`, b / m, [`Bij : ${m} schuift de komma ${z} plaats(en) naar links.`, `${b} → ${fmt(b / m)}`]),
-        guide: [st(`Hoeveel plaatsen schuift de komma bij : ${fmt(m)}?`, z, `Tel de nullen van ${fmt(m)}.`)], guideFinal: `Schuif de komma ${z} plaats${z > 1 ? 'en' : ''} naar links (${b} = ${b},0)` };
+      return { ...num(`${b} : ${m} =`, b / m, [
+        `: ${fmt(m)} betekent: het getal wordt ${fmt(m)} keer zo klein.`,
+        `In het positieschema schuift elk cijfer ${z} plek${z > 1 ? 'ken' : ''} op naar de kleinere kant (rechts). Het lijkt alsof de komma ${z} plek${z > 1 ? 'ken' : ''} naar links gaat (${b} = ${b},0).`,
+        `${b} wordt ${fmt(b / m)}.`]),
+        guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken schuiven de cijfers op)`, z, `Tel de nullen van ${fmt(m)}.`)],
+        guideFinal: `Het getal wordt ${fmt(m)} keer zo klein: elk cijfer schuift ${z} plek${z > 1 ? 'ken' : ''} naar rechts (de komma ${z} naar links)` };
     }
     if (t === 'geld') {
       const p = rnd(115, 495) / 100, k = rnd(3, 8), item = pick(['pakken melk', 'schriften', 'broodjes', 'tijdschriften']), h = Math.floor(p);
@@ -396,41 +405,51 @@ const kommagetallen = {
       guide: [st(`Eerst de hele euro's: ${k} × ${h} = ?`, k * h, 'Tafelsom.'), st(`Dan de centen: ${k} × ${Math.round((p - h) * 100)} cent = ? cent`, k * Math.round((p - h) * 100), 'Reken met hele centen.', { unit: 'cent' })],
       guideFinal: `Samen: € ${k * h} + ${k * Math.round((p - h) * 100)} cent` };
     }
+    // eerlijk verdelen met geld: eerst de hele euro's, dan de centen (zo leren scholen het)
     const d = rnd(3, 8);
     let qi; do { qi = rnd(12, 95); } while (qi % 10 === 0);
-    const q = qi / 10, big = qi * d;
-    return { ...num(`${fmt(q * d)} : ${d} =`, q, [
-      `Doe even alsof de komma er niet is: ${fmt(q * d)} wordt ${big}.`,
-      `Reken: ${big} : ${d} = ${qi}.`,
-      `Maar ${big} is 10 keer zo groot als ${fmt(q * d)}. Dus jouw antwoord is ook 10 keer te groot. Maak het 10 keer kleiner: ${qi} wordt ${fmt(q)} (de komma gaat 1 plekje naar links).`,
-      `Controle: ${d} × ${fmt(q)} = ${fmt(q * d)}. Klopt!`]),
-    guide: [st(`Doe alsof de komma er niet is. ${big} : ${d} = ?`, qi, `Gebruik de tafel van ${d}. Hoe vaak past ${d} in ${big}?`)],
-    guideFinal: `Je rekende met een getal dat 10 keer te groot was. Maak je antwoord 10 keer kleiner: zet een komma vóór het laatste cijfer` };
+    const q = qi / 10, total = round(q * d, 2), heel = Math.floor(q), h = heel * d, restC = Math.round((total - h) * 100);
+    return { ...num(`${fmt(total)} : ${d} =`, q, [
+      `Denk aan geld: € ${fmt(total, 2)} eerlijk verdelen over ${d} personen.`,
+      `Eerst de hele euro's: € ${h} : ${d} = € ${heel} per persoon.`,
+      `Er blijft € ${fmt(total - h, 2)} over. Dat is ${restC} cent. ${restC} cent : ${d} = ${restC / d} cent per persoon.`,
+      `Samen: € ${heel} en ${restC / d} cent = € ${fmt(q, 2)}. Als kommagetal: ${fmt(q)}.`,
+      `Controle: ${d} × € ${fmt(q, 2)} = € ${fmt(total, 2)}. Klopt!`]),
+    guide: [st(`Denk aan geld: € ${fmt(total, 2)} eerlijk verdelen over ${d} personen. Eerst de hele euro's: ${h} : ${d} = ?`, heel, `Een som uit de tafel van ${d}.`, { unit: 'euro' }),
+      st(`Er blijft € ${fmt(total - h, 2)} over. Hoeveel cent is dat?`, restC, '1 euro is 100 cent.', { unit: 'cent' }),
+      st(`${restC} cent : ${d} = ? cent`, restC / d, `Een som uit de tafel van ${d}.`, { unit: 'cent' })],
+    guideFinal: `Iedereen krijgt € ${heel} en ${restC / d} cent. Schrijf dat als kommagetal (euro's vóór de komma)` };
   },
   3() {
     if (Math.random() < 0.5) {
-      let ai, bi; do { ai = rnd(15, 95); bi = rnd(12, 49); } while (ai % 10 === 0 || bi % 10 === 0);
+      // geen getallen die op ,5 eindigen: dan is "ongeveer" verwarrend (2,5 ligt precies tussen 2 en 3)
+      let ai, bi; do { ai = rnd(15, 95); bi = rnd(12, 49); } while ([0, 5].includes(ai % 10) || [0, 5].includes(bi % 10));
       const a = ai / 10, b = bi / 10, raw = ai * bi, prod = raw / 100;
+      const ra = Math.round(a), rb = Math.round(b), est = ra * rb;
+      const opts = shuffle([fmt(raw / 1000), fmt(prod), fmt(raw / 10)]);
       return { ...num(`${fmt(a)} × ${fmt(b)} =`, prod, [
-        `Doe even alsof er geen komma's zijn: ${ai} × ${bi} = ${raw}.`,
-        `Tel hoeveel cijfers er áchter de komma staan in de som: ${fmt(a)} heeft er 1, ${fmt(b)} heeft er 1. Samen 2.`,
-        `Dan krijgt het antwoord ook 2 cijfers achter de komma: ${raw} wordt ${fmt(prod, 2)}${raw % 10 === 0 ? ` (= ${fmt(prod)})` : ''}.`,
-        `Controle: ${fmt(a)} is ongeveer ${Math.round(a)} en ${fmt(b)} is ongeveer ${Math.round(b)}. ${Math.round(a)} × ${Math.round(b)} = ${Math.round(a) * Math.round(b)}. Dat ligt dicht bij ${fmt(prod)}, dus het klopt.`]),
-      guide: [st(`Doe alsof er geen komma's zijn: ${ai} × ${bi} = ?`, raw, `Splits: ${ai} × ${bi - (bi % 10)} en ${ai} × ${bi % 10}, en tel ze op.`),
-        st(`Hoeveel cijfers staan er samen áchter de komma in ${fmt(a)} en ${fmt(b)}?`, 2, 'Tel bij allebei de getallen de cijfers na de komma.')],
-      guideFinal: `Zet de komma in ${raw} zo dat er 2 cijfers áchter de komma staan` };
+        `Schat eerst. Schatten = met makkelijke, ronde getallen ongeveer uitrekenen: ${fmt(a)} is ongeveer ${ra}, ${fmt(b)} is ongeveer ${rb}. ${ra} × ${rb} = ${est}. Het antwoord is dus ongeveer ${est}.`,
+        `Reken nu precies, zonder komma's: ${ai} × ${bi} = ${raw} (splitsen: ${ai} × ${bi - (bi % 10)} = ${ai * (bi - (bi % 10))} en ${ai} × ${bi % 10} = ${ai * (bi % 10)}).`,
+        `Waar komt de komma? Kies uit ${opts.join(' / ')}: alleen ${fmt(prod)} ligt in de buurt van ${est}.`]),
+      guide: [st(`Schat eerst (met ronde getallen ongeveer uitrekenen): ${fmt(a)} is ongeveer ${ra}, ${fmt(b)} is ongeveer ${rb}. ${ra} × ${rb} = ?`, est, 'Reken met de ronde getallen.'),
+        st(`Reken zonder komma's: ${ai} × ${bi} = ?`, raw, `Splits: ${ai} × ${bi - (bi % 10)} en ${ai} × ${bi % 10}, en tel ze op.`),
+        stC(`Waar moet de komma in ${raw}? Welke ligt in de buurt van ${est}?`, opts, opts.indexOf(fmt(prod)), `Je schatting was ongeveer ${est}.`)],
+      guideFinal: 'Schrijf het antwoord op dat bij je schatting past' };
     }
-    let di, qi; do { di = rnd(12, 79); qi = rnd(12, 59); } while (di % 10 === 0 || qi % 10 === 0);
-    const d = di / 10, q = qi / 10, a = round(d * q, 2), a10 = round(a * 10, 1), qh = Math.floor(q);
+    let di, qi; do { di = rnd(12, 39); qi = rnd(12, 59); } while (di % 10 === 0 || qi % 10 === 0);
+    const d = di / 10, q = qi / 10, a = round(d * q, 2), a10 = round(a * 10, 1), t = Math.round(a10 * 10);
+    const hp = happen(t, di);
     return { ...num(`${fmt(a)} : ${fmt(d)} =`, q, [
-      `Delen door een kommagetal is lastig. Truc: doe beide getallen × 10. Het antwoord blijft dan hetzelfde (net zoals 6 : 2 en 60 : 20 allebei 3 zijn).`,
+      `Delen door een kommagetal is lastig. Maak er een makkelijkere som van: doe beide getallen × 10. Het antwoord blijft hetzelfde (net zoals 6 : 2 en 60 : 20 allebei 3 zijn).`,
       `${fmt(a)} : ${fmt(d)} wordt ${fmt(a10)} : ${di}.`,
-      `Hoe vaak past ${di} in ${fmt(a10)}? ${di} × ${qh} = ${fmt(di * qh)} en ${di} × ${qh + 1} = ${fmt(di * (qh + 1))}. Het antwoord ligt dus tussen ${qh} en ${qh + 1}.`,
-      `Probeer kommagetallen ertussen: ${di} × ${fmt(q)} = ${fmt(a10)}. Gevonden! Het antwoord is ${fmt(q)}.`]),
-    guide: [st(`Maak er een makkelijkere som van. ${fmt(d)} × 10 = ?`, di, 'De komma schuift 1 plekje naar rechts.'),
+      `Reken in tienden: ${fmt(a10)} is ${t} tienden (één hele = 10 tienden). Nu ${t} : ${di}, kolomsgewijs met happen:`,
+      ...hp.steps.slice(1),
+      `Dat zijn ${qi} tienden = ${fmt(q)}.`, `Controle: ${fmt(d)} × ${fmt(q)} = ${fmt(a)}. Klopt!`]),
+    guide: [st(`Maak er een makkelijkere som van. ${fmt(d)} × 10 = ?`, di, 'Het getal wordt 10 keer zo groot (elk cijfer schuift één plek op).'),
       st(`Doe het andere getal ook × 10: ${fmt(a)} × 10 = ?`, a10, 'Allebei × 10, dan blijft het antwoord hetzelfde.'),
-      st(`Hoe vaak past ${di} helemaal in ${fmt(a10)}? (alleen hele keren)`, qh, `Probeer: ${di} × 2, ${di} × 3, ${di} × 4 … Welke komt het dichtst bij, zonder eroverheen te gaan?`)],
-    guideFinal: `Het antwoord ligt tussen ${qh} en ${qh + 1}. Welk kommagetal is het? Controleer: ${di} × jouw antwoord moet ${fmt(a10)} zijn` };
+      st(`Reken in tienden. ${fmt(a10)} is hoeveel tienden?`, t, `${Math.floor(a10)} helen en ${Math.round((a10 % 1) * 10)} tienden. Eén hele = 10 tienden.`),
+      ...hp.guide],
+    guideFinal: `${hp.final}. Dat zijn tienden: schrijf het als kommagetal` };
   },
 };
 
@@ -1109,12 +1128,16 @@ const grafieken = {
     const hoe = { fiets: 'met de fiets', lopen: 'lopend', auto: 'met de auto', bus: 'met de bus' }[names[i]];
     const tien = parts[i] % 10 === 0;
     return { ...num(`Op een school met ${totaal} leerlingen is gevraagd hoe ze naar school komen. Hoeveel leerlingen komen ${hoe}?`, (parts[i] * totaal) / 100,
-      [`In de cirkel zie je: ${names[i]} = ${parts[i]}%.`, ...(tien ? [`10% van ${totaal} = ${totaal / 10}.`, `${parts[i]}% = ${parts[i] / 10} × ${totaal / 10} = ${(parts[i] * totaal) / 100}.`]
-        : [`1% van ${totaal} = ${totaal / 100}.`, `${parts[i]}% = ${parts[i]} × ${totaal / 100} = ${(parts[i] * totaal) / 100}.`])],
+      [`In de cirkel zie je: ${names[i]} = ${parts[i]}%.`,
+        ...(parts[i] === 25 ? [`25% is een kwart: ${totaal} : 4 = ${totaal / 4}.`]
+          : parts[i] === 50 ? [`50% is de helft: ${totaal} : 2 = ${totaal / 2}.`]
+            : [`10% van ${totaal} = ${totaal / 10}.`, ...(parts[i] === 10 ? [] : tien ? [`${parts[i]}% = ${parts[i] / 10} × 10% = ${parts[i] / 10} × ${totaal / 10} = ${(parts[i] * totaal) / 100}.`]
+              : [`5% is de helft van 10%: ${totaal / 20}.`, `${parts[i]}% = ${Math.floor(parts[i] / 10)} × 10% + 5% = ${Math.floor(parts[i] / 10) * (totaal / 10)} + ${totaal / 20} = ${(parts[i] * totaal) / 100}.`])])],
       { visual: { kind: 'pie', labels: names, values: parts } }),
     guide: [st(`Hoeveel procent komt ${hoe}? (kijk in de cirkel)`, parts[i], 'Zoek de kleur van ' + names[i] + '.', { unit: '%' }),
-      tien ? st(`10% van ${totaal} = ?`, totaal / 10, 'Deel door 10.') : st(`1% van ${totaal} = ?`, totaal / 100, 'Deel door 100.')],
-    guideFinal: tien ? `${parts[i]}% is ${parts[i] / 10} keer 10%: ${parts[i] / 10} × ${totaal / 10}` : `${parts[i]}% is ${parts[i]} keer 1%: ${parts[i]} × ${totaal / 100}` };
+      ...(parts[i] === 25 || parts[i] === 50 ? [] : [st(`10% van ${totaal} = ?`, totaal / 10, 'Deel door 10.'), ...(tien ? [] : [st(`5% is de helft van 10%. 5% van ${totaal} = ?`, totaal / 20, 'De helft.')])])],
+    guideFinal: parts[i] === 25 ? `25% is een kwart: ${totaal} : 4` : parts[i] === 50 ? `50% is de helft: ${totaal} : 2` : parts[i] === 10 ? 'Dat is 10%: zoveel leerlingen'
+      : tien ? `${parts[i]}% is ${parts[i] / 10} keer 10%: ${parts[i] / 10} × ${totaal / 10}` : `${parts[i]}% = ${Math.floor(parts[i] / 10)} × 10% + 5%: ${Math.floor(parts[i] / 10)} × ${totaal / 10} + ${totaal / 20}` };
   },
 };
 
@@ -1208,27 +1231,13 @@ const meetkunde = {
 };
 
 // Strategie-tip per onderdeel: de eerste hint, verklapt nooit een uitkomst.
-export const STRATEGY = {
-  optellen: 'Splits het tweede getal in stukjes (honderdtallen, tientallen, eenheden) en reken stap voor stap.',
-  vermenigvuldigen: 'Splits het grootste getal: bijvoorbeeld 24 × 36 = 20 × 36 + 4 × 36.',
-  delen: 'Kolomsgewijs delen: haal steeds een grote "hap" eraf (10 ×, 100 × de deler).',
-  kommagetallen: 'Plus en min: zet de komma\'s precies onder elkaar. Keer en delen: doe eerst alsof de komma er niet is, reken het uit, en zet daarna de komma weer op de goede plek. Controleer met een makkelijk getal in de buurt.',
-  getalbegrip: 'Kijk goed naar de plek van elk cijfer: eenheden, tientallen, honderdtallen, duizendtallen…',
-  breuken: 'Noemer = in hoeveel stukken, teller = hoeveel stukken. Bij + en − eerst gelijknamig maken.',
-  procenten: 'Begin met 10% (deel door 10) of 1% (deel door 100). 25% = 1/4, 50% = 1/2.',
-  verhoudingen: 'Maak een verhoudingstabel en ga eerst naar 1 (per stuk, per persoon).',
-  schaal: 'Reken alles eerst in cm. Daarna: : 100 naar meter, : 1000 naar km.',
-  metriek: 'Gebruik de trap: km – hm – dam – m – dm – cm – mm. Elke stap is × 10 of : 10.',
-  oppervlakte: 'Omtrek = rondom optellen. Oppervlakte = lengte × breedte. Inhoud = lengte × breedte × hoogte.',
-  tijd: '1 uur = 60 minuten. Tel eerst door naar een heel uur.',
-  meetkunde: 'Driehoek samen 180°, vierhoek 360°, kwartslag 90°. Kompas rechtsom: noord – oost – zuid – west.',
-  grafieken: 'Lees eerst de titel en de assen. Bij een rij: kijk wat er steeds bij komt (of keer gaat).',
-};
+// Aanpak per onderwerp en niveau komt uit het didactisch handboek (src/didactiek.js): overal dezelfde aanpak.
+export const STRATEGY = Object.fromEntries(Object.keys(DIDACTIEK).map((c) => [c, hintAanpak(c, 2)]));
 
 // Hints: eerst de aanpak, daarna de tussenstap-vragen (met ?), nooit de uitkomsten.
 export function hintsFor(q) {
   const m = mnemonicsFor(q.cat)[0];
-  return [kid(STRATEGY[q.cat]) + (m ? `\n🧠 ${m.soort === 'ezelsbrug' ? 'Ezelsbruggetje' : 'Onthoud'}: ${m.kort}` : ''), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
+  return [kid(hintAanpak(q.cat, q.level ?? 2)) + (m ? `\n🧠 ${m.soort === 'ezelsbrug' ? 'Ezelsbruggetje' : 'Onthoud'}: ${m.kort}` : ''), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
 }
 
 export const GENERATORS = { optellen, vermenigvuldigen, delen, kommagetallen, getalbegrip, breuken, procenten, verhoudingen, schaal, metriek, oppervlakte, tijd, meetkunde, grafieken };

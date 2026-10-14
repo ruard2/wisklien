@@ -88,14 +88,16 @@ export function misconceptionsFor(q) {
   }
   // --- kommagetallen keer: komma op de verkeerde plek ---
   if ((m = t.match(/^(\d+,\d) × (\d+,\d) =$/))) {
-    out.push(W(round(q.answer * 10), 'De komma staat één plek te ver naar rechts.', 'Schat eerst: rond af op hele getallen. Dan weet je ongeveer hoe groot het antwoord is.'));
-    out.push(W(round(q.answer / 10), 'De komma staat één plek te ver naar links.', 'Schat eerst: rond af op hele getallen. Dan weet je ongeveer hoe groot het antwoord is.'));
+    const ra = Math.round(n(m[1])), rb = Math.round(n(m[2]));
+    const fix = `Schat: reken met ronde getallen ongeveer uit. ${m[1]} is ongeveer ${ra}, ${m[2]} is ongeveer ${rb}, en ${ra} × ${rb} = ${ra * rb}. Zet de komma zo dat je antwoord in de buurt van ${ra * rb} ligt.`;
+    out.push(W(round(q.answer * 10), 'De komma staat één plek te ver naar rechts: je antwoord is 10 keer te groot.', fix));
+    out.push(W(round(q.answer / 10), 'De komma staat één plek te ver naar links: je antwoord is 10 keer te klein.', fix));
   }
   // --- aftrekken onder elkaar: per kolom klein van groot (lenen vergeten) ---
   if ((m = t.match(/^([\d\s ]+) − ([\d\s ]+) =$/))) {
     const a = String(n(m[1])), b = String(n(m[2])).padStart(a.length, '0');
     const digits = a.split('').map((d, i) => Math.abs(+d - +b[i])).join('');
-    if (+digits !== q.answer) out.push(W(+digits, 'Je hebt per plek het kleinste van het grootste afgehaald.', 'Als het bovenste cijfer te klein is, moet je lenen. Of rijg: haal er eerst de duizendtallen af, dan de honderdtallen…'));
+    if (+digits !== q.answer) out.push(W(+digits, 'Je hebt per plek het kleinste van het grootste afgehaald.', 'Haal het getal er in stukken af (rijgen), net als op de getallenlijn: eerst de duizendtallen, dan de honderdtallen, dan de tientallen en de eenheden.'));
   }
   // --- verhoudingen: erbij geteld in plaats van keer ---
   if ((m = t.match(/^(\d+) [a-z ]+ kosten € (\d+)\. Hoeveel kosten (\d+) /))) {
