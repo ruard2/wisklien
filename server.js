@@ -1,7 +1,7 @@
 import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
-import { q, one, migrate, getSetting, setSetting, pool } from './src/db.js';
+import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid } from './src/db.js';
 import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep } from './src/generators.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
@@ -9,14 +9,14 @@ import {
   allocate, buildPlan, nextQuestion, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, explain, coachCard, parentAdvice, teachBack } from './src/ai.js';
+import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const PARENT_PIN = process.env.PARENT_PIN || '1234';
 const APP_PIN = process.env.APP_PIN || '';
-const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 80);
+const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 400);
 const WEEK_BONUS = Number(process.env.WEEK_BONUS ?? 25); // centen als alle 5 dagtaken van een week af zijn
 if (!process.env.PARENT_PIN) console.warn('[let op] PARENT_PIN niet gezet — standaard is 1234');
 
@@ -39,28 +39,46 @@ function hasRole(req, role) {
 function setCookie(res, role, days) {
   const name = role === 'parent' ? 'cp' : 'cc';
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-  res.setHeader('Set-Cookie', `${name}=${encodeURIComponent(makeToken(role, days))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure}`);
+  res.append('Set-Cookie', `${name}=${encodeURIComponent(makeToken(role, days))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure}`);
 }
 const pinOk = (given, real) => {
   const a = Buffer.from(String(given || '')), b = Buffer.from(String(real));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
-const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? next() : res.status(401).json({ error: 'login' }));
-const parent = (req, res, next) => (hasRole(req, 'parent') ? next() : res.status(401).json({ error: 'parent-login' }));
+// ---------- welk kind? (alleen een naam kiezen, geen pincode) ----------
+const cookieOf = (req, name) => Object.fromEntries((req.headers.cookie || '').split(';').map((x) => x.trim().split('=')).filter((x) => x[0]))[name];
+const kidIdOf = (req) => Number(cookieOf(req, 'kid')) || null;
+function setKidCookie(res, id) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.append('Set-Cookie', `kid=${id}; Path=/; SameSite=Lax; Max-Age=${id ? 365 * 86400 : 0}${secure}`);
+}
+// Alles daarna draait in het eigen database-schema van dit kind.
+function withKid(req, res, next) {
+  const id = kidIdOf(req);
+  (id ? getKid(id) : Promise.resolve(null)).then((kid) => {
+    if (!kid) return res.status(401).json({ error: 'kid' });
+    req.kid = kid;
+    kidStore.run({ kid: kid.id }, next);
+  }).catch(next);
+}
+const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
+const parent = (req, res, next) => (hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'parent-login' }));
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e); res.status(500).json({ error: 'Er ging iets mis op de server.' }); });
 
 // ---------- AI-limiet per dag (kostenbewaking) ----------
-const aiUse = { day: '', n: 0 };
+// per kind per dag (kostenbewaking)
+const aiUse = new Map();
 function aiAllowed() {
-  const d = todayNL();
-  if (aiUse.day !== d) { aiUse.day = d; aiUse.n = 0; }
-  if (aiUse.n >= AI_DAILY_LIMIT) return false;
-  aiUse.n++;
+  const key = `${currentKid()}:${todayNL()}`;
+  const n = aiUse.get(key) || 0;
+  if (n >= AI_DAILY_LIMIT) return false;
+  if (aiUse.size > 500) aiUse.clear();
+  aiUse.set(key, n + 1);
   return true;
 }
 
 // ---------- hulpfuncties ----------
-const getName = () => getSetting('name', process.env.CHILD_NAME || 'Christo');
+const getName = async () => (await getKid(currentKid()))?.name || 'Rekenaar';
 const prevDay = (d) => new Date(Date.parse(d + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
 const dowOf = (d) => new Date(d + 'T12:00:00Z').getUTCDay();
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -80,6 +98,51 @@ async function goalInfo(balance) {
   const g = await getSetting('goal', null);
   if (!g) return null;
   return { ...g, reached: balance >= g.cents, left: Math.max(0, g.cents - balance) };
+}
+
+// Leerlingprofiel dat de AI-leraar bijhoudt (denkfouten, wat helpt)
+async function getProfile() { return getSetting('profile', null); }
+async function refreshProfile() {
+  if (!aiEnabled()) return;
+  const rows = (await q(`SELECT cat, level, text, given, display, correct, hints, guided FROM attempts ORDER BY id DESC LIMIT 60`)).rows;
+  if (rows.length < 8) return;
+  const attempts = rows.reverse().map((r) => ({ ...r, label: catById[r.cat]?.label || r.cat, level: LEVEL_NAMES[r.level] }));
+  const updated = await updateProfile({ name: await getName(), oldProfile: profileText(await getProfile()), attempts });
+  if (updated) await setSetting('profile', { ...updated, updated_at: new Date().toISOString() });
+}
+
+// Geheugen van de leraar: korte notities met datum, de nieuwste achteraan
+async function getMemory() { return getSetting('memory', []); }
+async function addMemory(notes) {
+  if (!notes?.length) return;
+  const mem = [...(await getMemory()), ...notes.map((n) => ({ d: todayNL(), n: String(n).slice(0, 200) }))].slice(-60);
+  await setSetting('memory', mem);
+}
+async function memoryText() {
+  const mem = (await getMemory()).slice(-18);
+  const today = todayNL();
+  const ago = (d) => { const n = Math.round((Date.parse(today) - Date.parse(d)) / 864e5); return n <= 0 ? 'vandaag' : n === 1 ? 'gisteren' : `${n} dagen geleden`; };
+  return mem.map((m) => `- (${ago(m.d)}) ${m.n}`).join('\n');
+}
+// Wat er eerder in deze sessie gebeurde (voor de leraar)
+function sessionLog(s, upto) {
+  const lines = [];
+  for (let k = Math.max(0, upto - 8); k < upto; k++) {
+    const x = s.questions[k], r = s.results[k];
+    if (!x || !r) continue;
+    const lastTeacher = (x.chat || []).filter((m) => m.role === 'teacher').at(-1)?.text;
+    lines.push(`${k + 1}. [${catById[x.cat].label}] ${x.text} → "${r.given}" ${r.correct ? 'goed' : 'FOUT (goed: ' + x.display + ')'}${r.guided ? ', met tussenstappen' : ''}${lastTeacher ? ` — jij zei toen: "${lastTeacher.slice(0, 140)}"` : ''}`);
+  }
+  return lines.join('\n');
+}
+// Transcript van een sessie (voor de notities na afloop)
+function sessionTranscript(s) {
+  return s.questions.map((x, k) => {
+    const r = s.results[k];
+    if (!r) return null;
+    const chat = (x.chat || []).map((m) => `   ${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text.slice(0, 220)}`).join('\n');
+    return `[${catById[x.cat].label}, ${LEVEL_NAMES[x.level]}] ${x.text} → "${r.given}" (${r.correct ? 'goed' : 'fout, goed: ' + x.display}${r.guided ? ', met tussenstappen' : ''})${chat ? '\n' + chat : ''}`;
+  }).filter(Boolean).join('\n');
 }
 
 async function wallet() {
@@ -120,6 +183,7 @@ function currentPayload(s, skills) {
     guideFinal: qq.guided && qq.guideStep >= qq.guide.length ? qq.guideFinal : null,
     hints: hintsFor(qq).slice(0, qq.hints || 0),
     hintCount: hintsFor(qq).length,
+    chat: qq.chat || [],
     base: s.max_points / s.total,
   };
 }
@@ -151,13 +215,33 @@ async function skillsView() {
   return { list, struggling, skills };
 }
 
-async function loadSession(id, client = pool) {
+async function loadSession(id, client = { query: q }) {
   return (await client.query('SELECT * FROM sessions WHERE id=$1', [id])).rows[0];
 }
 
 // =====================================================================
 // API kind
 // =====================================================================
+const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐙', '🦄', '🐯', '🐨', '🚀', '⚽', '🎮', '🦖'];
+app.get('/api/kids', wrap(async (req, res) => res.json({ kids: await listKids(), current: kidIdOf(req), avatars: AVATARS })));
+app.post('/api/kids', wrap(async (req, res) => {
+  const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (name.length < 2) return res.status(400).json({ error: 'Hoe heet je? (minstens 2 letters)' });
+  const kids = await listKids();
+  if (kids.length >= 12) return res.status(400).json({ error: 'Er zijn al heel veel profielen.' });
+  if (kids.some((k) => k.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: `Er is al een ${name}. Kies die hierboven!` });
+  const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length]);
+  setKidCookie(res, kid.id);
+  res.json({ kid });
+}));
+app.post('/api/kids/select', wrap(async (req, res) => {
+  const kid = await getKid(req.body.id);
+  if (!kid) return res.status(404).json({ error: 'Dat profiel bestaat niet meer.' });
+  setKidCookie(res, kid.id);
+  res.json({ kid });
+}));
+app.post('/api/kids/leave', (req, res) => { setKidCookie(res, 0); res.json({ ok: true }); });
+
 app.post('/api/login', wrap(async (req, res) => {
   if (!APP_PIN || pinOk(req.body.pin, APP_PIN)) { setCookie(res, 'child', 180); return res.json({ ok: true }); }
   res.status(401).json({ error: 'Verkeerde pincode' });
@@ -176,7 +260,9 @@ app.get('/api/state', child, wrap(async (req, res) => {
   res.json({
     name: await getName(),
     groep: await getSetting('groep', null),
+    kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar },
     ai: aiEnabled(),
+    teacher: TEACHER,
     intakeDone: intake?.status === 'done',
     intakeActive: intake?.status === 'active' ? intake.id : null,
     today: { date: today, weekday: weekdayNL(), schoolDay: isSchoolDay(), daily: daily ? { id: daily.id, status: daily.status, correct: daily.correct, total: daily.total, points: daily.points, answered: daily.results.length } : null },
@@ -249,7 +335,7 @@ async function lockCurrent(client, id, index) {
   return { s, qq: s.questions[s.results.length] };
 }
 async function tx(fn) {
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query('BEGIN');
     const out = await fn(client);
@@ -461,6 +547,13 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       }
     }
   }
+  if (done) {
+    refreshProfile().catch((e) => console.error('[profiel]', e.message));
+    if (aiEnabled()) {
+      const full = await loadSession(s.id);
+      getName().then((name) => remember({ name, transcript: sessionTranscript(full) })).then(addMemory).catch((e) => console.error('[geheugen]', e.message));
+    }
+  }
   // teach-back: af en toe na een goede som (zelf gedaan) vragen om uit te leggen hoe hij het deed
   let teachback = false;
   if (result.correct && !qq.guided && s.kind !== 'intake' && qq.guide.length && !s.state.teachback && s.results.length >= 3 && Math.random() < 0.4) {
@@ -476,18 +569,72 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   });
 }));
 
-// AI: andere uitleg / hint / doorvragen bij een som
-app.post('/api/session/:id/explain', child, wrap(async (req, res) => {
+// De leraar: gesprek bij een som. Het gesprek wordt per som bewaard (ook na herladen).
+// mode: 'start' (gesprek openen na een fout), 'step' (vast bij een tussenstap) of een gewoon bericht.
+app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
   const i = Number(req.body.index);
-  if (!s || !s.questions[i]) return res.status(404).json({ error: 'Niet gevonden' });
-  if (s.kind === 'intake' && !s.results[i]) return res.json({ text: null, reason: 'Tijdens de starttoets helpt Rekenmaatje nog niet. Daarna wel!' });
-  if (!aiEnabled()) return res.json({ text: null, reason: 'Rekenmaatje (AI) staat niet aan.' });
-  if (!aiAllowed()) return res.json({ text: null, reason: 'Rekenmaatje heeft voor vandaag genoeg uitgelegd. Morgen weer!' });
+  const qq = s?.questions[i];
+  if (!qq) return res.status(404).json({ error: 'Niet gevonden' });
+  if (s.kind === 'intake' && !s.results[i]) return res.json({ reply: null, reason: `Tijdens de starttoets helpt ${TEACHER} nog niet: we willen eerst zien wat jij al kunt. Daarna wel! 😉` });
+  if (!aiEnabled()) return res.json({ reply: null, reason: `${TEACHER} (AI) staat nog niet aan. Vraag papa of mama om een OpenAI-sleutel in te stellen.` });
+  if (!aiAllowed()) return res.json({ reply: null, reason: `${TEACHER} heeft vandaag al heel veel uitgelegd. Morgen weer!` });
+
   const r = s.results[i];
-  const chat = Array.isArray(req.body.chat) ? req.body.chat.slice(-6).map((m) => ({ role: m.role === 'ai' ? 'ai' : 'kid', text: String(m.text).slice(0, 400) })) : [];
-  const text = await explain({ question: s.questions[i], answered: !!r, given: r?.given, correct: r?.correct, chat, name: await getName() });
-  res.json({ text, reason: text ? null : 'Rekenmaatje kon nu even niet antwoorden.' });
+  const message = String(req.body.message || '').trim().slice(0, 400);
+  const mode = req.body.mode;
+  qq.chat ||= [];
+  if (mode === 'start' && qq.chat.length) return res.json({ reply: null, chat: qq.chat }); // al gestart
+  let phase = r ? (r.correct ? 'right' : 'wrong') : 'before';
+  let step = null, given = r?.given;
+  if (!r && qq.guided && qq.guideStep < qq.guide.length && (mode === 'step' || qq.stepTries)) {
+    phase = 'step'; step = qq.guide[qq.guideStep]; given = req.body.stepGiven || '';
+  }
+  if (message) qq.chat.push({ role: 'kid', text: message });
+  const reply = await teacherTurn({
+    name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), today: sessionLog(s, i),
+    question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step,
+  });
+  if (reply) qq.chat.push({ role: 'teacher', text: reply, phase });
+  qq.chat = qq.chat.slice(-24);
+  await q('UPDATE sessions SET questions = jsonb_set(questions, $2, $3::jsonb) WHERE id=$1', [s.id, `{${i},chat}`, JSON.stringify(qq.chat)]);
+  res.json({ reply, chat: qq.chat, reason: reply ? null : `${TEACHER} kon nu even niet antwoorden. Probeer het zo nog eens.` });
+}));
+
+// Korte interactieve les van de leraar over een onderdeel (de app bewaart het gesprek)
+app.post('/api/lesson', child, wrap(async (req, res) => {
+  const cat = req.body.cat;
+  if (!catById[cat]) return res.status(404).json({ error: 'Onbekend onderdeel' });
+  if (!aiEnabled()) return res.json({ reply: null });
+  if (!aiAllowed()) return res.json({ reply: null, reason: `${TEACHER} heeft vandaag al heel veel uitgelegd. Morgen weer!` });
+  const chat = (Array.isArray(req.body.chat) ? req.body.chat : []).slice(-14)
+    .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
+  const skill = (await getSkills()).find((x) => x.cat === cat);
+  const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
+  const out = await lessonTurn({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
+  if (out?.ready && chat.length >= 2) {
+    const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text}`).join('\n');
+    remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});
+  }
+  res.json({ reply: out?.text || null, ready: !!out?.ready });
+}));
+
+// Persoonlijk berichtje van de leraar na een sessie (één keer per sessie, daarna bewaard)
+app.post('/api/session/:id/reflect', child, wrap(async (req, res) => {
+  const s = await loadSession(req.params.id);
+  if (!s || s.status !== 'done') return res.status(400).json({ error: 'Sessie is nog niet klaar.' });
+  if (s.state?.reflection) return res.json({ text: s.state.reflection });
+  if (!aiEnabled() || !aiAllowed()) return res.json({ text: null });
+  const per = {};
+  s.questions.forEach((x, k) => { const p = (per[x.cat] ||= { label: catById[x.cat].label, n: 0, ok: 0 }); p.n++; if (s.results[k]?.correct) p.ok++; });
+  const wrong = s.questions.map((x, k) => ({ x, r: s.results[k] })).filter((o) => o.r && !o.r.correct).slice(0, 5);
+  const summary = `Sessie (${s.kind === 'intake' ? 'starttoets' : s.kind === 'daily' ? 'dagtaak' : 'oefenen'}): ${s.correct} van de ${s.total} goed. Langste reeks: ${s.state?.best || 0}.
+Per onderdeel: ${Object.values(per).map((p) => `${p.label} ${p.ok}/${p.n}`).join(', ')}.
+${wrong.length ? `Fouten: ${wrong.map((o) => `${o.x.text} → "${o.r.given}" (goed: ${o.x.display})`).join(' | ')}` : 'Geen fouten!'}
+Herkansingen goed: ${s.results.filter((r) => r.retry && r.correct).length}. Met tussenstappen goed: ${s.results.filter((r) => r.guided && r.correct).length}.`;
+  const text = await reflect({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), summary });
+  if (text) await q(`UPDATE sessions SET state = state || $2::jsonb WHERE id=$1`, [s.id, JSON.stringify({ reflection: text })]);
+  res.json({ text });
 }));
 
 // Spaardoel kiezen of wissen (door het kind zelf)
@@ -511,24 +658,8 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
   if (text.length < 3) return res.status(400).json({ error: 'Schrijf eerst kort op hoe je het deed.' });
   const b = await awardBadge('uitlegger');
   let feedback = null;
-  if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName() });
+  if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: profileText(await getProfile()), memory: await memoryText() });
   res.json({ feedback, steps: qq.steps, badge: b });
-}));
-
-// AI: uitlegkaart voor een onderdeel (gecachet per week en niveau)
-app.get('/api/coach/:cat', child, wrap(async (req, res) => {
-  const cat = req.params.cat;
-  if (!catById[cat]) return res.status(404).json({ error: 'Onbekend' });
-  const skill = (await getSkills()).find((s) => s.cat === cat);
-  const week = Math.floor(Date.now() / (7 * 864e5));
-  const key = `coach:${cat}:${skill.level}:${week}`;
-  const cached = await one('SELECT content FROM ai_cache WHERE key=$1', [key]);
-  if (cached) return res.json({ text: cached.content });
-  if (!aiEnabled() || !aiAllowed()) return res.json({ text: null });
-  const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
-  const text = await coachCard({ catLabel: catById[cat].label, level: skill.level, mistakes, name: await getName() });
-  if (text) await q('INSERT INTO ai_cache(key, content) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET content=$2', [key, text]);
-  res.json({ text });
 }));
 
 // =====================================================================
@@ -556,7 +687,8 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
       AVG(time_ms)::int avg_ms, SUM(hints)::int hints, SUM(CASE WHEN guided THEN 1 ELSE 0 END)::int guided
       FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
   res.json({
-    name: await getName(), ai: aiEnabled(), wallet: await wallet(), streak: await streak(),
+    name: await getName(), ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: TEACHER, profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
+    wallet: await wallet(), streak: await streak(),
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
   });
 }));
@@ -570,7 +702,7 @@ app.post('/api/parent/payout', parent, wrap(async (req, res) => {
 }));
 
 app.post('/api/parent/advice', parent, wrap(async (req, res) => {
-  if (!aiEnabled()) return res.json({ text: null, reason: 'Zet ANTHROPIC_API_KEY om AI-advies te krijgen.' });
+  if (!aiEnabled()) return res.json({ text: null, reason: 'Zet OPENAI_API_KEY in de instellingen (.env) om AI-advies te krijgen.' });
   const key = `advice:${todayNL()}`;
   const cached = !req.body.fresh && await one('SELECT content FROM ai_cache WHERE key=$1', [key]);
   if (cached) return res.json({ text: cached.content });
@@ -587,13 +719,27 @@ app.post('/api/parent/advice', parent, wrap(async (req, res) => {
     'Recente fouten:',
     ...wrong.map((w) => `- [${catById[w.cat].label}] ${w.text} → "${w.given}" (goed: ${w.display})`),
   ].join('\n');
-  const text = await parentAdvice({ name: await getName(), summary });
+  const text = await parentAdvice({ name: await getName(), summary, profile: profileText(await getProfile()) });
   if (text) await q('INSERT INTO ai_cache(key, content) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET content=$2', [key, text]);
   res.json({ text, reason: text ? null : 'AI kon nu geen advies geven.' });
 }));
 
+app.post('/api/parent/profile', parent, wrap(async (req, res) => {
+  if (!aiEnabled()) return res.status(400).json({ error: 'AI staat niet aan.' });
+  await refreshProfile();
+  res.json({ profile: await getProfile() });
+}));
+
 app.post('/api/parent/settings', parent, wrap(async (req, res) => {
-  if (req.body.name) await setSetting('name', String(req.body.name).slice(0, 30));
+  const name = String(req.body.name || '').trim().slice(0, 30);
+  if (name.length >= 2) await renameKid(req.kid.id, name);
+  res.json({ ok: true });
+}));
+
+app.post('/api/parent/delete-kid', parent, wrap(async (req, res) => {
+  if (req.body.confirm !== 'VERWIJDER') return res.status(400).json({ error: 'Bevestig het verwijderen.' });
+  await deleteKid(req.kid.id);
+  setKidCookie(res, 0);
   res.json({ ok: true });
 }));
 
@@ -605,7 +751,7 @@ app.post('/api/parent/reset', parent, wrap(async (req, res) => {
     await q('DELETE FROM skills');
   } else {
     await q('TRUNCATE attempts, sessions, skills, skill_snapshots, ledger, ai_cache, badges RESTART IDENTITY');
-    await q(`DELETE FROM settings WHERE key IN ('record','goal') OR key LIKE 'weekbonus:%'`);
+    await q(`DELETE FROM settings WHERE key IN ('record','goal','groep','profile','memory') OR key LIKE 'weekbonus:%'`);
   }
   res.json({ ok: true });
 }));

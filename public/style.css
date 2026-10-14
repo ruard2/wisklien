@@ -302,3 +302,28 @@ table.list th { color: var(--muted); font-weight: 800; }
 .mop { border: 2px dashed var(--line); box-shadow: none; }
 .mop .punch { margin-top: 6px; font-weight: 900; color: var(--primary); animation: pop .3s; }
 .hello h1 { line-height: 1.1; }
+
+/* ---------- v6: de AI-leraar ---------- */
+.teacher { margin-top: 14px; border: 2px solid var(--primary-soft); border-radius: 18px; padding: 12px; background: var(--card); }
+.t-head { font-weight: 900; color: var(--primary); margin-bottom: 8px; }
+.t-msgs { display: grid; gap: 8px; max-height: 46vh; overflow-y: auto; }
+.t-msg { display: flex; gap: 8px; align-items: flex-end; }
+.t-msg.k { justify-content: flex-end; }
+.t-av { flex: 0 0 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); font-size: 17px; }
+.t-bub { padding: 10px 12px; border-radius: 16px; max-width: 86%; line-height: 1.45; overflow-wrap: anywhere; }
+.t-msg.t .t-bub { background: var(--primary-soft); border-bottom-left-radius: 4px; }
+.t-msg.k .t-bub { background: var(--primary); color: var(--primary-ink); border-bottom-right-radius: 4px; font-weight: 700; }
+.t-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.t-quick .chip { cursor: pointer; font-size: 14px; padding: 7px 12px; border: 0; }
+.teacher .chat-in input:disabled { opacity: .5; }
+
+/* ---------- v8: profielen ---------- */
+.who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.who-kid { background: var(--card); border-radius: 20px; padding: 18px 10px; box-shadow: var(--shadow); display: grid; justify-items: center; gap: 6px; }
+.who-kid span { font-size: 44px; line-height: 1; }
+.who-kid b { font-size: 18px; }
+.who-kid:active { transform: scale(.97); }
+.avatar-pick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.avatar-pick button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: var(--bg); border: 3px solid transparent; }
+.avatar-pick button.sel { border-color: var(--primary); background: var(--primary-soft); }
+.switch-kid { width: 38px; height: 38px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-size: 18px; }

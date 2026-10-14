@@ -1,4 +1,4 @@
-# Rekenen groep 8 — app voor Christo
+# Rekenen groep 8 — met Meester Max
 
 Webapp die op de telefoon werkt als een echte app (PWA). Eerst een starttoets, daarna elke schooldag 20 sommen die zich aanpassen aan wat nog lastig is. Centen sparen voor goede antwoorden, AI-hulp ("Rekenmaatje") als hij vastloopt.
 
@@ -71,8 +71,19 @@ npm run dev               # terminal 2: http://localhost:3000
 4. Railway start met `npm start`. Er is geen build-stap nodig (de frontend is gewoon `public/`).
 5. Op de telefoon: open de URL → iPhone: Safari → Deel → *Zet op beginscherm*; Android: Chrome → *App installeren*.
 
-## AI (Rekenmaatje)
-Gebruikt Claude (`claude-opus-5-5`, aan te passen met `AI_MODEL`). Zonder `ANTHROPIC_API_KEY` werkt alles behalve de AI-knoppen; de ingebouwde stappenplannen blijven. `AI_DAILY_LIMIT` (standaard 80) begrenst het aantal AI-vragen per dag. Uitlegkaarten en ouderadvies worden gecachet.
+## Meester Max — de AI-leraar (OpenAI)
+- Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).
+- **Na een fout** kijkt Max wat er misging en begint een gesprekje: één vraag tegelijk, het kind doet zoveel mogelijk zelf, na twee pogingen doet hij het voor.
+- **Chat bij elke som** (vóór het antwoord: helpen zonder voorzeggen), met snelknoppen.
+- **Vast bij een tussenstap** → Max legt precies die stap uit.
+- **Korte interactieve les** bij onderdelen waar extra hulp nodig is (uitleg → voorbeeld → controlevragen).
+- **Past zich aan**: frustratie → geruststellen en kleiner stapje; snel en goed → sneller; werkt iets 2× niet → heel andere uitleg.
+- **Geen vaktaal** zonder uitleg: "het getal onder de streep (de noemer)". Ook alle sommen, hints en stappen gebruiken deze kindertaal.
+- **Onthoudt en bouwt voort**: na elke sessie/les schrijft Max korte notities (wat nu lukt, waar het vastliep, wat hielp, interesses) en gebruikt die in volgende gesprekken. Daarnaast een **leerlingprofiel** met denkfouten per onderdeel. Beide zichtbaar in het ouderscherm.
+- Na elke sessie een persoonlijk berichtje van Max. `AI_DAILY_LIMIT` (standaard 400 per kind per dag) begrenst de kosten.
+
+## Profielen
+Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.
 
 ## Bestanden
 - `src/generators.js` — alle sommen, stappenplannen en het nakijken

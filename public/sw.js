@@ -1,6 +1,6 @@
 // Service worker: app werkt als "echte" app op je telefoon en laadt snel.
 // Netwerk eerst (zodat updates direct binnenkomen), cache als terugval. API wordt nooit gecachet.
-const CACHE = 'rekenen-v5';
+const CACHE = 'rekenen-v8';
 const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {

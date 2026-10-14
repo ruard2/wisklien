@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -12,14 +13,36 @@ pg.types.setTypeParser(1082, (v) => v);
 export const pool = new pg.Pool({
   connectionString: url,
   ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined,
-  max: 5,
+  max: 8,
 });
 
-export const q = (text, params) => pool.query(text, params);
-export const one = async (text, params) => (await pool.query(text, params)).rows[0];
+// ---------- per kind een eigen schema ----------
+// Elk kind krijgt een eigen PostgreSQL-schema (kid_<id>) met dezelfde tabellen.
+// Het kind van het huidige verzoek staat in kidStore; alle queries gaan automatisch naar dat schema.
+export const kidStore = new AsyncLocalStorage();
+export const currentKid = () => kidStore.getStore()?.kid ?? null;
+const schemaOf = (kid) => `kid_${Number(kid)}`;
 
-export async function migrate() {
-  await q(`
+// Verbinding met het schema van het huidige kind (en daarna netjes terugzetten)
+export async function connect(kid = currentKid()) {
+  const client = await pool.connect();
+  await client.query(`SET search_path TO ${kid ? schemaOf(kid) + ', ' : ''}public`);
+  const release = client.release.bind(client);
+  client.release = async () => {
+    try { await client.query('SET search_path TO public'); } catch {}
+    release();
+  };
+  return client;
+}
+export async function q(text, params) {
+  const kid = currentKid();
+  if (!kid) return pool.query(text, params);
+  const client = await connect(kid);
+  try { return await client.query(text, params); } finally { await client.release(); }
+}
+export const one = async (text, params) => (await q(text, params)).rows[0];
+
+const KID_TABLES = `
     CREATE TABLE IF NOT EXISTS settings (
       key text PRIMARY KEY,
       value jsonb NOT NULL
@@ -85,7 +108,6 @@ export async function migrate() {
       id text PRIMARY KEY,
       earned_at timestamptz NOT NULL DEFAULT now()
     );
-    -- v2: adaptief niveau, tussenstappen en beloningsregels
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS recent jsonb NOT NULL DEFAULT '[]';
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS scaffold int NOT NULL DEFAULT 0;
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS guided_wins int NOT NULL DEFAULT 0;
@@ -96,9 +118,41 @@ export async function migrate() {
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS points_acc real NOT NULL DEFAULT 0;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS guided boolean NOT NULL DEFAULT false;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS mult real NOT NULL DEFAULT 1;
-  `);
+`;
+
+export async function migrateKid(kid) {
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS ${schemaOf(kid)}`);
+  const client = await connect(kid);
+  try { await client.query(KID_TABLES); } finally { await client.release(); }
 }
 
+export async function migrate() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.kids (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      avatar text NOT NULL DEFAULT '🙂',
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  for (const k of (await pool.query('SELECT id FROM public.kids')).rows) await migrateKid(k.id);
+}
+
+// ---------- kinderen ----------
+export const listKids = async () => (await pool.query('SELECT id, name, avatar FROM public.kids ORDER BY id')).rows;
+export const getKid = async (id) => (await pool.query('SELECT id, name, avatar FROM public.kids WHERE id=$1', [Number(id) || 0])).rows[0];
+export async function createKid(name, avatar) {
+  const k = (await pool.query('INSERT INTO public.kids(name, avatar) VALUES ($1,$2) RETURNING id, name, avatar', [name, avatar])).rows[0];
+  await migrateKid(k.id);
+  return k;
+}
+export async function renameKid(id, name) { await pool.query('UPDATE public.kids SET name=$2 WHERE id=$1', [id, name]); }
+export async function deleteKid(id) {
+  await pool.query(`DROP SCHEMA IF EXISTS ${schemaOf(id)} CASCADE`);
+  await pool.query('DELETE FROM public.kids WHERE id=$1', [id]);
+}
+
+// Instellingen staan in het schema van het kind (dus per kind)
 export async function getSetting(key, fallback = null) {
   const r = await one('SELECT value FROM settings WHERE key = $1', [key]);
   return r ? r.value : fallback;

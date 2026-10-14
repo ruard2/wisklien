@@ -90,6 +90,7 @@ async function api(path, body) {
   let data = {};
   try { data = await res.json(); } catch {}
   if (res.status === 401 && data.error === 'login') { renderLogin(); throw new Error('login'); }
+  if (res.status === 401 && data.error === 'kid') { renderWho(); throw new Error('login'); }
   if (!res.ok) { const e = new Error(data.error || 'Er ging iets mis'); e.status = res.status; e.data = data; throw e; }
   return data;
 }
@@ -147,6 +148,47 @@ function setTab(name) {
   for (const a of $tabs.querySelectorAll('a')) a.classList.toggle('on', a.dataset.tab === name);
 }
 window.addEventListener('hashchange', route);
+
+// ---------- wie ben jij? (profielen, alleen een naam) ----------
+async function renderWho() {
+  $tabs.hidden = true;
+  STATE = null;
+  const { kids, avatars } = await api('/api/kids');
+  let avatar = avatars[kids.length % avatars.length];
+  const draw = (err = '', showNew = !kids.length) => {
+    $app.innerHTML = `<div class="stack" style="margin-top:6vh">
+      <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij?</h1>
+        <p class="muted">${kids.length ? 'Tik op je naam.' : 'Welkom! Hoe heet je?'}</p></div>
+      ${kids.length ? `<div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b></button>`).join('')}</div>` : ''}
+      ${showNew ? `<form class="card stack" data-new>
+          <h3>${kids.length ? 'Nieuw profiel' : 'Maak je profiel'}</h3>
+          <label class="field"><span style="font-weight:800">Je naam</span><input name="name" maxlength="30" placeholder="bijv. Christo" autocomplete="off" required></label>
+          <div><div style="font-weight:800;margin-bottom:6px">Kies een plaatje</div>
+          <div class="avatar-pick">${avatars.map((a) => `<button type="button" class="${a === avatar ? 'sel' : ''}" data-av="${a}">${a}</button>`).join('')}</div></div>
+          <p class="small" style="color:var(--bad);min-height:18px">${esc(err)}</p>
+          <button class="btn block">Start! 🚀</button>
+        </form>` : '<button class="btn ghost block" data-shownew>➕ Ik ben nieuw</button>'}
+    </div>`;
+    $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
+    $app.querySelector('[data-shownew]')?.addEventListener('click', () => draw('', true));
+    $app.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { avatar = b.dataset.av; $app.querySelectorAll('[data-av]').forEach((x) => x.classList.toggle('sel', x === b)); }));
+    const form = $app.querySelector('[data-new]');
+    if (form) {
+      form.querySelector('input').focus();
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        try { await api('/api/kids', { name: form.name.value, avatar }); location.hash = '#/'; route(); }
+        catch (err) { draw(err.message, true); }
+      };
+    }
+  };
+  draw();
+}
+async function switchKid() {
+  await api('/api/kids/leave', {});
+  STATE = null;
+  renderWho();
+}
 
 // ---------- login (alleen als APP_PIN aan staat) ----------
 function renderLogin() {
@@ -209,8 +251,8 @@ async function renderHome() {
 
   const stuck = s.intakeDone ? s.skills.filter((x) => x.struggling) : [];
   const coach = stuck.length ? `<div class="card stack"><div class="row"><span class="big-emoji" style="font-size:32px">🧑‍🏫</span>
-      <div><h3>Even opfrissen</h3><p class="small muted">Hier gaan we extra mee aan de slag. Lees de uitleg en oefen dan.</p></div></div>
-      ${stuck.slice(0, 3).map((x) => `<button class="btn ghost block" data-coach="${x.cat}">${x.icon} ${esc(x.label)}</button>`).join('')}</div>` : '';
+      <div><h3>Even opfrissen${s.ai ? ` met ${esc(s.teacher)}` : ''}</h3><p class="small muted">${s.ai ? 'Een korte les: uitleg, een voorbeeld en een paar vragen. Daarna oefenen.' : 'Hier gaan we extra mee aan de slag. Lees de uitleg en oefen dan.'}</p></div></div>
+      ${stuck.slice(0, 3).map((x) => `<button class="btn ghost block" data-coach="${x.cat}">${x.icon} ${s.ai ? 'Les: ' : ''}${esc(x.label)}</button>`).join('')}</div>` : '';
 
   const earned = s.badges.filter((b) => b.earned);
   const badgesCard = earned.length ? `<a href="#/voortgang" class="card row between" style="text-decoration:none;color:inherit"><div><div class="small muted">Badges</div><div style="font-size:26px;letter-spacing:2px">${earned.slice(-8).map((b) => b.icon).join('')}</div></div><span class="muted">${earned.length}/${s.badges.length} ›</span></a>` : '';
@@ -220,7 +262,8 @@ async function renderHome() {
       <h3 style="margin-top:12px">Hier word je beter in 🌱</h3>${s.skills.slice(-3).reverse().map(mini).join('')}</div>` : '';
 
   $app.innerHTML = `<div class="stack">
-    <div class="hello"><div><h1>Hoi ${esc(s.name)} 👋</h1><p class="muted small" style="margin-top:2px">${pick(SUBLINES)}</p></div>${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}</div>
+    <div class="hello"><div><h1>Hoi ${esc(s.name)} ${esc(s.kid?.avatar || '👋')}</h1><p class="muted small" style="margin-top:2px">${pick(SUBLINES)}</p></div>
+      <div class="row" style="gap:6px">${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}<button class="switch-kid" data-switch title="Ander kind">👤</button></div></div>
     ${main}
     ${piggyCard(s)}
     ${s.intakeDone ? weekCard(s) : ''}
@@ -228,6 +271,7 @@ async function renderHome() {
     ${mopCard()}
   </div>`;
   bindStart();
+  $app.querySelector('[data-switch]').onclick = async () => { if (await ask(`<div class="big-emoji">👤</div><h2>Ben jij niet ${esc(s.name)}?</h2><p class="muted">Dan kies je je eigen naam.</p>`, 'Ander kind kiezen', 'Ik ben het wel')) switchKid(); };
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
@@ -282,24 +326,73 @@ async function startSession(kind, cat) {
   } catch (e) { if (e.message !== 'login') toast(e.message); }
 }
 
+// Korte interactieve les van de leraar. Zonder AI: vaste uitleg.
 async function showCoach(cat, intro = '') {
   STATE ||= await api('/api/state');
   const meta = STATE.skills.find((x) => x.cat === cat);
+  const inSession = location.hash.startsWith('#/sessie');
+  const L = { chat: [], busy: false, ready: false };
   sheet(`<div class="row between"><h2>${meta?.icon || ''} ${esc(meta?.label || '')}</h2><button class="btn ghost" data-close>Sluit</button></div>
     ${intro ? `<p>${intro}</p>` : ''}
-    <div class="card flat"><b>Zo pak je het aan</b><p style="margin-top:4px">${esc(TIPS[cat] || '')}</p></div>
-    ${STATE.ai ? '<div id="coach-ai" class="ai-box"><div class="who">🧑‍🏫 Rekenmaatje</div><span class="loader"></span> uitleg maken…</div>' : ''}
-    ${location.hash.startsWith('#/sessie') ? '<button class="btn block" data-close>Begrepen, verder!</button>' : '<button class="btn block" data-practice>Oefen dit onderdeel</button>'}`,
-  async (bg, close) => {
-    bg.querySelector('[data-practice]')?.addEventListener('click', () => { close(); startSession('practice', cat); });
-    if (!STATE.ai) return;
-    try {
-      const r = await api(`/api/coach/${cat}`);
-      const box = bg.querySelector('#coach-ai');
-      if (r.text) box.innerHTML = `<div class="who">🧑‍🏫 Rekenmaatje</div><div class="coach">${rich(r.text)}</div>`;
-      else box.remove();
-    } catch { bg.querySelector('#coach-ai')?.remove(); }
+    ${STATE.ai ? '<div id="lesson"></div>' : `<div class="card flat"><b>Zo pak je het aan</b><p style="margin-top:4px">${esc(TIPS[cat] || '')}</p></div>`}
+    <div id="lesson-end">${!STATE.ai ? (inSession ? '<button class="btn block" data-close>Begrepen, verder!</button>' : '<button class="btn block" data-practice>Oefen dit onderdeel</button>') : ''}</div>`,
+  (bg, close) => {
+    const box = bg.querySelector('#lesson');
+    const end = bg.querySelector('#lesson-end');
+    const bindEnd = () => {
+      bg.querySelector('[data-practice]')?.addEventListener('click', () => { close(); startSession('practice', cat); });
+    };
+    bindEnd();
+    if (!box) return;
+    const draw = () => {
+      box.innerHTML = teacherHTML(L.chat, {
+        loading: L.busy,
+        quick: L.ready ? [] : ['Ik snap het nog niet 🤔', 'Geef nog een voorbeeld', 'Kan het makkelijker?'],
+        placeholder: 'Typ je antwoord of vraag…',
+        intro: L.chat.length ? null : 'Even een korte les, dan gaan we oefenen!',
+      });
+      bindTeacher(box, (msg) => send(msg));
+      box.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ block: 'nearest' });
+      if (L.ready || L.chat.length >= 2) {
+        end.innerHTML = inSession ? `<button class="btn ${L.ready ? 'good' : 'ghost'} block" data-close>${L.ready ? 'Ik ben er klaar voor! 🚀' : 'Verder met de sommen'}</button>`
+          : `<button class="btn ${L.ready ? 'good' : 'ghost'} block" data-practice>${L.ready ? 'Ik ben er klaar voor: oefenen! 🚀' : 'Oefen dit onderdeel'}</button>`;
+        bindEnd();
+      }
+    };
+    const send = async (msg) => {
+      if (L.busy) return;
+      if (msg) L.chat.push({ role: 'kid', text: msg });
+      L.busy = true; draw();
+      try {
+        const r = await api('/api/lesson', { cat, chat: L.chat });
+        if (r.reply) { L.chat.push({ role: 'teacher', text: r.reply }); L.ready = r.ready; }
+        else L.chat.push({ role: 'teacher', text: r.reason || TIPS[cat] });
+      } catch (e) { L.chat.push({ role: 'teacher', text: e.message }); }
+      L.busy = false; draw();
+    };
+    send(null);
   });
+}
+
+// ---------- chatpaneel van de leraar ----------
+function teacherHTML(chat, { loading = false, quick = [], placeholder = 'Typ je vraag of antwoord…', intro = null } = {}) {
+  const name = esc(STATE?.teacher || 'Meester Max');
+  const msgs = chat.map((m) => m.role === 'teacher'
+    ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')}</div></div>`
+    : `<div class="t-msg k"><div class="t-bub">${esc(m.text)}</div></div>`).join('');
+  const thinking = pick(['denkt even na…', 'krabt achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn krijtje…']);
+  return `<div class="teacher">
+    <div class="t-head">🧑‍🏫 ${name}</div>
+    <div class="t-msgs">${intro ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${esc(intro)}</div></div>` : ''}${msgs}
+      ${loading ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${thinking}</div></div>` : ''}</div>
+    ${quick.length && !loading ? `<div class="t-quick">${quick.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>` : ''}
+    <form class="chat-in"><input maxlength="300" placeholder="${esc(placeholder)}" enterkeyhint="send" ${loading ? 'disabled' : ''}><button class="btn ghost" ${loading ? 'disabled' : ''}>Stuur</button></form>
+  </div>`;
+}
+function bindTeacher(box, send) {
+  box.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => send(b.dataset.q)));
+  const form = box.querySelector('form');
+  if (form) form.onsubmit = (e) => { e.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) send(v); };
 }
 
 // =====================================================================
@@ -339,7 +432,7 @@ async function renderCategory(cat) {
     <p class="small muted">${x.correct} van de ${x.attempts} sommen goed${x.trend ? ` · deze week ${x.trend > 0 ? '+' : ''}${x.trend}` : ''}</p></div>
     <div class="card flat"><b>Zo doe je het</b><p style="margin-top:4px">${esc(TIPS[cat])}</p></div>
     <button class="btn block" data-start="practice" data-cat="${cat}">Oefen dit (10 sommen, zonder centen)</button>
-    ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 Uitleg van Rekenmaatje</button>` : ''}
+    ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 Korte les van ${esc(STATE.teacher)}</button>` : ''}
   </div>`;
   bindStart();
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(cat)));
@@ -416,7 +509,8 @@ async function openSession(id) {
 
 async function startQuestion() {
   const c = S.cur;
-  S.input = ''; S.choice = null; S.stepInput = ''; S.stepChoice = null; S.phase = 'ask'; S.t0 = Date.now(); S.chat = []; S.stepMsg = null;
+  S.input = ''; S.choice = null; S.stepInput = ''; S.stepChoice = null; S.phase = 'ask'; S.t0 = Date.now(); S.stepMsg = null;
+  S.teacherOpen = !!(c.chat || []).length; S.talking = false;
   // leerfase: automatisch samen stap voor stap (gewone beloning)
   if (c.offer.mode === 'auto' && !c.guided) {
     try {
@@ -449,8 +543,8 @@ function renderQuestion() {
       <div id="guide"></div>
       <div id="answer-area"></div>
       <div id="hints" class="hints">${(cur.hints || []).map((h) => `<div class="hint">💡 ${esc(h)}</div>`).join('')}</div>
-      <div id="ai-area"></div>
       <div id="fb"></div>
+      <div id="ai-area"></div>
     </div>
     <div id="controls"></div>`;
   $app.querySelector('[data-quit]').onclick = async () => {
@@ -458,6 +552,7 @@ function renderQuestion() {
   };
   if (cur.offer.mode === 'choose' && !cur.chose && !cur.guided) return drawChoice();
   drawAnswer();
+  drawTeacher();
 }
 
 // "Nu moet je het zelf kunnen": kies zelf (dubbel) of met tussenstappen (half)
@@ -552,7 +647,7 @@ function drawAnswer() {
   controls.querySelector('[data-go]').onclick = submit;
   controls.querySelector('[data-hint]')?.addEventListener('click', getHint);
   controls.querySelector('[data-guide]')?.addEventListener('click', startGuide);
-  controls.querySelector('[data-ask]')?.addEventListener('click', () => askAI(false));
+  controls.querySelector('[data-ask]')?.addEventListener('click', () => openTeacher());
   controls.querySelector('[data-dunno]')?.addEventListener('click', dontKnow);
 }
 function helpRow() {
@@ -563,7 +658,7 @@ function helpRow() {
     btns.push(`<button class="btn ghost" data-guide>🪜 Samen stap voor stap${cost}</button>`);
   }
   if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false || (c.hints || []).length >= (c.hintCount || 99) ? 'disabled' : ''}>💡 ${(c.hints || []).length ? 'Nog een hint' : 'Hint'}</button>`);
-  if (STATE?.ai && !q.noHelp) btns.push('<button class="btn ghost" data-ask>🧑‍🏫 Rekenmaatje</button>');
+  if (STATE?.ai && !q.noHelp) btns.push(`<button class="btn ghost" data-ask>🧑‍🏫 Vraag ${esc(STATE.teacher || 'de meester')}</button>`);
   btns.push('<button class="btn ghost" data-dunno>🤷 Weet ik niet</button>');
   return `<div class="help-row">${btns.join('')}</div>`;
 }
@@ -620,7 +715,15 @@ async function submitStep() {
     S.cur.guideDone = r.done;
     if (r.correct) { buzz(20); S.stepMsg = null; S.stepInput = ''; S.stepChoice = null; S.cur.guideStep = r.next; S.cur.guideFinal = r.final; if (r.note) toast(r.note); }
     else if (r.revealed) { buzz([40, 30, 40]); S.stepMsg = null; S.stepInput = ''; S.stepChoice = null; S.cur.guideStep = r.next; S.cur.guideFinal = r.final; toast(`Geeft niks! Het was ${r.display}. We gaan verder.`); }
-    else { buzz([40, 30, 40]); S.stepMsg = { kind: 'tip', text: `Nog niet. Tip: ${r.tip}` }; S.stepInput = ''; S.stepChoice = null; }
+    else {
+      buzz([40, 30, 40]); S.stepMsg = { kind: 'tip', text: `Nog niet. Tip: ${r.tip}` };
+      const tried = st.type === 'choice' ? st.options[answer] : answer;
+      S.stepInput = ''; S.stepChoice = null;
+      drawAnswer();
+      // de leraar legt precies deze stap uit
+      if (STATE?.ai) { S.teacherOpen = true; talk(`Ik snap deze stap niet: ${st.ask}`, 'step', { stepGiven: tried }); }
+      return;
+    }
     drawAnswer();
   } catch (e) { toast(e.message); }
 }
@@ -635,30 +738,36 @@ async function getHint() {
   } catch (e) { toast(e.message); }
 }
 
-async function askAI(answered) {
-  const area = $app.querySelector('#ai-area');
-  area.innerHTML = `<div class="ai-box"><div class="who">🧑‍🏫 Rekenmaatje</div><span class="loader"></span> ${pick(['even denken…', 'krabt even achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn rekenmachine… grapje!'])}</div>`;
-  try {
-    const r = await api(`/api/session/${S.data.id}/explain`, { index: S.cur.index, chat: S.chat });
-    if (!r.text) { area.innerHTML = `<div class="ai-box">${esc(r.reason || 'Rekenmaatje is er nu even niet.')}</div>`; return; }
-    S.chat.push({ role: 'ai', text: r.text });
-    drawChat(answered);
-  } catch (e) { area.innerHTML = `<div class="ai-box">${esc(e.message)}</div>`; }
+// Gesprek met de leraar bij deze som (wordt per som op de server bewaard)
+function quickFor() {
+  const answered = S.phase === 'feedback' || S.phase === 'done';
+  if (answered && S.last && !S.last.correct) return ['Ik snap het nog niet 🤔', 'Geef een voorbeeld', 'Ik snap het! 👍'];
+  if (answered) return ['Waarom klopt dit?', 'Kan het ook sneller?'];
+  if (S.cur.guided && S.cur.guideStep) return ['Ik snap deze stap niet', 'Geef een voorbeeld'];
+  return ['Ik snap de vraag niet', 'Hoe begin ik?', 'Geef een tip'];
 }
-function drawChat(answered) {
+function drawTeacher(loading = false) {
   const area = $app.querySelector('#ai-area');
-  area.innerHTML = S.chat.map((m) => m.role === 'ai'
-    ? `<div class="ai-box"><div class="who">🧑‍🏫 Rekenmaatje</div>${rich(m.text)}</div>`
-    : `<div class="ai-box" style="border-color:var(--line)"><div class="who" style="color:var(--muted)">Jij</div>${esc(m.text)}</div>`).join('')
-    + `<form class="chat-in"><input maxlength="300" placeholder="Snap je iets niet? Vraag het…" enterkeyhint="send"><button class="btn ghost">Vraag</button></form>`;
-  const form = area.querySelector('form');
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const v = form.querySelector('input').value.trim();
-    if (!v) return;
-    S.chat.push({ role: 'kid', text: v });
-    await askAI(answered);
-  };
+  if (!area) return;
+  const chat = S.cur.chat || [];
+  if (!chat.length && !loading && !S.teacherOpen) { area.innerHTML = ''; return; }
+  area.innerHTML = teacherHTML(chat, { loading, quick: quickFor(), intro: !chat.length && !loading ? 'Waar loop je op vast? Vertel maar, of kies hieronder.' : null });
+  bindTeacher(area, (msg) => talk(msg));
+  area.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function openTeacher() { S.teacherOpen = true; drawTeacher(); }
+async function talk(message, mode, extra = {}) {
+  if (S.talking) return;
+  S.talking = true;
+  if (message) S.cur.chat = [...(S.cur.chat || []), { role: 'kid', text: message }];
+  drawTeacher(true);
+  try {
+    const r = await api(`/api/session/${S.data.id}/chat`, { index: S.cur.index, message, mode, ...extra });
+    if (r.chat) S.cur.chat = r.chat;
+    else if (r.reason) S.cur.chat = [...(S.cur.chat || []), { role: 'teacher', text: r.reason }];
+  } catch (e) { S.cur.chat = [...(S.cur.chat || []), { role: 'teacher', text: e.message }]; }
+  S.talking = false;
+  drawTeacher();
 }
 
 async function dontKnow() {
@@ -711,18 +820,19 @@ function showFeedback(r) {
   $app.querySelector('#fb').innerHTML = `<div class="feedback ${r.correct ? 'ok' : 'no'}">
     <div class="row between"><div class="title">${esc(title)}</div>${rewardChip}</div>
     ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>Het goede antwoord is <b>${esc(r.display)}</b>.${r.note ? ' ' + esc(r.note) : ''}</p>`}
-    ${showSteps ? `<p style="margin-top:10px;font-weight:900">Zo reken je het uit:</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
+    ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">Zo reken je het uit:</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
       : `<details style="margin-top:8px"><summary class="small muted">Hoe reken je dit uit?</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
     ${nextIsRetry ? '<p class="small" style="margin-top:10px;font-weight:800">👉 Hierna krijg je een herkansing: zo\'n soort som, samen stap voor stap.</p>' : ''}
   </div>`;
   $app.querySelector('#guide').innerHTML = '';
-  S.chat = [];
-  $app.querySelector('#ai-area').innerHTML = '';
   $app.querySelector('#controls').innerHTML = `<div class="stack" style="margin-top:12px">
-    ${!r.correct && STATE?.ai && S.data.kind !== 'intake' ? '<button class="btn ghost block" data-explain>🧑‍🏫 Leg het anders uit</button>' : ''}
+    ${r.correct && STATE?.ai && S.data.kind !== 'intake' && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 Praat erover met ${esc(STATE.teacher)}</button>` : ''}
     <button class="btn ${r.correct ? 'good' : ''} block" data-next>${r.done ? 'Bekijk je resultaat' : nextIsRetry ? 'Herkansing →' : 'Volgende →'}</button></div>`;
   $app.querySelector('[data-next]').onclick = next;
-  $app.querySelector('[data-explain]')?.addEventListener('click', (e) => { e.target.remove(); askAI(true); });
+  $app.querySelector('[data-ask2]')?.addEventListener('click', (e) => { e.target.remove(); openTeacher(); });
+  // fout? De leraar kijkt wat er misging en begint een gesprekje
+  if (!r.correct && STATE?.ai && S.data.kind !== 'intake') { S.teacherOpen = true; talk(null, 'start'); }
+  else drawTeacher();
   if (r.teachback) drawTeachback(r);
   $app.querySelector('#fb').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 Weekbonus! +${r.weekBonus} cent extra voor een hele week oefenen!`, 4500); }, 400);
@@ -751,12 +861,12 @@ function drawTeachback() {
     e.preventDefault();
     const text = form.querySelector('textarea').value.trim();
     if (text.length < 3) return toast('Schrijf eerst kort op hoe je het deed.');
-    form.innerHTML = '<div><span class="loader"></span> Rekenmaatje leest je uitleg…</div>';
+    form.innerHTML = `<div><span class="loader"></span> ${esc(STATE?.teacher || 'De meester')} leest je uitleg…</div>`;
     try {
       const t = await api(`/api/session/${S.data.id}/teachback`, { index: S.cur.index, text });
       if (t.badge) { S.badges.push(t.badge); toast(`${t.badge.icon} Nieuwe badge: ${t.badge.title}!`, 3500); }
       box.innerHTML = `<div class="teach"><div class="small muted">Jouw uitleg:</div><p style="margin-bottom:8px">"${esc(text)}"</p>
-        ${t.feedback ? `<div style="font-weight:900;color:var(--primary)">🧑‍🏫 Rekenmaatje</div><div class="coach">${rich(t.feedback)}</div>`
+        ${t.feedback ? `<div style="font-weight:900;color:var(--primary)">🧑‍🏫 ${esc(STATE?.teacher || '')}</div><div class="coach">${rich(t.feedback)}</div>`
           : `<div style="font-weight:800">Top uitgelegd! Vergelijk het met deze stappen. Deed jij het ook zo?</div><ol class="steps">${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`}</div>`;
     } catch (err) { box.innerHTML = `<div class="teach">${esc(err.message)}</div>`; }
   };
@@ -798,6 +908,7 @@ async function renderSummary(sum) {
       <h2 style="margin:10px 0">${msg}</h2>
       ${sum.maxPoints ? `<div class="coin-pop">🪙 +${sum.points} cent</div>` : '<span class="chip">Oefenronde — zonder centen</span>'}
     </div>
+    ${STATE.ai ? `<div class="card" id="reflect"><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${esc(STATE.teacher)} schrijft je een berichtje…</div></div></div>` : ''}
     ${highlights.length ? `<div class="card stack">${highlights.map((h) => `<div>${h}</div>`).join('')}</div>` : ''}
     ${badges.length ? `<div class="card"><h3>Nieuwe badges</h3><div class="badges">${badges.map((b) => `<div class="badge on"><span>${b.icon}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>` : ''}
     ${sum.kind === 'intake' ? `<div class="card"><h3>Jouw uitslag</h3><p class="small muted" style="margin:4px 0 8px">Van sterk naar "hier word je beter in". Vanaf nu krijg je elke schooldag ${STATE.points.dailyCount} sommen, op jouw niveau.</p>
@@ -809,6 +920,14 @@ async function renderSummary(sum) {
   </div>`;
   $tabs.hidden = true;
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
+  if (STATE.ai && S?.data?.id) {
+    api(`/api/session/${S.data.id}/reflect`, {}).then((r) => {
+      const box = $app.querySelector('#reflect');
+      if (!box) return;
+      if (r.text) box.innerHTML = `<div class="small muted" style="margin-bottom:6px">Berichtje van ${esc(STATE.teacher)}</div><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(r.text)}</div></div>`;
+      else box.remove();
+    }).catch(() => $app.querySelector('#reflect')?.remove());
+  }
 }
 
 // ---------- plaatjes bij sommen ----------
@@ -901,7 +1020,15 @@ async function renderParent() {
     <div class="card coin stack"><div class="row between"><div><div class="small muted">Spaarpot van ${esc(data.name)}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">verdiend ${euro(data.wallet.earned)}<br>uitbetaald ${euro(data.wallet.paid)}<br>🔥 ${data.streak} dagen op rij</div></div>
       <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="Bedrag in €, bijv. 2,50" name="amt"></div><button class="btn">Uitbetalen</button></form></div>
 
-    <div class="card stack"><div class="row between"><h2>AI-advies</h2>${data.ai ? '' : '<span class="chip bad">AI uit</span>'}</div>
+    <div class="card stack"><div class="row between"><h2>🧑‍🏫 ${esc(data.teacher)} (AI-leraar)</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : '<span class="chip bad">AI uit</span>'}</div>
+      ${data.ai ? '' : '<p class="small">Zet <code>OPENAI_API_KEY</code> in de instellingen (.env of Railway) om de AI-leraar aan te zetten.</p>'}
+      <h3>Leerlingprofiel</h3>
+      <div id="profile">${profileHTML(data.profile)}</div>
+      <button class="btn ghost block" data-profile ${data.ai ? '' : 'disabled'}>Profiel nu bijwerken</button>
+      <h3 style="margin-top:6px">Wat ${esc(data.teacher)} onthoudt</h3>
+      ${data.memory?.length ? `<ul class="small" style="margin:0 0 0 18px;padding:0">${data.memory.map((m) => `<li><span class="muted">${esc(m.d.slice(8))}-${esc(m.d.slice(5, 7))}</span> ${esc(m.n)}</li>`).join('')}</ul>` : '<p class="small muted">Nog niets. Na elke sessie en les schrijft hij korte notities.</p>'}
+    </div>
+    <div class="card stack"><div class="row between"><h2>AI-advies voor jou</h2></div>
       <p class="small muted">Samenvatting van waar ${esc(data.name)} staat, en wat je thuis kunt doen.</p>
       <div id="advice"></div>
       <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>Maak advies</button></div>
@@ -922,10 +1049,24 @@ async function renderParent() {
 
     <div class="card stack"><h2>Instellingen</h2>
       <form class="row" data-name><div class="field" style="flex:1"><input name="name" value="${esc(data.name)}" maxlength="30"></div><button class="btn ghost">Naam opslaan</button></form>
+      <button class="btn ghost block" data-otherkid>👤 Ander kind bekijken</button>
       <button class="btn ghost block" data-reset="intake">Starttoets opnieuw laten doen</button>
-      <button class="btn ghost block" data-reset="all" style="color:var(--bad)">Alles wissen (ook spaarpot)</button></div>
+      <button class="btn ghost block" data-reset="all" style="color:var(--bad)">Alles wissen (ook spaarpot)</button>
+      <button class="btn ghost block" data-delkid style="color:var(--bad)">Profiel van ${esc(data.name)} helemaal verwijderen</button></div>
   </div>`;
 
+  $app.querySelector('[data-profile]').onclick = async (e) => {
+    e.target.disabled = true; e.target.textContent = 'Bezig…';
+    try { const r = await api('/api/parent/profile', {}); $app.querySelector('#profile').innerHTML = profileHTML(r.profile); toast('Profiel bijgewerkt ✓'); }
+    catch (err) { toast(err.message); }
+    e.target.disabled = false; e.target.textContent = 'Profiel nu bijwerken';
+  };
+  $app.querySelector('[data-otherkid]').onclick = () => switchKid();
+  $app.querySelector('[data-delkid]').onclick = async () => {
+    if (!(await ask(`<h2 style="margin-bottom:8px">Profiel van ${esc(data.name)} verwijderen?</h2><p>Alles van dit kind gaat weg: niveaus, spaarpot, badges en wat ${esc(data.teacher)} onthoudt. Dit kan niet ongedaan worden.</p>`, 'Ja, verwijderen', 'Annuleren', true))) return;
+    await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
+    toast('Profiel verwijderd'); switchKid();
+  };
   $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
   $app.querySelector('[data-payout]').onsubmit = async (e) => {
     e.preventDefault();
@@ -947,6 +1088,7 @@ async function renderParent() {
   $app.querySelector('[data-name]').onsubmit = async (e) => {
     e.preventDefault();
     await api('/api/parent/settings', { name: e.target.name.value.trim() });
+    STATE = null;
     toast('Opgeslagen ✓');
   };
   $app.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = async () => {
@@ -956,6 +1098,16 @@ async function renderParent() {
     await api('/api/parent/reset', { what, confirm: 'RESET' });
     toast('Gedaan ✓'); renderParent();
   }));
+}
+
+function profileHTML(p) {
+  if (!p) return '<p class="small muted">Nog leeg. Na een paar sessies analyseert de AI-leraar automatisch welke denkfouten er gemaakt worden en wat helpt.</p>';
+  return `${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : ''}
+    ${(p.onderdelen || []).map((o) => `<div class="card flat" style="padding:12px;margin-top:8px"><div class="row between"><b>${esc(o.onderdeel)}</b><span class="chip ${o.prioriteit === 'hoog' ? 'bad' : ''}">${esc(o.prioriteit || '')}</span></div>
+      ${(o.denkfouten || []).length ? `<ul class="small" style="margin:6px 0 0 18px;padding:0">${o.denkfouten.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
+      ${o.wat_helpt ? `<p class="small" style="margin-top:6px"><b>Helpt:</b> ${esc(o.wat_helpt)}</p>` : ''}</div>`).join('')}
+    ${p.aanpak_tips?.length ? `<p class="small" style="margin-top:8px"><b>Aanpak:</b> ${p.aanpak_tips.map(esc).join(' · ')}</p>` : ''}
+    ${p.updated_at ? `<p class="small muted" style="margin-top:6px">Bijgewerkt: ${new Date(p.updated_at).toLocaleString('nl-NL')}</p>` : ''}`;
 }
 
 // ---------- start ----------

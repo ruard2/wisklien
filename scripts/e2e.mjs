@@ -7,10 +7,11 @@ import { fracStr, hhmm } from '../src/util.js';
 const BASE = process.env.E2E_BASE || 'http://localhost:3000';
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
-let cookie = '';
+const jar = {};
 async function api(path, body) {
+  const cookie = Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
   const r = await fetch(BASE + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', cookie }, body: body ? JSON.stringify(body) : undefined });
-  const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+  for (const c of r.headers.getSetCookie()) { const [kv] = c.split(';'); const [k, ...v] = kv.split('='); jar[k] = v.join('='); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`${path} → ${r.status} ${JSON.stringify(j)}`);
   return j;
@@ -19,7 +20,8 @@ const good = (q) => q.type === 'number' ? String(q.answer).replace('.', ',') : q
 const bad = (q) => q.type === 'choice' ? (q.answer + 1) % q.options.length : q.type === 'time' ? '0:01' : '999999';
 let failed = 0;
 const assert = (c, m) => { if (!c) { failed++; console.error('✗', m); } else console.log('✓', m); };
-const current = async (id) => { const s = (await db.query('SELECT questions, results FROM sessions WHERE id=$1', [id])).rows[0]; return s.questions[s.results.length]; };
+let SCHEMA = 'public';
+const current = async (id) => { const s = (await db.query(`SELECT questions, results FROM ${SCHEMA}.sessions WHERE id=$1`, [id])).rows[0]; return s.questions[s.results.length]; };
 
 // Speel een sessie. decide(i, publicCurrent) → 'good' | 'bad' | 'guided-good' | 'solo-good'
 async function play(kind, decide, extra = {}) {
@@ -51,7 +53,13 @@ async function play(kind, decide, extra = {}) {
 }
 
 await api('/api/parent/login', { pin: process.env.PARENT_PIN || '1234' });
-await api('/api/parent/reset', { what: 'all', confirm: 'RESET' });
+// eigen testkind: oude weghalen, nieuwe aanmaken
+for (const k of (await api('/api/kids')).kids.filter((k) => k.name === 'E2E')) { await api('/api/kids/select', { id: k.id }); await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' }); }
+await api('/api/kids/leave', {});
+await api('/api/state').then(() => assert(false, 'zonder profiel geen toegang'), (e) => assert(/401/.test(e.message), 'zonder profiel: eerst "wie ben jij?"'));
+const kid = (await api('/api/kids', { name: 'E2E' })).kid;
+SCHEMA = `kid_${kid.id}`;
+assert((await api('/api/state')).name === 'E2E', 'profiel aangemaakt en gekozen');
 
 // ---- Starttoets: adaptief ----
 const intake = await play('intake', (i, cur, full) => (full.level >= 2 ? 'bad' : 'good'), { groep: 8 });
@@ -95,7 +103,7 @@ const br2 = st.skills.find((s) => s.cat === 'breuken');
 assert(br2.guidedWins >= 5, `breuken: ${br2.guidedWins} keer met tussenstappen goed (leerfase klaar)`);
 
 // Nog een ronde: nu moet er een keuze komen bij voorgestelde hulp, en "zelf" geeft dubbel
-await db.query(`UPDATE skills SET scaffold=3 WHERE cat='breuken'`);
+await db.query(`UPDATE ${SCHEMA}.skills SET scaffold=3 WHERE cat='breuken'`);
 const choiceRun = await play('practice', (i, cur) => (cur.offer.mode === 'choose' ? 'solo-good' : 'good'), { cat: 'breuken' });
 const doubles = choiceRun.log.filter((l) => l.res.rewardKind === 'solo-double').length;
 assert(choiceRun.log.some((l) => l.cur.offer.mode === 'choose'), 'na de leerfase mag hij kiezen');
@@ -103,7 +111,7 @@ assert([...guidedRun.log, ...choiceRun.log].some((l) => l.cur.offer.mode === 'ch
 console.log(`  ${doubles} keer dubbele beloning (oefenen geeft 0 cent, maar de teller loopt)`);
 
 // Half: gekozen voor tussenstappen na de leerfase (in een dagtaak-achtige sessie meten we de soort)
-await db.query(`UPDATE skills SET scaffold=3 WHERE cat='breuken'`);
+await db.query(`UPDATE ${SCHEMA}.skills SET scaffold=3 WHERE cat='breuken'`);
 const halfRun = await play('practice', (i, cur) => (cur.offer.mode === 'choose' ? 'guided-good' : 'good'), { cat: 'breuken' });
 assert(halfRun.log.some((l) => l.res.rewardKind === 'guided-half'), 'na leerfase: tussenstappen = halve beloning');
 
@@ -115,6 +123,15 @@ assert(upEv.includes('up'), `na 80% goed weer een stapje omhoog (events: ${upEv.
 st = await api('/api/state');
 assert(st.badges.find((b) => b.id === 'comeback').earned || true, 'badges werken');
 console.log('  badges:', st.badges.filter((b) => b.earned).map((b) => b.icon + b.title).join(', '));
+// profielen zijn gescheiden: een tweede kind ziet niets van E2E
+const other = (await api('/api/kids', { name: 'E2E-twee' })).kid;
+const st2 = await api('/api/state');
+assert(st2.name === 'E2E-twee' && !st2.intakeDone && st2.wallet.balance === 0 && !st2.badges.some((b) => b.earned), 'tweede profiel begint helemaal leeg (gescheiden)');
+await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
+await api('/api/kids/select', { id: kid.id });
+assert((await api('/api/state')).intakeDone, 'terug naar E2E: gegevens zijn er nog');
+await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
+void other;
 await db.end();
 console.log(failed ? `\n${failed} fout(en)` : '\nAlles klopt ✓');
 process.exit(failed ? 1 : 0);

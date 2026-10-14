@@ -1178,10 +1178,51 @@ export const STRATEGY = {
 
 // Hints: eerst de aanpak, daarna de tussenstap-vragen (met ?), nooit de uitkomsten.
 export function hintsFor(q) {
-  return [STRATEGY[q.cat], ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
+  return [kid(STRATEGY[q.cat]), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
 }
 
 export const GENERATORS = { optellen, vermenigvuldigen, delen, kommagetallen, getalbegrip, breuken, procenten, verhoudingen, schaal, metriek, oppervlakte, tijd, meetkunde, grafieken };
+
+// ---------- kindertaal ----------
+// Vakwoorden eerst in gewone woorden, met het vakwoord erachter (alleen de eerste keer per tekst).
+const KIDWORDS = [
+  // [familie, patroon, uitleg]
+  ['vereenvoudig', /\b[Vv]ereenvoudig(en|d)?\b/, 'maak de getallen zo klein mogelijk'],
+  ['noemer', /\b[Nn]oemers?\b/, 'het getal onder de streep'],
+  ['teller', /\b[Tt]ellers?\b/, 'het getal boven de streep'],
+  ['gelijknamig', /\b[Gg]elijknamig\b/, 'met hetzelfde getal onder de streep'],
+  ['kolomsgewijs', /\b[Kk]olomsgewijs\b/, 'in stukjes, per plek'],
+  ['verhoudingstabel', /\b[Vv]erhoudingstabel\b/, 'een tabelletje waarin je links en rechts hetzelfde doet'],
+  ['omtrek', /\b[Oo]mtrek\b/, 'de lengte van de rand rondom'],
+  ['oppervlakte', /\b[Oo]ppervlakte\b/, 'hoeveel ruimte er binnenin past, in vierkantjes'],
+  ['diameter', /\b[Dd]iameter\b/, 'de lijn dwars door het midden'],
+  ['deelbaar', /\bdeelbaar\b/, 'te delen zonder rest'],
+  ['deler', /\bde deler\b/, 'het getal waardoor je deelt'],
+  ['gemengd', /\b[Gg]emengd getal\b/, 'een heel getal met een breuk erbij, zoals 2 1/2'],
+];
+// Eén keer per tekst, in één ronde (zodat uitleg niet zelf weer vervangen wordt).
+export function kid(text) {
+  if (!text || typeof text !== 'string') return text;
+  const done = new Set();
+  const parts = [];
+  let out = text;
+  for (const [fam, re, uitleg] of KIDWORDS) {
+    if (done.has(fam) || out.includes(`(${uitleg})`)) continue;
+    out = out.replace(re, (m) => {
+      done.add(fam);
+      parts.push(`${m} (${uitleg})`);
+      return `\u0000${parts.length - 1}\u0000`;
+    });
+  }
+  return out.replace(/\u0000(\d+)\u0000/g, (_, i) => parts[Number(i)]);
+}
+function kidify(q) {
+  q.text = kid(q.text);
+  q.steps = (q.steps || []).map(kid);
+  q.guideFinal = kid(q.guideFinal);
+  q.guide = (q.guide || []).map((g) => ({ ...g, ask: kid(g.ask), tip: kid(g.tip) }));
+  return q;
+}
 
 let counter = 0;
 export function generate(cat, level) {
@@ -1192,7 +1233,7 @@ export function generate(cat, level) {
   q.level = lv;
   q.id = `${Date.now().toString(36)}${(counter++).toString(36)}`;
   if (!q.guide || !q.guide.length) { q.guide = []; q.guideFinal = null; }
-  return q;
+  return kidify(q);
 }
 
 // ---------- antwoord controleren ----------
