@@ -1,3 +1,4 @@
+// Lessen van Max controleren (kost AI-aanroepen): node scripts/lessen-check.mjs breuken:2,procenten:2 4 uit.txt
 import '../src/env.js';
 import fs from 'node:fs';
 import OpenAI from 'openai';
