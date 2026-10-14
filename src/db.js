@@ -121,6 +121,7 @@ const KID_TABLES = `
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note text;
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note_at timestamptz;
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS ex_level int NOT NULL DEFAULT -1;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS calib int NOT NULL DEFAULT 0;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS misconception text;
     -- foutenschrift: fouten komen na 1, 3 en 7 dagen terug
     CREATE TABLE IF NOT EXISTS reviews (
@@ -136,6 +137,10 @@ const KID_TABLES = `
       last_at timestamptz
     );
     CREATE INDEX IF NOT EXISTS reviews_due ON reviews(done, due);
+    -- starttoets is ingekort van 40 naar 21 sommen: lopende oude starttoetsen ook inkorten (wat al gedaan is telt mee)
+    UPDATE sessions SET total = GREATEST(21, jsonb_array_length(results) + 1),
+      plan = (SELECT jsonb_agg(e ORDER BY i) FROM jsonb_array_elements(plan) WITH ORDINALITY t(e, i) WHERE i <= GREATEST(21, jsonb_array_length(results) + 1))
+      WHERE kind = 'intake' AND status = 'active' AND total = 40;
     -- kladblok: wat het kind uitrekende (tekening + tekst) en wat de leraar erin zag
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_text text;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_note text;

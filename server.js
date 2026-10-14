@@ -7,7 +7,7 @@ import { detectMisconception } from './src/misconceptions.js';
 import { MNEMONICS, mnemonicsFor } from './src/mnemonics.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
-  getSkills, updateSkill, saveSkill, intakePlan, skillFromIntake, getStruggling, snapshotSkills,
+  getSkills, updateSkill, saveSkill, intakePlan, INTAKE_MAX, skillFromIntake, getStruggling, snapshotSkills,
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
@@ -60,7 +60,7 @@ function withKid(req, res, next) {
   (id ? getKid(id) : Promise.resolve(null)).then((kid) => {
     if (!kid) return res.status(401).json({ error: 'kid' });
     req.kid = kid;
-    kidStore.run({ kid: kid.id }, next);
+    kidStore.run({ kid: kid.id, name: kid.name }, next);
   }).catch(next);
 }
 const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
@@ -137,8 +137,28 @@ async function refreshProfile() {
   const rows = (await q(`SELECT cat, level, text, given, display, correct, hints, guided, scratch_note FROM attempts ORDER BY id DESC LIMIT 60`)).rows;
   if (rows.length < 8) return;
   const attempts = rows.reverse().map((r) => ({ ...r, label: catById[r.cat]?.label || r.cat, level: LEVEL_NAMES[r.level] }));
-  const updated = await updateProfile({ name: await getName(), oldProfile: profileText(await getProfile()), attempts });
+  const updated = await updateProfile({
+    name: await getName(), oldProfile: profileText(await getProfile()), attempts,
+    stats: await profileStats(),
+    misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL GROUP BY misconception ORDER BY n DESC LIMIT 10`)).rows,
+    memory: await memoryText(),
+  });
   if (updated) await setSetting('profile', { ...updated, updated_at: new Date().toISOString() });
+}
+// Cijfers per onderdeel voor het profiel en het overzicht: niveau, % goed, trend
+async function profileStats() {
+  const skills = await getSkills();
+  const tot = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok,
+      COUNT(*) FILTER (WHERE created_at > now() - interval '14 days')::int n14,
+      SUM(CASE WHEN correct AND created_at > now() - interval '14 days' THEN 1 ELSE 0 END)::int ok14 FROM attempts GROUP BY cat`)).rows.map((r) => [r.cat, r]));
+  const old = Object.fromEntries((await q(`SELECT DISTINCT ON (cat) cat, score FROM skill_snapshots WHERE day <= CURRENT_DATE - 14 ORDER BY cat, day DESC`)).rows.map((r) => [r.cat, r.score]));
+  return skills.map((s) => {
+    const t = tot[s.cat] || { n: 0, ok: 0, n14: 0, ok14: 0 };
+    const now = skillScore(s), was = old[s.cat];
+    return { cat: s.cat, label: catById[s.cat].label, level: LEVEL_NAMES[s.level], levelIdx: s.level, score: Math.round(now), n: t.n,
+      pct: t.n ? Math.round((100 * t.ok) / t.n) : 0, pct14: t.n14 ? Math.round((100 * t.ok14) / t.n14) : null,
+      trend: was == null ? 'nog onbekend' : now - was >= 5 ? 'vooruit' : now - was <= -5 ? 'achteruit' : 'gelijk' };
+  });
 }
 
 // Geheugen van de leraar: korte notities met datum, de nieuwste achteraan
@@ -257,7 +277,7 @@ async function skillsView() {
     return {
       cat: s.cat, label: meta.label, icon: meta.icon, domain: meta.domain, level: s.level, levelName: LEVEL_NAMES[s.level], score,
       tag: skillLabel(score), trend: prev[s.cat] != null ? Math.round(score - prev[s.cat]) : null,
-      attempts: s.attempts, correct: s.correct, struggling: struggling.includes(s.cat),
+      attempts: s.attempts, correct: s.correct, struggling: struggling.includes(s.cat), calib: s.calib || 0,
       guidedWins: s.guided_wins, soloBonus: s.solo_bonus, note: s.ai_note || null,
       toNext: s.level < 3 ? Math.round(((s.recent || []).reduce((a, b) => a + b, 0) / Math.max(8, (s.recent || []).length)) * 100) : null,
     };
@@ -333,7 +353,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
     struggling,
     history,
     badges,
-    points: { intake: INTAKE_POINTS, daily: DAILY_POINTS, dailyCount: DAILY_COUNT, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
+    points: { intake: INTAKE_POINTS, intakeCount: INTAKE_MAX, daily: DAILY_POINTS, dailyCount: DAILY_COUNT, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
 }));
 
@@ -342,7 +362,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
 async function askPlan(n) {
   const acc = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows.map((r) => [r.cat, r]));
   const view = (await skillsView()).list;
-  const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '' }));
+  const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '', calib: v.calib > 0 }));
   return planSession({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), groep: await getSetting('groep', 8), rows, n });
 }
 async function precomputePlan() {
@@ -697,6 +717,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       }
     }
   }
+  if (!done && aiEnabled() && s.results.length % 10 === 0) refreshProfile().catch((e) => console.error('[profiel]', e.message));
   if (done) {
     refreshProfile().catch((e) => console.error('[profiel]', e.message));
     precomputePlan().catch((e) => console.error('[lesplan]', e.message));
@@ -818,6 +839,29 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
 // =====================================================================
 // API ouder
 // =====================================================================
+// ---------- overzicht voor ouder/leerkracht: alle kinderen op één pagina ----------
+const parentOnly = (req, res, next) => (hasRole(req, 'parent') ? next() : res.status(401).json({ error: 'parent-login' }));
+async function kidSummary(k) {
+  const intake = await one(`SELECT status FROM sessions WHERE kind='intake' ORDER BY id DESC LIMIT 1`);
+  const week = await one(`SELECT COUNT(*)::int n, COALESCE(SUM(CASE WHEN correct THEN 1 ELSE 0 END),0)::int ok FROM attempts WHERE created_at > now() - interval '7 days'`);
+  const last = await one(`SELECT MAX(created_at) AS t FROM attempts`);
+  const sessions7 = await one(`SELECT COUNT(*)::int n FROM sessions WHERE status='done' AND kind <> 'intake' AND created_at > now() - interval '7 days'`);
+  return {
+    id: k.id, name: k.name, avatar: k.avatar, intakeDone: intake?.status === 'done', lastActive: last?.t || null,
+    week: { n: week.n, pct: week.n ? Math.round((100 * week.ok) / week.n) : null }, sessions7: sessions7.n,
+    streak: await streak(), wallet: await wallet(), stats: await profileStats(), profile: await getProfile(),
+    memory: (await getMemory()).slice(-6).reverse(),
+    misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 4`)).rows,
+    scratchNotes: (await q(`SELECT text, given, correct, scratch_note FROM attempts WHERE scratch_note IS NOT NULL ORDER BY id DESC LIMIT 3`)).rows,
+    reviewsOpen: (await one(`SELECT COUNT(*)::int n FROM reviews WHERE NOT done`)).n,
+  };
+}
+app.get('/api/parent/all', parentOnly, wrap(async (req, res) => {
+  const kids = [];
+  for (const k of await listKids()) kids.push(await kidStore.run({ kid: k.id, name: k.name }, () => kidSummary(k)));
+  res.json({ teacher: TEACHER, ai: aiEnabled(), levels: LEVEL_NAMES, cats: CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })), kids });
+}));
+
 app.post('/api/parent/login', wrap(async (req, res) => {
   if (pinOk(req.body.pin, PARENT_PIN)) { setCookie(res, 'parent', 30); return res.json({ ok: true }); }
   await new Promise((r) => setTimeout(r, 800));

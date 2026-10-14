@@ -22,7 +22,7 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
 
 ## Hoe het werkt
 
-1. **Starttoets (adaptief)**: eerst "In welke groep zit je?". Dan 40 sommen, beginnend **één groep lager** (groep 8 → groep 7-niveau): goed → moeilijker, fout → makkelijker. Geen hulp (eerlijk meten), wel een "Weet ik niet"-knop.
+1. **Starttoets (adaptief)**: eerst "In welke groep zit je?". Dan 21 sommen (elk onderdeel één, plus 7 extra waar het meest te leren valt), beginnend **één groep lager** (groep 8 → groep 7-niveau): goed → moeilijker, fout → makkelijker. Geen hulp (eerlijk meten), wel een "Weet ik niet"-knop. Daarna **inregelen**: het niveau is nog een schatting, dus de eerste 8 sommen per onderdeel stellen sneller bij (3× zelf goed op rij → omhoog, 2× fout op rij → omlaag) en elk onderdeel komt de eerste dagen even langs.
 2. **Dagtaak** (ma–vr): 20 sommen. Zwakke onderdelen krijgen meer sommen, sterke minder. Elke volgende som wordt pas gemaakt na het vorige antwoord, zodat de app live bijstuurt.
 3. **Niveau per onderdeel**:
    - Meer dan de helft fout (laatste 6, min. 4) → **een niveau lager** + extra hulp (tussenstappen staan klaar).
@@ -91,8 +91,13 @@ npm run dev               # terminal 2: http://localhost:3000
 - **Past zich aan**: frustratie → geruststellen en kleiner stapje; snel en goed → sneller; werkt iets 2× niet → heel andere uitleg.
 - **Lesplan per dag (differentiatie)**: Max bepaalt per onderdeel op welk groepsniveau er vandaag geoefend wordt (bijv. breuken groep 5, optellen groep 8; max. 1 stap afwijking van de cijfers als vangnet), hoeveel sommen (veel bij wat lastig is, weinig bij wat goed gaat) en schrijft per onderdeel een compliment of aanmoediging. Het plan wordt na elke sessie alvast gemaakt, dus de dagtaak start direct. Zonder AI: vaste regels.
 - **Geen vaktaal** zonder uitleg: "het getal onder de streep (de noemer)". Ook alle sommen, hints en stappen gebruiken deze kindertaal.
-- **Onthoudt en bouwt voort**: na elke sessie/les schrijft Max korte notities (wat nu lukt, waar het vastliep, wat hielp, interesses) en gebruikt die in volgende gesprekken. Daarnaast een **leerlingprofiel** met denkfouten per onderdeel. Beide zichtbaar in het ouderscherm.
+- **Onthoudt en bouwt voort**: na elke sessie/les schrijft Max korte notities (wat nu lukt, waar het vastliep, wat hielp, interesses) en gebruikt die in volgende gesprekken.
+- **Leerlingdossier** (bijgewerkt na elke sessie én elke 10 sommen): samenvatting, sterke kanten, **zwakke punten met bewijs en status** (🆕 nieuw → 🔧 mee bezig → 📈 gaat beter → ✅ opgelost), leerstijl en tips. Gebaseerd op cijfers per onderdeel (niveau, % goed, trend), herkende denkfouten, kladblok-analyses, de notities en de laatste 60 sommen. Oude zwakke punten worden niet vergeten maar afgevinkt als ze opgelost zijn.
+- **Privacy**: de AI ziet nooit de echte naam. Op de server heet het kind "Christo"; naar OpenAI gaat een vaste schuilnaam (`Leerling-1234`) die in het antwoord weer wordt teruggezet. Verder een anoniem `safety_identifier` (hash) en `store: false`. Let op: wat een kind zelf in de chat typt (bijv. een achternaam) gaat wel mee.
 - Na elke sessie een persoonlijk berichtje van Max. `AI_DAILY_LIMIT` (standaard 400 per kind per dag) begrenst de kosten.
+
+## Overzicht voor ouder/leerkracht
+`#/overzicht` (link onderaan "Wie ben jij?", pincode `PARENT_PIN`): alle kinderen op één pagina — laatst geoefend, sommen en % goed deze week, reeks, spaarpot, samenvatting, zwakke punten met status, sterke kanten, niveau per onderdeel (g5–g8 + trend), denkfouten, kladblok en wat Max onthoudt. "Details" opent het ouderscherm van dat kind.
 
 ## Profielen
 Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.

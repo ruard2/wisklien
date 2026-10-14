@@ -175,16 +175,71 @@ async function route() {
     if (parts[0] === 'spaarpot') return await renderPiggy();
     if (parts[0] === 'sessie') return await openSession(parts[1]);
     if (parts[0] === 'ouder') return await renderParent();
+    if (parts[0] === 'overzicht') return await renderOverview();
     location.hash = '#/';
   } catch (e) {
     if (e.message !== 'login') { $app.innerHTML = `<div class="card"><h2>Oeps</h2><p class="muted">${esc(e.message)}</p><br><button class="btn" onclick="location.reload()">Opnieuw</button></div>`; }
   }
 }
 function setTab(name) {
-  $tabs.hidden = name === 'sessie' || name === 'ouder';
+  $tabs.hidden = name === 'sessie' || name === 'ouder' || name === 'overzicht';
   for (const a of $tabs.querySelectorAll('a')) a.classList.toggle('on', a.dataset.tab === name);
 }
 window.addEventListener('hashchange', route);
+
+// ---------- overzicht voor ouder/leerkracht: alle kinderen ----------
+async function renderOverview() {
+  let data;
+  try { data = await api('/api/parent/all'); } catch (e) {
+    if (e.status === 401) return pinScreen('Pincode voor ouder of leerkracht', async (pin) => { await api('/api/parent/login', { pin }); renderOverview(); });
+    throw e;
+  }
+  const ago = (t) => {
+    if (!t) return 'nog nooit';
+    const d = Math.floor((Date.now() - new Date(t)) / 864e5);
+    return d <= 0 ? 'vandaag' : d === 1 ? 'gisteren' : `${d} dagen geleden`;
+  };
+  const LV = ['g5', 'g6', 'g7', 'g8'];
+  const TR = { vooruit: '↗', achteruit: '↘', gelijk: '→' };
+  const ST = { nieuw: '🆕', 'mee bezig': '🔧', 'gaat beter': '📈', opgelost: '✅' };
+  const kidCard = (k) => {
+    const p = k.profile || {};
+    const open = (p.zwakke_punten || []).filter((z) => z.status !== 'opgelost');
+    const fixed = (p.zwakke_punten || []).filter((z) => z.status === 'opgelost');
+    const weakest = [...k.stats].filter((s) => s.n).sort((a, b) => a.score - b.score).slice(0, 3);
+    return `<div class="card stack ov-kid">
+      <div class="row between"><div class="row"><span class="big-emoji" style="font-size:34px">${esc(k.avatar)}</span><div><h2 style="margin:0">${esc(k.name)}</h2>
+        <div class="small muted">laatst geoefend: ${ago(k.lastActive)}${k.intakeDone ? '' : ' · starttoets nog niet af'}</div></div></div>
+        <button class="btn ghost sm" data-open="${k.id}">Details ›</button></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px">
+        <span class="chip">📅 deze week: ${k.week.n} sommen${k.week.pct != null ? ` · ${k.week.pct}% goed` : ''}</span>
+        <span class="chip">✅ ${k.sessions7} sessies</span><span class="chip">🔥 ${k.streak} dagen</span>
+        <span class="chip coin">🪙 ${euro(k.wallet.balance)}</span>${k.reviewsOpen ? `<span class="chip">🔁 ${k.reviewsOpen} te herhalen</span>` : ''}
+      </div>
+      ${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : `<p class="small muted">${data.ai ? 'Nog geen profiel: komt na de eerste sommen.' : 'AI staat uit: geen profiel.'}</p>`}
+      ${open.length ? `<div><b>Werkt aan</b><ul class="ov-list">${open.slice(0, 5).map((z) => `<li><span title="${esc(z.status || '')}">${ST[z.status] || '•'}</span> <b>${esc(z.onderdeel)}</b>: ${esc(z.punt)}${z.bewijs ? `<div class="small muted">${esc(z.bewijs)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
+      ${p.sterk?.length ? `<p class="small"><b>💪 Sterk:</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
+      ${fixed.length ? `<p class="small"><b>✅ Opgelost:</b> ${fixed.map((z) => esc(z.punt)).join(' · ')}</p>` : ''}
+      <details><summary class="small" style="font-weight:800;cursor:pointer">Niveau per onderdeel</summary>
+        <table class="list ov-levels">${k.stats.map((s) => `<tr><td>${esc(data.cats.find((c) => c.id === s.cat)?.icon || '')} ${esc(s.label)}</td>
+          <td><span class="lv lv${s.levelIdx}">${LV[s.levelIdx]}</span></td><td class="small">${s.n ? `${s.pct14 ?? s.pct}%` : '–'}</td><td class="small" title="${esc(s.trend)}">${TR[s.trend] || ''}</td></tr>`).join('')}</table>
+        <p class="small muted">g5–g8 = op welk groepsniveau er nu geoefend wordt · % goed (laatste 14 dagen) · pijl = trend</p></details>
+      ${(k.misconceptions.length || k.scratchNotes.length || k.memory.length) ? `<details><summary class="small" style="font-weight:800;cursor:pointer">Denkfouten, kladblok en wat ${esc(data.teacher)} onthoudt</summary>
+        ${k.misconceptions.length ? `<p class="small" style="margin-top:6px"><b>Denkfouten (30 dagen):</b> ${k.misconceptions.map((m) => `${esc(m.misconception)} (${m.n}×)`).join(' · ')}</p>` : ''}
+        ${k.scratchNotes.map((n) => `<p class="small" style="margin-top:6px">✏️ ${esc(n.text)} → <b>${esc(n.given)}</b> ${n.correct ? '✅' : '❌'}<br><span class="muted">${esc(n.scratch_note)}</span></p>`).join('')}
+        ${k.memory.length ? `<ul class="ov-list small">${k.memory.map((m) => `<li>${esc(m.n)} <span class="muted">(${esc(m.d)})</span></li>`).join('')}</ul>` : ''}</details>` : ''}
+      ${!open.length && weakest.length && k.intakeDone ? `<p class="small"><b>Zwakste onderdelen nu:</b> ${weakest.map((s) => esc(s.label)).join(', ')}</p>` : ''}
+    </div>`;
+  };
+  $app.innerHTML = `<div class="stack">
+    <div class="row between"><a href="#/" class="small">‹ Terug</a><button class="btn ghost sm" data-logout>Uitloggen</button></div>
+    <h1>👨‍🏫 Overzicht</h1>
+    <p class="muted small">Alle kinderen op één plek. Het profiel en de zwakke punten houdt ${esc(data.teacher)} zelf bij (na elke sessie en elke 10 sommen). Namen gaan nooit naar de AI: die ziet alleen een schuilnaam.</p>
+    ${data.kids.length ? data.kids.map(kidCard).join('') : '<div class="card"><p>Nog geen kinderen.</p></div>'}
+  </div>`;
+  $app.querySelectorAll('[data-open]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.open) }); location.hash = '#/ouder'; }));
+  $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
+}
 
 // ---------- wie ben jij? (profielen, alleen een naam) ----------
 async function renderWho() {
@@ -205,6 +260,7 @@ async function renderWho() {
           <p class="small" style="color:var(--bad);min-height:18px">${esc(err)}</p>
           <button class="btn block">Start! 🚀</button>
         </form>` : '<button class="btn ghost block" data-shownew>➕ Ik ben nieuw</button>'}
+      <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? Bekijk het overzicht</a>
     </div>`;
     $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
     $app.querySelector('[data-shownew]')?.addEventListener('click', () => draw('', true));
@@ -266,7 +322,7 @@ async function renderHome() {
     main = `<div class="card hero stack">
       <div class="big-emoji">🚀</div>
       <div><div class="task-title">Starttoets</div>
-      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : 'Eerst kijken wat je al kunt. 40 sommen uit alle onderdelen. We beginnen een groep lager dan jouw groep. Gaat het goed, dan worden ze moeilijker; gaat het fout, dan makkelijker. Je kunt tussendoor stoppen.'}</p></div>
+      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : `Eerst kijken wat je al kunt: ${s.points.intakeCount} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een groep lager dan jouw groep. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.`}</p></div>
       <div class="row"><span class="chip coin">🪙 tot ${s.points.intake} cent</span></div>
       <button class="btn light block" data-start="intake">${s.intakeActive ? 'Verder met de starttoets' : 'Start de starttoets'}</button>
       <p class="small muted">Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.</p></div>`;
@@ -1250,7 +1306,7 @@ async function renderParent() {
   const kindNl = { intake: 'Starttoets', daily: 'Dagtaak', practice: 'Oefenen' };
   $app.innerHTML = `<div class="stack">
     <div class="row between"><a href="#/spaarpot" class="small">‹ Terug</a><button class="btn ghost" data-logout>Uitloggen</button></div>
-    <h1>Ouderoverzicht</h1>
+    <div class="row between"><h1>Ouderoverzicht</h1><a href="#/overzicht" class="small">👨‍🏫 Alle kinderen</a></div>
     <div class="card coin stack"><div class="row between"><div><div class="small muted">Spaarpot van ${esc(data.name)}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">verdiend ${euro(data.wallet.earned)}<br>uitbetaald ${euro(data.wallet.paid)}<br>🔥 ${data.streak} dagen op rij</div></div>
       <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="Bedrag in €, bijv. 2,50" name="amt"></div><button class="btn">Uitbetalen</button></form></div>
 
@@ -1361,7 +1417,15 @@ async function renderParent() {
 
 function profileHTML(p) {
   if (!p) return '<p class="small muted">Nog leeg. Na een paar sessies analyseert de AI-leraar automatisch welke denkfouten er gemaakt worden en wat helpt.</p>';
+  const ST = { nieuw: '🆕 nieuw', 'mee bezig': '🔧 mee bezig', 'gaat beter': '📈 gaat beter', opgelost: '✅ opgelost' };
   return `${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : ''}
+    ${p.sterk?.length ? `<p class="small" style="margin-top:8px"><b>💪 Sterk:</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
+    ${(p.zwakke_punten || []).map((z) => `<div class="card flat" style="padding:12px;margin-top:8px;${z.status === 'opgelost' ? 'opacity:.65' : ''}">
+      <div class="row between"><b>${esc(z.onderdeel)}</b><span class="chip ${z.prioriteit === 'hoog' && z.status !== 'opgelost' ? 'bad' : ''}">${esc(ST[z.status] || z.status || '')}</span></div>
+      <p class="small" style="margin-top:4px">${esc(z.punt)}</p>
+      ${z.bewijs ? `<p class="small muted" style="margin-top:4px">🔍 ${esc(z.bewijs)}</p>` : ''}
+      ${z.wat_helpt ? `<p class="small" style="margin-top:4px"><b>Helpt:</b> ${esc(z.wat_helpt)}</p>` : ''}</div>`).join('')}
+    ${p.leerstijl ? `<p class="small" style="margin-top:8px"><b>Leerstijl:</b> ${esc(p.leerstijl)}</p>` : ''}
     ${(p.onderdelen || []).map((o) => `<div class="card flat" style="padding:12px;margin-top:8px"><div class="row between"><b>${esc(o.onderdeel)}</b><span class="chip ${o.prioriteit === 'hoog' ? 'bad' : ''}">${esc(o.prioriteit || '')}</span></div>
       ${(o.denkfouten || []).length ? `<ul class="small" style="margin:6px 0 0 18px;padding:0">${o.denkfouten.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
       ${o.wat_helpt ? `<p class="small" style="margin-top:6px"><b>Helpt:</b> ${esc(o.wat_helpt)}</p>` : ''}</div>`).join('')}

@@ -65,10 +65,10 @@ assert((await api('/api/state')).name === 'E2E', 'profiel aangemaakt en gekozen'
 const intake = await play('intake', (i, cur, full) => (full.level >= 2 ? 'bad' : 'good'), { groep: 8 });
 const lv = intake.log.map((l) => l.full.level);
 assert(intake.log.slice(0, 14).every((l) => l.full.level === 2), 'groep 8 → starttoets begint op groep 7-niveau');
-assert(intake.log.length === 40, `starttoets 40 sommen (${intake.log.length})`);
+assert(intake.log.length === 21, `starttoets 21 sommen (${intake.log.length})`);
 assert(!lv.includes(3), 'starttoets: na fout op 1F geen 1S-sommen');
 assert(intake.log.every((l) => l.cur.offer.mode === 'none'), 'starttoets: geen tussenstappen (eerlijk meten)');
-assert(intake.last.summary.points === Math.round(intake.last.summary.correct * 100 / 40), `starttoets ${intake.last.summary.points} cent voor ${intake.last.summary.correct} goed`);
+assert(intake.last.summary.points === Math.round(intake.last.summary.correct * 100 / 21), `starttoets ${intake.last.summary.points} cent voor ${intake.last.summary.correct} goed`);
 let st = await api('/api/state');
 assert(st.skills.every((s) => s.level === 1), `iedereen op basis na "1F fout" (${st.skills.map((s) => s.levelName).join(',')})`);
 assert(st.badges.find((b) => b.id === 'start').earned, 'badge starttoets');
@@ -191,6 +191,9 @@ assert(st2.name === 'E2E-twee' && !st2.intakeDone && st2.wallet.balance === 0 &&
 await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
 await api('/api/kids/select', { id: kid.id });
 assert((await api('/api/state')).intakeDone, 'terug naar E2E: gegevens zijn er nog');
+const all = await api('/api/parent/all');
+const me = all.kids.find((k) => k.name === 'E2E');
+assert(me && me.stats.length === 14 && me.week.n > 0 && all.kids.length >= 2, `overzicht alle kinderen (${all.kids.length} kinderen, ${me?.week.n} sommen deze week)`);
 await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
 void other;
 await db.end();

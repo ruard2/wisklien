@@ -9,7 +9,36 @@
 //  - schrijft na elke sessie een persoonlijk berichtje en adviseert de ouder
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import crypto from 'node:crypto';
 import { mnemonicText } from './mnemonics.js';
+import { kidStore } from './db.js';
+
+// ---------- privacy: de AI ziet nooit de echte naam ----------
+// Op de server heet het kind gewoon "Christo"; naar de AI gaat een vaste schuilnaam (bijv. "Leerling-4821").
+// Uitgaand: echte naam → schuilnaam. Terug: schuilnaam → echte naam. Zo blijft het gesprek persoonlijk,
+// maar staat er bij OpenAI geen naam en geen kind-id.
+export function aliasFor(kidId) {
+  const h = crypto.createHash('sha256').update(`${process.env.SESSION_SECRET || 'rekenen'}:${kidId}`).digest();
+  return `Leerling-${1000 + (h.readUInt32BE(0) % 9000)}`;
+}
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function privacy() {
+  const st = kidStore.getStore();
+  if (!st?.kid) return null;
+  const alias = aliasFor(st.kid);
+  const real = String(st.name || '').trim();
+  return {
+    alias,
+    out: (t) => (real.length >= 2 ? String(t).replace(new RegExp(`(?<![\\p{L}])${escRe(real)}(?![\\p{L}])`, 'giu'), alias) : String(t)),
+    back: (t) => String(t).split(alias).join(real || 'jij'),
+  };
+}
+function mapStrings(v, f) {
+  if (typeof v === 'string') return f(v);
+  if (Array.isArray(v)) return v.map((x) => mapStrings(x, f));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, mapStrings(x, f)]));
+  return v;
+}
 
 export const TEACHER = process.env.TEACHER_NAME || 'Meester Max';
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -53,7 +82,15 @@ function withImage(messages, image, provider) {
   return m;
 }
 
-async function complete(system, messages, { json = false, maxTokens = 1200, image = null } = {}) {
+async function complete(system, messages, opts = {}) {
+  const p = privacy();
+  if (!p) return completeRaw(system, messages, opts);
+  const safeMsgs = messages.map((m) => ({ ...m, content: typeof m.content === 'string' ? p.out(m.content) : m.content }));
+  const res = await completeRaw(p.out(system), safeMsgs, { ...opts, user: p.alias });
+  return res == null ? res : mapStrings(res, p.back);
+}
+
+async function completeRaw(system, messages, { json = false, maxTokens = 1200, image = null, user = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
@@ -72,6 +109,9 @@ async function complete(system, messages, { json = false, maxTokens = 1200, imag
         max_completion_tokens: reasoning ? maxTokens + 2500 : maxTokens,
         ...(reasoning ? { reasoning_effort: process.env.OPENAI_EFFORT || 'low' } : {}),
         ...(json ? { response_format: { type: 'json_object' } } : {}),
+        // anoniem kenmerk (geen naam) zodat misbruik per gebruiker herleidbaar blijft voor OpenAI's veiligheidssystemen
+        ...(user ? { safety_identifier: crypto.createHash('sha256').update(user).digest('hex').slice(0, 32) } : {}),
+        store: false,
       });
       const text = res.choices?.[0]?.message?.content?.trim() || '';
       return json ? safeJson(text) : text || null;
@@ -241,7 +281,7 @@ Houd elk bericht kort (max. ± 90 woorden).`;
 // Lesplan voor vandaag: Max bepaalt per onderdeel het niveau, het aantal sommen en een woordje.
 // rows: [{cat, label, level (0-3), levelName, score, recent: 'x/y', trend, struggling}]
 export async function planSession({ name, profile, memory, groep, rows, n }) {
-  const table = rows.map((r) => `${r.cat} | ${r.label} | nu: ${r.levelName} | score ${r.score}/100 | laatste 14 dagen: ${r.recent || 'nog niet geoefend'} | trend ${r.trend ?? '-'}${r.struggling ? ' | LOOPT VAST' : ''}`).join('\n');
+  const table = rows.map((r) => `${r.cat} | ${r.label} | nu: ${r.levelName} | score ${r.score}/100 | laatste 14 dagen: ${r.recent || 'nog niet geoefend'} | trend ${r.trend ?? '-'}${r.struggling ? ' | LOOPT VAST' : ''}${r.calib ? ' | NIVEAU NOG ONZEKER' : ''}`).join('\n');
   return complete(LERAAR(name, profile, memory), [{
     role: 'user',
     content: `Maak het lesplan voor de oefensessie van vandaag (${n} sommen). ${name} zit in groep ${groep || 8}.
@@ -253,6 +293,7 @@ ${table}
 Regels:
 - Differentieer echt per onderdeel. Kies per onderdeel het niveau waarop ${name} vandaag het meeste leert: uitdagend maar haalbaar (ongeveer 70-80% goed).
 - Je mag het niveau hooguit 1 stap afwijken van het huidige. Lager als het de laatste tijd vaak fout ging (minder dan de helft goed); hoger als het heel goed gaat (85% of meer goed, met genoeg sommen); anders gelijk.
+- "NIVEAU NOG ONZEKER" = de starttoets was kort; dit niveau is een schatting. Geef zulke onderdelen 1 of 2 sommen, zodat we ze leren kennen.
 - Verdeel precies ${n} sommen. Onderdelen die lastig zijn krijgen er meer (3 tot 6), onderdelen die goed gaan weinig (0 of 1, af en toe 1 om het bij te houden). Maximaal 6 per onderdeel. Gebruik minstens 5 verschillende onderdelen.
 - Schrijf per onderdeel een korte notitie AAN ${name} (max. 15 woorden): een concreet compliment waar het goed gaat, een eerlijke aanmoediging waar het nog lastig is. Geen vaktaal.
 - Schrijf een bericht aan ${name} (max. 55 woorden): begin met wat goed gaat (noem onderdelen), zeg waar jullie vandaag aan werken en waarom, en moedig aan. Mag een grapje bevatten.
@@ -270,18 +311,39 @@ export async function reflect({ name, profile, memory, summary }) {
 }
 
 // Leerlingprofiel bijwerken op basis van recente pogingen.
-export async function updateProfile({ name, oldProfile, attempts }) {
-  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je analyseert oefendata van een kind op de basisschool dat achterloopt met rekenen.', [{
+// Het leerlingprofiel: blijft bestaan over alle sessies heen. Zwakke punten krijgen bewijs en een status,
+// zodat oude problemen niet vergeten worden en je ziet wat er opgelost is.
+export async function updateProfile({ name, oldProfile, attempts, stats = [], misconceptions = [], memory = '' }) {
+  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien.', [{
     role: 'user',
-    content: `Huidig profiel (kan leeg zijn):\n${oldProfile || '(leeg)'}\n\nRecente pogingen (onderdeel | niveau | som | antwoord kind | goed antwoord | goed? | hulp | wat er op het kladblok te zien was):\n${attempts.map((a) => `${a.label} | ${a.level} | ${a.text} | ${a.given} | ${a.display} | ${a.correct ? 'goed' : 'FOUT'} | ${a.guided ? 'tussenstappen' : a.hints ? 'hints' : 'zelf'}${a.scratch_note ? ` | kladblok: ${a.scratch_note}` : ''}`).join('\n')}
+    content: `HUIDIG PROFIEL (kan leeg zijn):
+${oldProfile || '(leeg)'}
 
-Werk het profiel van ${name} bij. Geef JSON:
-{"samenvatting": "2-3 zinnen: waar staat ${name}, wat gaat goed, wat niet",
- "onderdelen": [{"onderdeel": "naam", "denkfouten": ["concrete denkfout die je in de antwoorden ziet"], "wat_helpt": "welke aanpak/uitleg waarschijnlijk werkt", "prioriteit": "hoog|midden|laag"}],
- "aanpak_tips": ["korte tip voor de leraar hoe je ${name} het beste uitlegt"]}
-Alleen denkfouten die je echt in de antwoorden terugziet. Max 6 onderdelen.`,
-  }], { json: true, maxTokens: 1200 });
-  return data && typeof data === 'object' ? data : null;
+STAND PER ONDERDEEL (niveau nu | aantal sommen totaal | % goed totaal | % goed laatste 14 dagen | trend):
+${stats.map((x) => `${x.label} | ${x.level} | ${x.n} | ${x.pct}% | ${x.pct14 == null ? '-' : x.pct14 + '%'} | ${x.trend}`).join('\n') || '(nog niets)'}
+
+HERKENDE DENKFOUTEN (hoe vaak, alles):
+${misconceptions.map((m) => `${m.misconception} (${m.n}×)`).join('\n') || '(geen)'}
+
+NOTITIES VAN DE LERAAR (gesprekken):
+${memory || '(geen)'}
+
+RECENTE POGINGEN (onderdeel | niveau | som | antwoord kind | goed antwoord | goed? | hulp | kladblok):
+${attempts.map((a) => `${a.label} | ${a.level} | ${a.text} | ${a.given} | ${a.display} | ${a.correct ? 'goed' : 'FOUT'} | ${a.guided ? 'tussenstappen' : a.hints ? 'hints' : 'zelf'}${a.scratch_note ? ` | ${a.scratch_note}` : ''}`).join('\n')}
+
+Werk het dossier van ${name} bij. Regels:
+- Neem zwakke punten uit het huidige profiel over, tenzij de data laat zien dat het nu goed gaat: zet dan status "gaat beter" of "opgelost" (en zeg in "bewijs" waarom).
+- Een zwak punt is concreet (niet "breuken", wel "telt bij optellen ook de getallen onder de streep op").
+- "bewijs" noemt echte voorbeelden of aantallen uit de data.
+- Max 8 zwakke punten; opgeloste punten max 3 (de nieuwste).
+Geef JSON:
+{"samenvatting": "2-3 zinnen: waar staat ${name}, wat gaat goed, wat niet, en of het vooruitgaat",
+ "sterk": ["onderdeel + kort waarom (max 4)"],
+ "zwakke_punten": [{"onderdeel": "naam", "punt": "wat er precies misgaat", "bewijs": "waaraan je het ziet", "status": "nieuw|mee bezig|gaat beter|opgelost", "wat_helpt": "welke uitleg/aanpak werkt", "prioriteit": "hoog|midden|laag"}],
+ "leerstijl": "hoe ${name} het best leert (tempo, soort uitleg, voorbeelden, wat motiveert) — alleen als je het echt ziet",
+ "aanpak_tips": ["korte tip voor de leraar (max 3)"]}`,
+  }], { json: true, maxTokens: 1800 });
+  return data && typeof data === 'object' && (data.samenvatting || data.zwakke_punten) ? data : null;
 }
 // Na een sessie of les: korte notities voor het geheugen van de leraar.
 export async function remember({ name, transcript }) {
@@ -296,7 +358,14 @@ export function profileText(p) {
   if (!p) return '';
   const lines = [];
   if (p.samenvatting) lines.push(p.samenvatting);
+  if (p.sterk?.length) lines.push(`Sterk: ${p.sterk.join('; ')}`);
+  for (const z of p.zwakke_punten || []) {
+    if (z.status === 'opgelost') { lines.push(`- (opgelost) ${z.onderdeel}: ${z.punt}`); continue; }
+    lines.push(`- ${z.onderdeel} [${z.status || '?'}, ${z.prioriteit || '?'}]: ${z.punt}${z.wat_helpt ? ` → helpt: ${z.wat_helpt}` : ''}`);
+  }
+  // oud formaat (van vóór de zwakke punten)
   for (const o of p.onderdelen || []) lines.push(`- ${o.onderdeel} (${o.prioriteit || '?'}): ${(o.denkfouten || []).join('; ')}${o.wat_helpt ? ` → helpt: ${o.wat_helpt}` : ''}`);
+  if (p.leerstijl) lines.push(`Leerstijl: ${p.leerstijl}`);
   if (p.aanpak_tips?.length) lines.push(`Tips: ${p.aanpak_tips.join(' / ')}`);
   return lines.join('\n');
 }
