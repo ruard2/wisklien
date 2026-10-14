@@ -108,7 +108,8 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
   try {
     if (openai) {
       const model = await openaiModel();
-      const reasoning = /^(gpt-5|o\d)/.test(model);
+      // denkende modellen (gpt-5, gpt-6, o-serie): extra ruimte, anders gaat alles op aan nadenken en blijft het antwoord leeg
+      const reasoning = /^(gpt-[5-9]|o\d)/.test(model);
       const res = await openai.chat.completions.create({
         model,
         messages: [{ role: 'system', content: system }, ...withImage(messages, image, 'openai')],
@@ -120,7 +121,11 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
         store: false,
       });
       const text = res.choices?.[0]?.message?.content?.trim() || '';
-      return json ? safeJson(text) : text || null;
+      const fin = res.choices?.[0]?.finish_reason;
+      const out = json ? safeJson(text) : text || null;
+      // nooit stil mislukken: anders blijft bijv. het profiel ongemerkt oud
+      if (out == null) console.error(`[ai] leeg/ongeldig antwoord (finish_reason=${fin}, ${text.length} tekens, tokens=${res.usage?.completion_tokens})`);
+      return out;
     }
     if (anthropic) {
       const res = await anthropic.beta.messages.create({
@@ -331,7 +336,7 @@ export async function reflect({ name, profile, memory, summary }) {
 // Het leerlingprofiel: blijft bestaan over alle sessies heen. Zwakke punten krijgen bewijs en een status,
 // zodat oude problemen niet vergeten worden en je ziet wat er opgelost is.
 export async function updateProfile({ name, oldProfile, attempts, stats = [], misconceptions = [], memory = '', signals = '' }) {
-  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien.', [{
+  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien. Gebruik de naam of "het kind", nooit hij of zij.', [{
     role: 'user',
     content: `HUIDIG PROFIEL (kan leeg zijn):
 ${oldProfile || '(leeg)'}
@@ -400,7 +405,7 @@ export async function teachBack({ name, profile, memory, question, explanation }
 
 // Advies voor de ouder.
 export async function parentAdvice({ name, summary, profile }) {
-  return complete('Je bent een ervaren remedial teacher rekenen in het Nederlandse basisonderwijs. Je adviseert een ouder van een kind (meestal groep 7/8) dat achterloopt met rekenen. Je kent de referentieniveaus 1F en 1S, de doorstroomtoets, en methodes als Pluspunt en Wereld in getallen. Schrijf helder, concreet en praktisch. Geen tabellen; korte kopjes met ** mogen.', [{
+  return complete('Je bent een ervaren remedial teacher rekenen in het Nederlandse basisonderwijs. Je adviseert een ouder van een kind (meestal groep 7/8) dat achterloopt met rekenen. Je kent de referentieniveaus 1F en 1S, de doorstroomtoets, en methodes als Pluspunt en Wereld in getallen. Schrijf helder, concreet en praktisch. Geen tabellen; korte kopjes met ** mogen. Je weet niet of het kind een jongen of meisje is: gebruik de naam of "het kind", nooit hij of zij.', [{
     role: 'user',
     content: `Oefengegevens van ${name}:\n${summary}\n\nLeerlingprofiel (door de AI-leraar bijgehouden):\n${profile || '(nog leeg)'}\n\nGeef (max 300 woorden):\n1. Eerlijke samenvatting: waar staat ${name}.\n2. De belangrijkste denkfouten en waar die vandaan komen.\n3. 3 concrete dingen die de ouder thuis kan doen (5-10 min, dagelijks leven).\n4. Wat de ouder met de leerkracht kan bespreken.`,
   }], { maxTokens: 1200 });

@@ -74,7 +74,7 @@ export async function computeSignals() {
   const w = solo.filter((r) => r.word), b = solo.filter((r) => !r.word && cats.has(r.cat));
   const pw = pct(w.filter((r) => r.correct).length, w.length), pb = pct(b.filter((r) => r.correct).length, b.length);
   if (w.length < 6 || b.length < 6) add('lezen', 'Verhaaltjessommen', 'onbekend', 'Nog te weinig verhaaltjessommen en kale sommen om te vergelijken.', `${w.length} verhaaltjes, ${b.length} kaal`, null);
-  else if (pb - pw >= 20) add('lezen', 'Verhaaltjessommen gaan slechter', 'let op',
+  else if (pb - pw >= 20 || (pb - pw >= 15 && w.length >= 10 && b.length >= 10)) add('lezen', 'Verhaaltjessommen gaan slechter', 'let op',
     'Dezelfde soort som gaat kaal beter dan in een verhaaltje. Het lezen of het vertalen naar een som is waarschijnlijk het struikelblok.',
     `kaal ${pb}% goed, verhaaltjes ${pw}% goed`,
     'Verhaaltjessommen worden automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" voor het rekenen.');

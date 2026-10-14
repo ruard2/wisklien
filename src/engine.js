@@ -252,6 +252,14 @@ export function nextQuestion(session, skills) {
     // planwijzer: herkansingen en opstekers schuiven het plan op, ze slaan niets over
     const p = st.planIdx || 0;
     const item = session.plan[p] || session.plan[p % session.plan.length] || strongest.cat;
+    // opwarmer: snelle tafelsom (automatiseren); meet ook of tafels vlot gaan of uitgeteld worden
+    if (item === 'warmup') {
+      const wc = Math.random() < 0.7 ? 'vermenigvuldigen' : 'delen';
+      let wq;
+      for (let k = 0; k < 12; k++) { wq = generate(wc, Math.min(1, byCat[wc]?.level ?? 1)); if (wq.text.length < 30) break; }
+      wq.warmup = true; wq.fromPlan = true;
+      return wq;
+    }
     // herhaling uit het foutenschrift: dezelfde soort som als die eerder misging
     if (typeof item === 'string' && item.startsWith('review:')) {
       const r = (st.reviews || [])[Number(item.slice(7))];

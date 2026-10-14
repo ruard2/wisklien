@@ -78,14 +78,18 @@ export function numberWords(n) {
 
 // Datum/tijd in Nederland
 const TZ = 'Europe/Amsterdam';
-export function todayNL(d = new Date()) {
+// Testklok (alleen met ALLOW_TEST_CLOCK=1): de app laten denken dat het een andere dag is, voor simulaties.
+let clockOffsetDays = 0;
+export const setTestClock = (days) => { clockOffsetDays = Number(days) || 0; };
+const now = () => new Date(Date.now() + clockOffsetDays * 864e5);
+export function todayNL(d = now()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d); // YYYY-MM-DD
 }
-export function weekdayNL(d = new Date()) {
+export function weekdayNL(d = now()) {
   const w = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(d);
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(w); // 0 = zondag
 }
-export const isSchoolDay = (d = new Date()) => {
+export const isSchoolDay = (d = now()) => {
   const w = weekdayNL(d);
   return w >= 1 && w <= 5;
 };

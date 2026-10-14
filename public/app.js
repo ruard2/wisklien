@@ -213,7 +213,7 @@ async function renderOverview() {
         <button class="btn ghost sm" data-open="${k.id}">Details ›</button></div>
       <div class="row" style="flex-wrap:wrap;gap:6px">
         <span class="chip">📅 deze week: ${k.week.n} sommen${k.week.pct != null ? ` · ${k.week.pct}% goed` : ''}</span>
-        <span class="chip">✅ ${k.sessions7} sessies</span><span class="chip">🔥 ${k.streak} dagen</span>
+        <span class="chip">✅ ${k.sessions7} sessies</span><span class="chip">🔥 ${k.streak} ${k.streak === 1 ? 'dag' : 'dagen'}</span>
         <span class="chip coin">🪙 ${euro(k.wallet.balance)}</span>${k.reviewsOpen ? `<span class="chip">🔁 ${k.reviewsOpen} te herhalen</span>` : ''}
       </div>
       ${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : `<p class="small muted">${data.ai ? 'Nog geen profiel: komt na de eerste sommen.' : 'AI staat uit: geen profiel.'}</p>`}
@@ -687,7 +687,7 @@ function renderQuestion() {
   if (S.klad?.index !== cur.index) kladReset(cur.index);
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : q.review ? `<span class="chip">🔁 Herhaling · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
+  const label = q.warmup ? '<span class="chip">⚡ Opwarmer</span>' : q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : q.review ? `<span class="chip">🔁 Herhaling · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
   $app.innerHTML = `
     <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>

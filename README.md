@@ -105,7 +105,7 @@ Bewust **geen leerstijl-labels** ("visueel", "auditief"): onderzoek (Pashler e.a
 | Tafels/basissommen niet geautomatiseerd | goed maar > 12 s per basissom | Max plant korte tafelrondjes (geen extra uitleg) |
 | Lang bezig en dan fout | ≥ 30% van de fouten na > 90 s | kleinere stappen, kladblok |
 | Werkgeheugen | lange sommen (4+ stappen) ≥ 25 punten slechter dan korte | Max knipt in kleinere stapjes, tussenresultaten opschrijven |
-| Lezen | verhaaltjessommen ≥ 20 punten slechter dan kale sommen | verhaaltjessommen automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" |
+| Lezen | verhaaltjessommen ≥ 15–20 punten slechter dan kale sommen | verhaaltjessommen automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" |
 | Zelfvertrouwen / spanning | veel "weet ik niet", stoppen, opgeven na een fout | rustige modus: eerder makkelijkere sommen, Max extra kalm |
 | Vastloper op een soort stap | dezelfde soort tussenstap ≥ 2× fout | Max legt juist die stap anders uit |
 | Vaak fout, maar onbekend wáár | laatste 8 sommen ≥ 4 fout, geen herkende denkfout, geen kladblok-analyse | kladblok gaat vanzelf open + één keer vragen om tussenstappen; stopt zodra duidelijk is waar het misgaat |

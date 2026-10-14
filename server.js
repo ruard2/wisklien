@@ -12,7 +12,7 @@ import {
   awardBadge, getBadges,
 } from './src/engine.js';
 import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
-import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
+import { todayNL, isSchoolDay, weekdayNL, setTestClock } from './src/util.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -439,6 +439,8 @@ async function createSession(kind, plan, total, maxPoints, skills, state = {}, d
   }
   // stille aanpassingen op basis van de signalen (het kind ziet geen labels)
   try { state = { ...state, adapt: { ...adaptFlags(await getSignals()), needWork: kind === 'intake' ? [] : await needWorkCats() } }; } catch (e) { console.error('[signalen]', e.message); }
+  // dagtaak: begin met 2 opwarmers (tafels), zoals in de rekenles
+  if (kind === 'daily') plan = ['warmup', 'warmup', ...plan].slice(0, total);
   const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
   s.questions.push(nextQuestion(s, skills));
   return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -874,6 +876,12 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
 // =====================================================================
 // API ouder
 // =====================================================================
+// ---------- testklok (alleen voor simulaties, nooit in productie) ----------
+if (process.env.ALLOW_TEST_CLOCK === '1' && process.env.NODE_ENV !== 'production') {
+  app.post('/api/test/clock', (req, res) => { setTestClock(req.body.days); res.json({ today: todayNL() }); });
+  console.log('[test] testklok staat aan');
+}
+
 // ---------- overzicht voor ouder/leerkracht: alle kinderen op één pagina ----------
 const parentOnly = (req, res, next) => (hasRole(req, 'parent') ? next() : res.status(401).json({ error: 'parent-login' }));
 async function kidSummary(k) {
