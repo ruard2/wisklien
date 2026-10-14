@@ -295,6 +295,8 @@ export function updateState(session, qq, correct) {
   const last = [...session.results.slice(-3).map((r) => r.correct), correct];
   const wasEasy = st.easy;
   if (last.length >= 4) st.easy = last.filter(Boolean).length < 2;
+  // rustige modus (zelfvertrouwen kwetsbaar): al bij 2 fout van de laatste 3 een tandje terug
+  if (st.adapt?.calm && last.length >= 3 && last.slice(-3).filter((x) => !x).length >= 2) st.easy = true;
   if (wasEasy && st.streak >= 3) st.easy = false;
   st.easyChanged = st.easy !== wasEasy ? (st.easy ? 'on' : 'off') : null;
   return st;

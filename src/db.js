@@ -144,6 +144,20 @@ const KID_TABLES = `
     -- kladblok: wat het kind uitrekende (tekening + tekst) en wat de leraar erin zag
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_text text;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_note text;
+    -- voor de signalen: hoeveel stappen, verhaaltjessom?, welke tussenstappen gingen mis
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS nsteps int;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS word boolean;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS step_errors jsonb;
+    -- welke uitleg-vorm Max gebruikte, en of de volgende som van dat onderdeel daarna goed ging
+    CREATE TABLE IF NOT EXISTS explanations (
+      id serial PRIMARY KEY,
+      cat text NOT NULL,
+      form text NOT NULL,
+      session_id int,
+      idx int,
+      outcome boolean,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS scratch (
       session_id int NOT NULL,
       idx int NOT NULL,

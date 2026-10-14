@@ -96,6 +96,23 @@ npm run dev               # terminal 2: http://localhost:3000
 - **Privacy**: de AI ziet nooit de echte naam. Op de server heet het kind "Christo"; naar OpenAI gaat een vaste schuilnaam (`Leerling-1234`) die in het antwoord weer wordt teruggezet. Verder een anoniem `safety_identifier` (hash) en `store: false`. Let op: wat een kind zelf in de chat typt (bijv. een achternaam) gaat wel mee.
 - Na elke sessie een persoonlijk berichtje van Max. `AI_DAILY_LIMIT` (standaard 400 per kind per dag) begrenst de kosten.
 
+## Hoe leert hij? (onder de motorkap, alleen voor ouder/leerkracht)
+Bewust **geen leerstijl-labels** ("visueel", "auditief"): onderzoek (Pashler e.a., 2008) laat zien dat lesgeven naar zo'n voorkeursstijl niet beter werkt. Wél gemeten (`src/signals.js`, zonder AI, uit de pogingen van de laatste 30 dagen) en elk met een vaste aanpassing:
+
+| Signaal | Hoe herkend | Wat er stil gebeurt |
+|---|---|---|
+| Te snel (impulsief) | ≥ 30% van de fouten binnen 6 s | na een snelle fout: "kijk eerst wat er ongeveer uit moet komen"; Max laat eerst schatten |
+| Tafels/basissommen niet geautomatiseerd | goed maar > 12 s per basissom | Max plant korte tafelrondjes (geen extra uitleg) |
+| Lang bezig en dan fout | ≥ 30% van de fouten na > 90 s | kleinere stappen, kladblok |
+| Werkgeheugen | lange sommen (4+ stappen) ≥ 25 punten slechter dan korte | Max knipt in kleinere stapjes, tussenresultaten opschrijven |
+| Lezen | verhaaltjessommen ≥ 20 punten slechter dan kale sommen | verhaaltjessommen automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" |
+| Zelfvertrouwen / spanning | veel "weet ik niet", stoppen, opgeven na een fout | rustige modus: eerder makkelijkere sommen, Max extra kalm |
+| Vastloper op een soort stap | dezelfde soort tussenstap ≥ 2× fout | Max legt juist die stap anders uit |
+| Vaak fout, maar onbekend wáár | laatste 8 sommen ≥ 4 fout, geen herkende denkfout, geen kladblok-analyse | kladblok gaat vanzelf open + één keer vragen om tussenstappen; stopt zodra duidelijk is waar het misgaat |
+| Welke uitleg helpt | Max labelt elke uitleg onzichtbaar (plaatje, verhaal, regel, stappen, voordoen); de volgende som van dat onderdeel telt als uitkomst | Max kiest meestal wat werkt, probeert af en toe iets anders |
+
+Het kind ziet geen signalen of labels; ze staan alleen in het ouderscherm en het overzicht, en Max krijgt ze met de opdracht ze nooit te benoemen. Pas na ± 1–2 weken oefenen genoeg data; daarvoor staat er "nog te weinig data".
+
 ## Overzicht voor ouder/leerkracht
 `#/overzicht` (link onderaan "Wie ben jij?", pincode `PARENT_PIN`): alle kinderen op één pagina — laatst geoefend, sommen en % goed deze week, reeks, spaarpot, samenvatting, zwakke punten met status, sterke kanten, niveau per onderdeel (g5–g8 + trend), denkfouten, kladblok en wat Max onthoudt. "Details" opent het ouderscherm van dat kind.
 

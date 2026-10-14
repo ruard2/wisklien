@@ -11,8 +11,9 @@ import {
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
+import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -142,9 +143,27 @@ async function refreshProfile() {
     stats: await profileStats(),
     misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL GROUP BY misconception ORDER BY n DESC LIMIT 10`)).rows,
     memory: await memoryText(),
+    signals: signalsForMax(await refreshSignals(), await whatHelps()),
   });
   if (updated) await setSetting('profile', { ...updated, updated_at: new Date().toISOString() });
 }
+// Signalen "hoe leert dit kind" (berekend, geen AI): bewaard, en opnieuw berekend na elke sessie en elke 5 sommen
+async function getSignals() {
+  const cached = await getSetting('signals', null);
+  if (cached && Date.now() - Date.parse(cached.at) < 6 * 3600e3) return cached;
+  return refreshSignals();
+}
+async function refreshSignals() {
+  const sig = await computeSignals();
+  await setSetting('signals', sig);
+  return sig;
+}
+// Wat Max over het kind meekrijgt: profiel + signalen (onder de motorkap)
+async function teacherProfile() {
+  const extra = signalsForMax(await getSignals(), await whatHelps());
+  return [profileText(await getProfile()), extra].filter(Boolean).join('\n\n');
+}
+
 // Cijfers per onderdeel voor het profiel en het overzicht: niveau, % goed, trend
 async function profileStats() {
   const skills = await getSkills();
@@ -253,6 +272,11 @@ function currentPayload(s, skills) {
     chat: qq.chat || [],
     example: qq.example || null,
     mnemonic: mnemonicsFor(qq.cat)[0] || null,
+    adapt: s.kind === 'intake' ? { readAloud: !!s.state?.adapt?.readAloud && isWordProblem(qq.text) } : {
+      readAloud: !!s.state?.adapt?.readAloud && isWordProblem(qq.text),
+      impulsive: !!s.state?.adapt?.impulsive,
+      showWork: (s.state?.adapt?.needWork || []).includes(qq.cat) && !qq.guided,
+    },
     base: s.max_points / s.total,
   };
 }
@@ -363,7 +387,7 @@ async function askPlan(n) {
   const acc = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows.map((r) => [r.cat, r]));
   const view = (await skillsView()).list;
   const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '', calib: v.calib > 0 }));
-  return planSession({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), groep: await getSetting('groep', 8), rows, n });
+  return planSession({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), groep: await getSetting('groep', 8), rows, n });
 }
 async function precomputePlan() {
   if (!aiEnabled() || !aiAllowed()) return;
@@ -413,6 +437,8 @@ async function createSession(kind, plan, total, maxPoints, skills, state = {}, d
       due.forEach((r, k) => { const pos = Math.min(plan.length - 1, 1 + k * 4); plan[pos] = `review:${k}`; });
     }
   }
+  // stille aanpassingen op basis van de signalen (het kind ziet geen labels)
+  try { state = { ...state, adapt: { ...adaptFlags(await getSignals()), needWork: kind === 'intake' ? [] : await needWorkCats() } }; } catch (e) { console.error('[signalen]', e.message); }
   const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
   s.questions.push(nextQuestion(s, skills));
   return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -539,6 +565,7 @@ app.post('/api/session/:id/step', child, wrap(async (req, res) => {
     if (check.empty) return { error: 'Vul eerst iets in.' };
     let result;
     const shown = step.type === 'choice' ? step.options[Number(given)] : given;
+    if (!check.correct && !(qq.stepErrors ||= []).includes(step.ask)) qq.stepErrors.push(step.ask);
     if (check.correct) {
       qq.guideDone.push({ ask: step.ask, display: step.display, given: shown, ok: true });
       qq.guideStep++; qq.stepTries = 0;
@@ -626,8 +653,11 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     s.points_acc += cents;
     s.state = updateState(s, qq, check.correct);
 
-    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception, scratch_text) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null, scratch?.text || null]);
+    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception, scratch_text, nsteps, word, step_errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null, scratch?.text || null,
+        (qq.guide?.length || 0) + 1, isWordProblem(qq.text), JSON.stringify(qq.stepErrors || [])]);
+    // uitleg die Max eerder gaf over dit onderdeel: hielp het? (de eerstvolgende som telt)
+    await c.query(`UPDATE explanations SET outcome=$2 WHERE cat=$1 AND outcome IS NULL AND created_at > now() - interval '3 days'`, [qq.cat, check.correct]);
 
     // ---- badges tijdens de sessie ----
     if (s.state.streak === 5) await award(c, 'rij5');
@@ -718,6 +748,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     }
   }
   if (!done && aiEnabled() && s.results.length % 10 === 0) refreshProfile().catch((e) => console.error('[profiel]', e.message));
+  else if (done || s.results.length % 5 === 0) refreshSignals().catch((e) => console.error('[signalen]', e.message));
   if (done) {
     refreshProfile().catch((e) => console.error('[profiel]', e.message));
     precomputePlan().catch((e) => console.error('[lesplan]', e.message));
@@ -766,13 +797,15 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   // kladblok: vóór het antwoord stuurt de app het actuele kladblok mee, daarna gebruiken we het bewaarde
   const scratch = (!r && cleanScratch(req.body.scratch)) || (r ? await loadScratch(s.id, i) : null);
   const reply = await teacherTurn({
-    name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), today: sessionLog(s, i),
+    name: await getName(), profile: await teacherProfile(), memory: await memoryText(), today: sessionLog(s, i),
     question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception, scratch,
   });
-  if (reply) qq.chat.push({ role: 'teacher', text: reply, phase });
+  const { text: replyText, form } = splitForm(reply);
+  if (form) await q(`INSERT INTO explanations(cat, form, session_id, idx) VALUES ($1,$2,$3,$4)`, [qq.cat, form, s.id, i]);
+  if (replyText) qq.chat.push({ role: 'teacher', text: replyText, phase });
   qq.chat = qq.chat.slice(-24);
   await q('UPDATE sessions SET questions = jsonb_set(questions, $2, $3::jsonb) WHERE id=$1', [s.id, `{${i},chat}`, JSON.stringify(qq.chat)]);
-  res.json({ reply, chat: qq.chat, reason: reply ? null : `${TEACHER} kon nu even niet antwoorden. Probeer het zo nog eens.` });
+  res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : `${TEACHER} kon nu even niet antwoorden. Probeer het zo nog eens.` });
 }));
 
 // Korte interactieve les van de leraar over een onderdeel (de app bewaart het gesprek)
@@ -785,12 +818,14 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
   const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
-  const out = await lessonTurn({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), cat, catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
+  const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
   if (out?.ready && chat.length >= 2) {
     const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text}`).join('\n');
     remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});
   }
-  res.json({ reply: out?.text || null, ready: !!out?.ready });
+  const { text: lessonText, form: lessonForm } = splitForm(out?.text || '');
+  if (lessonForm) await q(`INSERT INTO explanations(cat, form) VALUES ($1,$2)`, [cat, lessonForm]);
+  res.json({ reply: lessonText || null, ready: !!out?.ready });
 }));
 
 // Persoonlijk berichtje van de leraar na een sessie (één keer per sessie, daarna bewaard)
@@ -806,7 +841,7 @@ app.post('/api/session/:id/reflect', child, wrap(async (req, res) => {
 Per onderdeel: ${Object.values(per).map((p) => `${p.label} ${p.ok}/${p.n}`).join(', ')}.
 ${wrong.length ? `Fouten: ${wrong.map((o) => `${o.x.text} → "${o.r.given}" (goed: ${o.x.display})`).join(' | ')}` : 'Geen fouten!'}
 Herkansingen goed: ${s.results.filter((r) => r.retry && r.correct).length}. Met tussenstappen goed: ${s.results.filter((r) => r.guided && r.correct).length}.`;
-  const text = await reflect({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), summary });
+  const text = await reflect({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), summary });
   if (text) await q(`UPDATE sessions SET state = state || $2::jsonb WHERE id=$1`, [s.id, JSON.stringify({ reflection: text })]);
   res.json({ text });
 }));
@@ -832,7 +867,7 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
   if (text.length < 3) return res.status(400).json({ error: 'Schrijf eerst kort op hoe je het deed.' });
   const b = await awardBadge('uitlegger');
   let feedback = null;
-  if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: profileText(await getProfile()), memory: await memoryText() });
+  if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: await teacherProfile(), memory: await memoryText() });
   res.json({ feedback, steps: qq.steps, badge: b });
 }));
 
@@ -854,6 +889,7 @@ async function kidSummary(k) {
     misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 4`)).rows,
     scratchNotes: (await q(`SELECT text, given, correct, scratch_note FROM attempts WHERE scratch_note IS NOT NULL ORDER BY id DESC LIMIT 3`)).rows,
     reviewsOpen: (await one(`SELECT COUNT(*)::int n FROM reviews WHERE NOT done`)).n,
+    signals: await refreshSignals(),
   };
 }
 app.get('/api/parent/all', parentOnly, wrap(async (req, res) => {
@@ -891,6 +927,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
     misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 8`)).rows,
     scratchNotes: (await q(`SELECT cat, text, given, correct, scratch_note, created_at FROM attempts WHERE scratch_note IS NOT NULL ORDER BY id DESC LIMIT 8`)).rows,
+    signals: await refreshSignals(),
   });
 }));
 
@@ -920,7 +957,7 @@ app.post('/api/parent/advice', parent, wrap(async (req, res) => {
     'Recente fouten:',
     ...wrong.map((w) => `- [${catById[w.cat].label}] ${w.text} → "${w.given}" (goed: ${w.display})`),
   ].join('\n');
-  const text = await parentAdvice({ name: await getName(), summary, profile: profileText(await getProfile()) });
+  const text = await parentAdvice({ name: await getName(), summary, profile: await teacherProfile() });
   if (text) await q('INSERT INTO ai_cache(key, content) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET content=$2', [key, text]);
   res.json({ text, reason: text ? null : 'AI kon nu geen advies geven.' });
 }));

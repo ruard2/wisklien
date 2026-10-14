@@ -77,6 +77,18 @@ assert(st.badges.find((b) => b.id === 'start').earned, 'badge starttoets');
 const weak = await play('practice', () => 'bad', { cat: 'breuken' });
 const ev = weak.log.map((l) => l.res.event).filter(Boolean);
 assert(ev.includes('down'), `meer dan helft fout → niveau omlaag (events: ${ev.join(',')})`);
+{
+  // signalen onder de motorkap (alleen ouder): vaak fout zonder bekende denkfout → uitwerking willen zien; alle fouten in 4 s → te snel
+  const ov = await api('/api/parent/overview');
+  const sig = Object.fromEntries(ov.signals.signals.map((s) => [s.key, s]));
+  assert(sig.laatzien?.evidence.includes('Breuken'), `signaal: bij breuken willen we de uitwerking zien (${sig.laatzien?.evidence})`);
+  assert(sig.impulsief?.status === 'let op', `signaal: te snel (${sig.impulsief?.evidence})`);
+  const st2 = await api('/api/state');
+  assert(!JSON.stringify(st2).includes('impulsief') && !JSON.stringify(st2).includes('let op'), 'kind ziet geen signalen');
+  const p = await api('/api/session/start', { kind: 'practice', cat: 'breuken' });
+  assert(p.current.adapt?.showWork === true && p.current.adapt?.impulsive === true, `bij breuken: kladblok gaat vanzelf open, tempo-hulp aan (${JSON.stringify(p.current.adapt)})`);
+  await api(`/api/session/${p.id}/stop`, {}).catch(() => {});
+}
 assert(weak.log.some((l) => l.cur.question.retry), 'na een fout komt een herkansing');
 assert(weak.log.some((l) => l.cur.question.booster), 'na 2× fout komt een som die zeker lukt (opsteker)');
 assert(weak.log.some((l) => l.res.easy === 'on'), 'rustig-aan-modus gaat aan');

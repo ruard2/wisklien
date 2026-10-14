@@ -84,10 +84,16 @@ function withImage(messages, image, provider) {
 
 async function complete(system, messages, opts = {}) {
   const p = privacy();
-  if (!p) return completeRaw(system, messages, opts);
-  const safeMsgs = messages.map((m) => ({ ...m, content: typeof m.content === 'string' ? p.out(m.content) : m.content }));
-  const res = await completeRaw(p.out(system), safeMsgs, { ...opts, user: p.alias });
-  return res == null ? res : mapStrings(res, p.back);
+  let res;
+  if (!p) res = await completeRaw(system, messages, opts);
+  else {
+    const safeMsgs = messages.map((m) => ({ ...m, content: typeof m.content === 'string' ? p.out(m.content) : m.content }));
+    res = await completeRaw(p.out(system), safeMsgs, { ...opts, user: p.alias });
+    if (res != null) res = mapStrings(res, p.back);
+  }
+  // het onzichtbare uitleg-label alleen bewaren waar de server het uitleest (gesprek, les)
+  if (res != null && !opts.keepForm) res = mapStrings(res, (t) => t.replace(/\s*\[VORM:[^\]]*\]\s*/gi, ' ').trim());
+  return res;
 }
 
 async function completeRaw(system, messages, { json = false, maxTokens = 1200, image = null, user = null } = {}) {
@@ -143,6 +149,13 @@ function safeJson(text) {
   try { return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()); } catch { return null; }
 }
 
+// Het onzichtbare uitleg-label eraf halen: { text, form }
+export function splitForm(text) {
+  if (!text) return { text, form: null };
+  const m = String(text).match(/\[VORM:\s*(plaatje|verhaal|regel|stappen|voorbeeld)\s*\]/i);
+  return { text: String(text).replace(/\s*\[VORM:[^\]]*\]\s*/gi, ' ').trim(), form: m ? m[1].toLowerCase() : null };
+}
+
 // ---------- de leraar ----------
 const LERAAR = (name, profile, memory = '', today = '') => `Je bent ${TEACHER}, de persoonlijke rekenleraar van ${name}. ${name} zit op een Nederlandse basisschool (meestal groep 7 of 8), loopt achter met rekenen en is géén rekenwonder. Je bent geduldig, warm, eerlijk en een tikje grappig. Je praat met ${name} zoals een hele goede bijlesjuf of -meester: echt een gesprek, geen standaardteksten.
 
@@ -189,6 +202,10 @@ STIJL
 - Gewone tekst; **vet** mag voor het belangrijkste. Geen tabellen, geen koppen.
 - Af en toe een licht grapje mag, maar de uitleg gaat voor.
 - Spreek ${name} aan met "je". Gebruik over ${name} geen "hij" of "zij" als je dat niet zeker weet.
+
+UITLEG-VORM (onzichtbaar label)
+- Leg je in een bericht iets uit, zet dan op de allerlaatste regel precies één label: [VORM: plaatje] (tekening/model: strook, getallenlijn, pizza, tabel, blokjes), [VORM: verhaal] (situatie: geld, voetbal, eten), [VORM: regel] (rekenregel, trucje of ezelsbruggetje), [VORM: stappen] (stap voor stap rekenen) of [VORM: voorbeeld] (voordoen met makkelijkere getallen). Kies de vorm die het meest in je uitleg zit.
+- Alleen een vraag of compliment, zonder uitleg? Dan geen label. Het label wordt weggehaald voordat het kind het ziet.
 ${profile ? `\nLEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : ''}${memory ? `\nJOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : ''}${today ? `\nVANDAAG IN DEZE SESSIE\n${today}` : ''}`;
 
 function describeQuestion(q) {
@@ -240,7 +257,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  return complete(LERAAR(name, profile, memory, today), messages, { maxTokens: 500, image: scratch?.image || null });
+  return complete(LERAAR(name, profile, memory, today), messages, { maxTokens: 500, image: scratch?.image || null, keepForm: true });
 }
 
 // Kladblok bekijken: hoe rekende het kind, en waar ging het mis? Kort, voor het profiel en het geheugen.
@@ -273,7 +290,7 @@ Houd elk bericht kort (max. ± 90 woorden).`;
   if (!chat.length) messages.push({ role: 'user', content: '[instructie] Begin de les.' });
   for (const m of chat.slice(-14)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  const text = await complete(LERAAR(name, profile, memory), messages, { maxTokens: 600 });
+  const text = await complete(LERAAR(name, profile, memory), messages, { maxTokens: 600, keepForm: true });
   if (!text) return null;
   return { text: text.replace(/\s*\[KLAAR\]\s*/g, '').trim(), ready: /\[KLAAR\]/.test(text) };
 }
@@ -313,7 +330,7 @@ export async function reflect({ name, profile, memory, summary }) {
 // Leerlingprofiel bijwerken op basis van recente pogingen.
 // Het leerlingprofiel: blijft bestaan over alle sessies heen. Zwakke punten krijgen bewijs en een status,
 // zodat oude problemen niet vergeten worden en je ziet wat er opgelost is.
-export async function updateProfile({ name, oldProfile, attempts, stats = [], misconceptions = [], memory = '' }) {
+export async function updateProfile({ name, oldProfile, attempts, stats = [], misconceptions = [], memory = '', signals = '' }) {
   const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien.', [{
     role: 'user',
     content: `HUIDIG PROFIEL (kan leeg zijn):
@@ -328,6 +345,9 @@ ${misconceptions.map((m) => `${m.misconception} (${m.n}×)`).join('\n') || '(gee
 NOTITIES VAN DE LERAAR (gesprekken):
 ${memory || '(geen)'}
 
+GEMETEN SIGNALEN (tempo, automatisering, werkgeheugen, lezen, zelfvertrouwen, vastlopers, welke uitleg hielp):
+${signals || '(nog geen)'}
+
 RECENTE POGINGEN (onderdeel | niveau | som | antwoord kind | goed antwoord | goed? | hulp | kladblok):
 ${attempts.map((a) => `${a.label} | ${a.level} | ${a.text} | ${a.given} | ${a.display} | ${a.correct ? 'goed' : 'FOUT'} | ${a.guided ? 'tussenstappen' : a.hints ? 'hints' : 'zelf'}${a.scratch_note ? ` | ${a.scratch_note}` : ''}`).join('\n')}
 
@@ -340,7 +360,7 @@ Geef JSON:
 {"samenvatting": "2-3 zinnen: waar staat ${name}, wat gaat goed, wat niet, en of het vooruitgaat",
  "sterk": ["onderdeel + kort waarom (max 4)"],
  "zwakke_punten": [{"onderdeel": "naam", "punt": "wat er precies misgaat", "bewijs": "waaraan je het ziet", "status": "nieuw|mee bezig|gaat beter|opgelost", "wat_helpt": "welke uitleg/aanpak werkt", "prioriteit": "hoog|midden|laag"}],
- "leerstijl": "hoe ${name} het best leert (tempo, soort uitleg, voorbeelden, wat motiveert) — alleen als je het echt ziet",
+ "leerstijl": "hoe ${name} het best leert, alleen op basis van de signalen en wat aantoonbaar hielp (tempo, stapgrootte, welke uitleg-vorm bij welk onderwerp werkte, wat motiveert). GEEN labels als 'visueel' of 'auditief' (onderzoek: lesgeven naar zo'n stijl helpt niet). Weinig data? Zeg dat.",
  "aanpak_tips": ["korte tip voor de leraar (max 3)"]}`,
   }], { json: true, maxTokens: 1800 });
   return data && typeof data === 'object' && (data.samenvatting || data.zwakke_punten) ? data : null;

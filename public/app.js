@@ -220,6 +220,8 @@ async function renderOverview() {
       ${open.length ? `<div><b>Werkt aan</b><ul class="ov-list">${open.slice(0, 5).map((z) => `<li><span title="${esc(z.status || '')}">${ST[z.status] || '•'}</span> <b>${esc(z.onderdeel)}</b>: ${esc(z.punt)}${z.bewijs ? `<div class="small muted">${esc(z.bewijs)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
       ${p.sterk?.length ? `<p class="small"><b>💪 Sterk:</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
       ${fixed.length ? `<p class="small"><b>✅ Opgelost:</b> ${fixed.map((z) => esc(z.punt)).join(' · ')}</p>` : ''}
+      ${(k.signals?.signals || []).some((s) => s.status === 'let op') ? `<div><b>🔧 Hoe leert ${esc(k.name)}</b><ul class="ov-list">${k.signals.signals.filter((s) => s.status === 'let op').map((s) => `<li>⚠️ <b>${esc(s.title)}</b><div class="small muted">${esc(s.evidence)}</div></li>`).join('')}</ul></div>` : ''}
+      <details><summary class="small" style="font-weight:800;cursor:pointer">Hoe leert ${esc(k.name)}: alle signalen</summary>${signalsHTML(k.signals, data.teacher)}</details>
       <details><summary class="small" style="font-weight:800;cursor:pointer">Niveau per onderdeel</summary>
         <table class="list ov-levels">${k.stats.map((s) => `<tr><td>${esc(data.cats.find((c) => c.id === s.cat)?.icon || '')} ${esc(s.label)}</td>
           <td><span class="lv lv${s.levelIdx}">${LV[s.levelIdx]}</span></td><td class="small">${s.n ? `${s.pct14 ?? s.pct}%` : '–'}</td><td class="small" title="${esc(s.trend)}">${TR[s.trend] || ''}</td></tr>`).join('')}</table>
@@ -708,6 +710,7 @@ function renderQuestion() {
     <div id="controls"></div>`;
   bindSpeak($app);
   bindKlad();
+  if (cur.adapt?.readAloud && S.spokenIdx !== cur.index) { S.spokenIdx = cur.index; try { window.speechSynthesis?.cancel(); } catch {} setTimeout(() => speak(q.text), 300); }
   $app.querySelector('[data-quit]').onclick = async () => {
     if (await ask('<div class="big-emoji">🚪</div><h2 style="margin:8px 0">Even stoppen?</h2><p class="muted">Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵</p>', 'Ja, stoppen', 'Nee, ik ga door')) location.hash = '#/';
   };
@@ -933,11 +936,11 @@ async function talk(message, mode, extra = {}) {
 
 // ---------- kladblok: tussenstappen tekenen (vinger/muis) of typen ----------
 // Per som een leeg blaadje. Het gaat mee met je antwoord, zodat de leraar kan zien hoe je rekende.
-function kladReset(index) { S.klad = { index, strokes: [], text: '', open: S.klad?.open || false, typing: false }; }
+function kladReset(index) { S.klad = { index, strokes: [], text: '', open: S.klad?.open || !!S.cur?.adapt?.showWork, typing: false }; }
 function kladHTML() {
   const k = S.klad;
   return `<details class="klad" id="klad"${k.open ? ' open' : ''}>
-    <summary><span>✏️ Kladblok</span><span class="small muted">${k.strokes.length || k.text ? 'je hebt al iets opgeschreven' : 'reken hier je tussenstappen uit'}</span></summary>
+    <summary><span>✏️ Kladblok</span><span class="small muted">${k.strokes.length || k.text ? 'je hebt al iets opgeschreven' : S.cur?.adapt?.showWork ? 'schrijf hier je tussenstappen, dan zien we samen waar het lastig wordt' : 'reken hier je tussenstappen uit'}</span></summary>
     <div class="klad-body">
       <canvas id="klad-c" aria-label="Kladblok: schrijf met je vinger"></canvas>
       <textarea id="klad-t" rows="3" placeholder="Typ je tussenstappen, bijvoorbeeld: 276 : 6 = 46"${k.typing ? '' : ' hidden'}>${esc(k.text)}</textarea>
@@ -1029,13 +1032,24 @@ async function submit() {
   const q = S.cur.question;
   const answer = q.type === 'choice' ? S.choice : S.input;
   if (answer == null || answer === '') return;
+  // bij onderdelen waar we nog niet zien wáár het misgaat: één keer vriendelijk vragen om tussenstappen
+  if (S.cur.adapt?.showWork && !kladPayload() && !(S.workAsked ||= {})[S.cur.index]) {
+    S.workAsked[S.cur.index] = true;
+    const write = await ask(`<div class="big-emoji">✏️</div><h2 style="margin:8px 0">Eerst even je tussenstappen?</h2><p class="muted">Schrijf in het kladblok hoe je rekent. Dan kan ${esc(STATE?.teacher || 'Max')} precies zien waar het lastig wordt, en dat scheelt jou een hoop fouten.</p>`, 'Ja, even opschrijven', 'Nee, controleer maar');
+    if (write) {
+      const box = document.getElementById('klad');
+      if (box) { box.open = true; S.klad.open = true; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); requestAnimationFrame(kladDraw); }
+      return;
+    }
+  }
   await sendAnswer({ answer });
 }
 async function sendAnswer(extra) {
   S.phase = 'checking';
   const go = $app.querySelector('[data-go]'); if (go) go.disabled = true;
   try {
-    const r = await api(`/api/session/${S.data.id}/answer`, { index: S.cur.index, timeMs: Date.now() - S.t0, scratch: kladPayload(), ...extra });
+    S.lastMs = Date.now() - S.t0;
+    const r = await api(`/api/session/${S.data.id}/answer`, { index: S.cur.index, timeMs: S.lastMs, scratch: kladPayload(), ...extra });
     S.last = r;
     S.data.correct += r.correct ? 1 : 0;
     S.data.points = r.points;
@@ -1067,12 +1081,17 @@ function showFeedback(r) {
   area.innerHTML = `<div class="answer-box" style="border-color:${r.correct ? 'var(--good)' : 'var(--bad)'}">${esc(r.given)}${q.unit && !q.money && r.given !== 'weet ik niet' ? `<span class="unit">${esc(q.unit)}</span>` : ''}</div>`;
   $app.querySelector('#hints').innerHTML = '';
   const nextIsRetry = r.next?.question?.retry;
+  // te snel en fout? (vaker, of een bekend patroon) → rustig vragen om eerst te schatten
+  const fast = !r.correct && r.given !== 'weet ik niet' && S.lastMs < 6000 && S.data.kind !== 'intake';
+  if (fast) S.fastWrong = (S.fastWrong || 0) + 1;
+  const slowDown = fast && (S.cur.adapt?.impulsive || S.fastWrong >= 2);
   const showSteps = !r.correct || r.hints;
   $app.querySelector('#fb').innerHTML = `<div class="feedback ${r.correct ? 'ok' : 'no'}">
     <div class="row between"><div class="title">${esc(title)}</div>${rewardChip}</div>
     ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>Het goede antwoord is <b>${esc(r.display)}</b>.${r.note ? ' ' + esc(r.note) : ''}</p>`}
     ${r.misconception ? `<div class="mis"><b>🔎 ${esc(r.misconception.label)}</b><div>👉 ${esc(r.misconception.fix)}</div></div>` : ''}
     ${!r.correct && r.review ? '<p class="small" style="margin-top:6px">🔁 Deze komt over een paar dagen nog eens terug. Dan lukt hij vast!</p>' : ''}
+    ${slowDown ? `<p class="small" style="margin-top:8px;font-weight:800">🐢 Dat ging supersnel! Bij de volgende: kijk eerst wat er ongeveer uit moet komen, en reken dan rustig. Snelheid levert geen extra centen op, goed wel. 😉</p>` : ''}
     ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">Zo reken je het uit:</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
       : `<details style="margin-top:8px"><summary class="small muted">Hoe reken je dit uit?</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
     ${nextIsRetry ? '<p class="small" style="margin-top:10px;font-weight:800">👉 Hierna krijg je een herkansing: zo\'n soort som, samen stap voor stap.</p>' : ''}
@@ -1339,6 +1358,9 @@ async function renderParent() {
       ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">Gegeven</button>`}</td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen verrassingen gegeven.</p>'}
     </div>
 
+    <div class="card stack"><h2>🔧 Hoe leert ${esc(data.name)}? <span class="small muted">(onder de motorkap)</span></h2>
+      ${signalsHTML(data.signals, data.teacher)}</div>
+
     <div class="card stack"><h2>🔎 Denkfouten & herhaling</h2>
       <p class="small">🔁 Foutenschrift: <b>${data.reviews?.open || 0}</b> sommen staan klaar om te herhalen, <b>${data.reviews?.done || 0}</b> zijn inmiddels geleerd.</p>
       ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen bekende denkfouten gezien (laatste 30 dagen).</p>'}
@@ -1413,6 +1435,20 @@ async function renderParent() {
     await api('/api/parent/reset', { what, confirm: 'RESET' });
     toast('Gedaan ✓'); renderParent();
   }));
+}
+
+// "Hoe leert hij?" — signalen onder de motorkap. Alleen in het ouder-/leerkrachtscherm, nooit voor het kind.
+function signalsHTML(sig, teacher = 'Max') {
+  if (!sig?.signals?.length) return '<p class="small muted">Nog geen gegevens.</p>';
+  const CH = { 'let op': '<span class="chip bad">let op</span>', ok: '<span class="chip good">ok</span>', onbekend: '<span class="chip">nog te weinig data</span>', info: '<span class="chip">info</span>' };
+  const order = { 'let op': 0, info: 1, ok: 2, onbekend: 3 };
+  const list = [...sig.signals].sort((a, b) => order[a.status] - order[b.status]);
+  return `<div class="stack" style="gap:8px">${list.map((s) => `<div class="card flat" style="padding:10px 12px;${s.status === 'onbekend' ? 'opacity:.6' : ''}">
+      <div class="row between"><b>${esc(s.title)}</b>${CH[s.status] || ''}</div>
+      ${s.status !== 'onbekend' && s.status !== 'ok' ? `<p class="small" style="margin-top:4px">${esc(s.text)}</p>` : ''}
+      ${s.evidence ? `<p class="small muted" style="margin-top:4px">🔍 ${esc(s.evidence)}</p>` : ''}
+      ${s.action && s.status === 'let op' ? `<p class="small" style="margin-top:4px">⚙️ <b>Wat de app en ${esc(teacher)} doen:</b> ${esc(s.action)}</p>` : ''}</div>`).join('')}
+    <p class="small muted">Gebaseerd op ${sig.n} sommen (laatste 30 dagen). Bewust geen "leerstijl"-labels zoals visueel of auditief: onderzoek laat zien dat lesgeven naar zo'n stijl niet beter werkt. Wél: wat aantoonbaar helpt, per onderwerp. Het kind ziet dit niet.</p></div>`;
 }
 
 function profileHTML(p) {
