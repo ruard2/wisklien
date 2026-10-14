@@ -98,3 +98,21 @@ export async function parentAdvice({ name, summary }) {
 4. Wat de ouder eventueel met de leerkracht kan bespreken.`,
   }]);
 }
+
+// Teach-back: het kind legt uit hoe het een som oploste. Uitleggen is een van de sterkste leermethodes.
+export async function teachBack({ question, explanation, name }) {
+  return ask(TUTOR, [{
+    role: 'user',
+    content: `${describeQuestion(question)}
+Juiste antwoord: ${question.display}
+Stappenplan: ${question.steps.join(' / ')}
+
+${name} had deze som goed en legt nu zelf uit hoe hij het deed:
+"""${explanation}"""
+
+Geef korte feedback (max 70 woorden):
+- Begin met wat goed is aan zijn uitleg (concreet, noem zijn eigen woorden).
+- Klopt zijn manier? Zeg dat. Mist er een stap of is iets onduidelijk? Vul het vriendelijk aan.
+- Eindig met één korte aanmoediging. Geen vragen terug.`,
+  }]);
+}

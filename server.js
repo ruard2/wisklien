@@ -9,7 +9,7 @@ import {
   allocate, buildPlan, nextQuestion, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, explain, coachCard, parentAdvice } from './src/ai.js';
+import { aiEnabled, explain, coachCard, parentAdvice, teachBack } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -17,6 +17,7 @@ const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('he
 const PARENT_PIN = process.env.PARENT_PIN || '1234';
 const APP_PIN = process.env.APP_PIN || '';
 const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 80);
+const WEEK_BONUS = Number(process.env.WEEK_BONUS ?? 25); // centen als alle 5 dagtaken van een week af zijn
 if (!process.env.PARENT_PIN) console.warn('[let op] PARENT_PIN niet gezet — standaard is 1234');
 
 const app = express();
@@ -62,6 +63,24 @@ function aiAllowed() {
 const getName = () => getSetting('name', process.env.CHILD_NAME || 'Christo');
 const prevDay = (d) => new Date(Date.parse(d + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
 const dowOf = (d) => new Date(d + 'T12:00:00Z').getUTCDay();
+const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+// maandag t/m vrijdag van de huidige week (Nederlandse tijd)
+function schoolWeek(today = todayNL()) {
+  const w = dowOf(today);
+  const monday = addDays(today, w === 0 ? -6 : 1 - w);
+  return [0, 1, 2, 3, 4].map((k) => addDays(monday, k));
+}
+async function weekInfo() {
+  const days = schoolWeek();
+  const done = new Set((await q(`SELECT day::text AS d FROM sessions WHERE kind='daily' AND status='done' AND day = ANY($1::date[])`, [days])).rows.map((r) => r.d));
+  const given = await getSetting(`weekbonus:${days[0]}`, null);
+  return { days: days.map((d) => ({ day: d, done: done.has(d), today: d === todayNL() })), count: done.size, bonus: WEEK_BONUS, given: !!given };
+}
+async function goalInfo(balance) {
+  const g = await getSetting('goal', null);
+  if (!g) return null;
+  return { ...g, reached: balance >= g.cents, left: Math.max(0, g.cents - balance) };
+}
 
 async function wallet() {
   const r = await one(`SELECT COALESCE(SUM(cents) FILTER (WHERE kind='earn'),0)::int AS earned,
@@ -149,6 +168,9 @@ app.get('/api/state', child, wrap(async (req, res) => {
   const daily = await one(`SELECT id, status, correct, total, points, results FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
   const history = (await q(`SELECT day::text AS day, correct, total, points FROM sessions WHERE kind='daily' AND status='done' ORDER BY day DESC LIMIT 10`)).rows.reverse();
   const { list, struggling } = await skillsView();
+  const w = await wallet();
+  const goal = await goalInfo(w.balance);
+  if (goal?.reached) await awardBadge('doel');
   const badges = await getBadges();
   res.json({
     name: await getName(),
@@ -159,6 +181,8 @@ app.get('/api/state', child, wrap(async (req, res) => {
     wallet: await wallet(),
     streak: await streak(),
     record: await getSetting('record', 0),
+    week: await weekInfo(),
+    goal: await goalInfo((await wallet()).balance),
     skills: list,
     struggling,
     history,
@@ -416,18 +440,33 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   if (out.error) return res.status(out.status || 400).json({ error: out.error });
   if (out.dup) return res.json(out);
   const { s, qq, result, event, eventLevel, done, summary } = out;
+  let weekBonus = 0;
   if (done) {
     await snapshotSkills();
     if (s.kind === 'daily') {
       const st = await streak();
       for (const [n, id] of [[3, 'reeks3'], [5, 'reeks5'], [10, 'reeks10']]) if (st >= n) { const b = await awardBadge(id); if (b) newBadges.push(b); }
+      // weekbonus: alle 5 dagtaken van deze week af
+      const wk = await weekInfo();
+      if (wk.count === 5 && !wk.given && WEEK_BONUS > 0) {
+        await setSetting(`weekbonus:${wk.days[0].day}`, true);
+        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [WEEK_BONUS, `Weekbonus week van ${wk.days[0].day}`]);
+        weekBonus = WEEK_BONUS;
+        const b = await awardBadge('week'); if (b) newBadges.push(b);
+      }
     }
+  }
+  // teach-back: af en toe na een goede som (zelf gedaan) vragen om uit te leggen hoe hij het deed
+  let teachback = false;
+  if (result.correct && !qq.guided && s.kind !== 'intake' && qq.guide.length && !s.state.teachback && s.results.length >= 3 && Math.random() < 0.4) {
+    teachback = true;
+    await q(`UPDATE sessions SET state = state || '{"teachback": true}'::jsonb WHERE id=$1`, [s.id]);
   }
   const skills = await getSkills();
   res.json({
     ...result, steps: qq.steps, done, summary, event,
     eventCat: event ? catById[qq.cat].label : null, eventLevel: event ? LEVEL_NAMES[eventLevel] : null,
-    streak: s.state.streak, easy: s.state.easyChanged, points: s.points_acc, badges: newBadges,
+    streak: s.state.streak, easy: s.state.easyChanged, points: s.points_acc, badges: newBadges, weekBonus, teachback,
     next: done ? null : currentPayload(s, skills),
   });
 }));
@@ -444,6 +483,31 @@ app.post('/api/session/:id/explain', child, wrap(async (req, res) => {
   const chat = Array.isArray(req.body.chat) ? req.body.chat.slice(-6).map((m) => ({ role: m.role === 'ai' ? 'ai' : 'kid', text: String(m.text).slice(0, 400) })) : [];
   const text = await explain({ question: s.questions[i], answered: !!r, given: r?.given, correct: r?.correct, chat, name: await getName() });
   res.json({ text, reason: text ? null : 'Rekenmaatje kon nu even niet antwoorden.' });
+}));
+
+// Spaardoel kiezen of wissen (door het kind zelf)
+app.post('/api/goal', child, wrap(async (req, res) => {
+  if (req.body.clear) { await q(`DELETE FROM settings WHERE key='goal'`); return res.json({ goal: null }); }
+  const name = String(req.body.name || '').trim().slice(0, 40);
+  const euros = Number(String(req.body.euros || '').replace(',', '.'));
+  if (!name) return res.status(400).json({ error: 'Waar spaar je voor?' });
+  if (!(euros >= 1 && euros <= 500)) return res.status(400).json({ error: 'Kies een bedrag tussen € 1 en € 500.' });
+  await setSetting('goal', { name, cents: Math.round(euros * 100), since: todayNL() });
+  res.json({ goal: await goalInfo((await wallet()).balance) });
+}));
+
+// Teach-back: hij legt uit hoe hij een som oploste; Rekenmaatje geeft feedback
+app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
+  const s = await loadSession(req.params.id);
+  const i = Number(req.body.index);
+  const qq = s?.questions[i], r = s?.results[i];
+  if (!qq || !r) return res.status(404).json({ error: 'Niet gevonden' });
+  const text = String(req.body.text || '').trim().slice(0, 600);
+  if (text.length < 3) return res.status(400).json({ error: 'Schrijf eerst kort op hoe je het deed.' });
+  const b = await awardBadge('uitlegger');
+  let feedback = null;
+  if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName() });
+  res.json({ feedback, steps: qq.steps, badge: b });
 }));
 
 // AI: uitlegkaart voor een onderdeel (gecachet per week en niveau)
@@ -536,7 +600,7 @@ app.post('/api/parent/reset', parent, wrap(async (req, res) => {
     await q('DELETE FROM skills');
   } else {
     await q('TRUNCATE attempts, sessions, skills, skill_snapshots, ledger, ai_cache, badges RESTART IDENTITY');
-    await q(`DELETE FROM settings WHERE key='record'`);
+    await q(`DELETE FROM settings WHERE key IN ('record','goal') OR key LIKE 'weekbonus:%'`);
   }
   res.json({ ok: true });
 }));

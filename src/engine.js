@@ -256,6 +256,9 @@ export const BADGES = {
   record: { icon: '📈', title: 'Nieuw record', text: 'Meer sommen goed dan ooit in een dagtaak.' },
   doorzetter: { icon: '🧗', title: 'Doorzetter', text: 'Een lastige dag, maar je hebt hem afgemaakt.' },
   stappen: { icon: '🪄', title: 'Stappenmeester', text: '10 sommen goed met tussenstappen.' },
+  week: { icon: '📅', title: 'Weekbonus', text: 'Alle vijf dagtaken van een week af.' },
+  doel: { icon: '🎯', title: 'Spaardoel gehaald', text: 'Genoeg gespaard voor je doel!' },
+  uitlegger: { icon: '🗣️', title: 'Uitlegger', text: 'Je hebt uitgelegd hoe jij een som oplost.' },
 };
 export async function awardBadge(id, client = { query: q }) {
   if (!BADGES[id]) return null;

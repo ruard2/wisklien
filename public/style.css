@@ -284,3 +284,14 @@ table.list th { color: var(--muted); font-weight: 800; }
 .badge span { font-size: 26px; }
 .badge small { font-size: 11px; font-weight: 800; line-height: 1.2; }
 .badge.on { opacity: 1; background: var(--coin-soft); }
+
+/* ---------- v3: spaardoel, weekbonus, teach-back ---------- */
+.goal-bar { height: 16px; border-radius: 99px; background: rgba(0, 0, 0, .08); overflow: hidden; }
+.goal-bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--coin), #ff9d00); transition: width .8s ease; }
+@media (prefers-color-scheme: dark) { .goal-bar { background: rgba(255, 255, 255, .1); } }
+.week { display: flex; gap: 4px; }
+.week span { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 900; background: var(--bg); color: var(--muted); border: 2px solid var(--line); }
+.week span.on { background: var(--good); color: #fff; border-color: var(--good); }
+.week span.today:not(.on) { border-color: var(--primary); color: var(--primary); }
+.teach { margin-top: 12px; padding: 14px; border-radius: 16px; background: var(--primary-soft); }
+.teach textarea { width: 100%; border-radius: 12px; border: 2px solid var(--line); padding: 10px 12px; font: inherit; background: var(--card); color: var(--ink); resize: vertical; }

@@ -184,11 +184,28 @@ async function renderHome() {
   $app.innerHTML = `<div class="stack">
     <div class="hello"><h1>Hoi ${esc(s.name)} 👋</h1>${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}</div>
     ${main}
-    <a href="#/spaarpot" class="card coin row between" style="text-decoration:none;color:inherit"><div class="row"><span class="big-emoji" style="font-size:34px">🐷</span><div><div class="small muted">In je spaarpot</div><div class="money" style="font-size:24px">${euro(s.wallet.balance)}</div></div></div><span class="muted">›</span></a>
+    ${piggyCard(s)}
+    ${s.intakeDone ? weekCard(s) : ''}
     ${coach}${badgesCard}${top}
   </div>`;
   bindStart();
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
+}
+const DAG = ['ma', 'di', 'wo', 'do', 'vr'];
+function piggyCard(s) {
+  const g = s.goal;
+  if (!g) return `<a href="#/spaarpot" class="card coin row between" style="text-decoration:none;color:inherit"><div class="row"><span class="big-emoji" style="font-size:34px">🐷</span><div><div class="small muted">In je spaarpot</div><div class="money" style="font-size:24px">${euro(s.wallet.balance)}</div></div></div><span class="small" style="font-weight:800;color:var(--primary)">🎯 Kies een doel ›</span></a>`;
+  const pct = Math.min(100, (s.wallet.balance / g.cents) * 100);
+  return `<a href="#/spaarpot" class="card coin stack" style="text-decoration:none;color:inherit;gap:8px">
+    <div class="row between"><div class="row"><span class="big-emoji" style="font-size:30px">${g.reached ? '🎉' : '🎯'}</span><div><div class="small muted">Ik spaar voor</div><b style="font-size:18px">${esc(g.name)}</b></div></div><div style="text-align:right"><div class="money" style="font-size:20px">${euro(s.wallet.balance)}</div><div class="small muted">van ${euro(g.cents)}</div></div></div>
+    <div class="goal-bar"><i style="width:${pct}%"></i></div>
+    <div class="small" style="font-weight:800">${g.reached ? 'Doel gehaald! Laat het aan papa of mama zien. 🥳' : `Nog ${euro(g.left)} — dat is ongeveer ${Math.ceil(g.left / 40)} dagtaken.`}</div></a>`;
+}
+function weekCard(s) {
+  const w = s.week;
+  if (!w || !w.bonus) return '';
+  return `<div class="card row between"><div><div style="font-weight:900">📅 Weekbonus +${w.bonus} cent</div><div class="small muted">${w.given ? 'Gehaald deze week! 🎉' : 'Maak alle 5 dagtaken van deze week af.'}</div></div>
+    <div class="week">${w.days.map((d, i) => `<span class="${d.done ? 'on' : ''} ${d.today ? 'today' : ''}" title="${d.day}">${d.done ? '✓' : DAG[i]}</span>`).join('')}</div></div>`;
 }
 const sc = (score) => (score >= 85 ? 3 : score >= 60 ? 2 : score >= 35 ? 1 : 0);
 function mini(x) {
@@ -279,15 +296,40 @@ async function renderPiggy() {
     <h1>Spaarpot</h1>
     <div class="card coin pig"><div class="big-emoji">🐷</div><div class="amount">${euro(s.wallet.balance)}</div>
       <p class="muted small">Verdiend: ${euro(s.wallet.earned)} · Uitbetaald: ${euro(s.wallet.paid)}</p></div>
+    <div class="card stack"><div class="row between"><h3>🎯 Mijn spaardoel</h3>${s.goal ? '<button class="btn ghost" data-goal>Wijzig</button>' : ''}</div>
+      ${s.goal ? `<div><b style="font-size:20px">${esc(s.goal.name)}</b> <span class="muted">· ${euro(s.goal.cents)}</span></div>
+        <div class="goal-bar"><i style="width:${Math.min(100, (s.wallet.balance / s.goal.cents) * 100)}%"></i></div>
+        <p class="small">${s.goal.reached ? '<b>Gehaald! 🥳</b> Laat het aan papa of mama zien.' : `Nog <b>${euro(s.goal.left)}</b> te gaan.`}</p>`
+      : `<p class="muted">Waar wil jij voor sparen? Een game, iets voor je fiets, een uitje? Kies een doel en zie je spaarpot vollopen.</p><button class="btn block" data-goal>Kies een spaardoel</button>`}</div>
     <div class="card stack"><h3>Zo verdien je centen</h3>
       <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>Starttoets: tot ${s.points.intake} cent</span></div>
       <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>Elke schooldag: tot ${s.points.daily} cent (${cents(s.points.daily / s.points.dailyCount)} per goede som)</span></div>
       <div class="row"><span class="chip">🪜</span><span>Met tussenstappen: de eerste ${s.points.freeGuided} keer per onderdeel gewoon centen, daarna de helft.</span></div>
       <div class="row"><span class="chip coin">🪙🪙</span><span>Kies je daarna "helemaal zelf" en is het goed? ${s.points.soloBonus} keer dubbel!</span></div>
+      ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>Weekbonus: alle 5 dagtaken van een week af = ${s.week.bonus} cent extra.</span></div>` : ''}
       <p class="small muted">Alleen goede antwoorden leveren centen op. 100 cent = € 1.</p></div>
     ${s.history.length ? `<div class="card"><h3>Verdiend per dag</h3><div class="hist">${s.history.map((h) => `<div><span>${h.points}</span><i style="height:${(h.points / max) * 80 + 4}px"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div></div>` : ''}
     <a href="#/ouder" class="small muted" style="text-align:center;display:block;margin-top:8px">Voor ouders 🔒</a>
   </div>`;
+  $app.querySelectorAll('[data-goal]').forEach((b) => (b.onclick = editGoal));
+}
+function editGoal() {
+  const g = STATE.goal;
+  sheet(`<div class="row between"><h2>🎯 Spaardoel</h2><button class="btn ghost" data-close>Sluit</button></div>
+    <form class="stack" data-goalform>
+      <label class="field"><span style="font-weight:800">Waar spaar je voor?</span><input name="name" maxlength="40" placeholder="bijv. nieuwe game" value="${esc(g?.name || '')}" required></label>
+      <label class="field"><span style="font-weight:800">Hoeveel kost het? (in euro)</span><input name="euros" inputmode="decimal" placeholder="bijv. 15" value="${g ? String(g.cents / 100).replace('.', ',') : ''}" required></label>
+      <p class="small muted">Met alle dagtaken goed verdien je ongeveer € 2,50 per week (plus weekbonus).</p>
+      <button class="btn block">Opslaan</button>
+      ${g ? '<button type="button" class="btn ghost block" data-cleargoal>Doel weghalen</button>' : ''}
+    </form>`, (bg, close) => {
+    bg.querySelector('[data-goalform]').onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('/api/goal', { name: e.target.name.value, euros: e.target.euros.value }); close(); toast('Spaardoel opgeslagen 🎯'); renderPiggy(); }
+      catch (err) { toast(err.message); }
+    };
+    bg.querySelector('[data-cleargoal]')?.addEventListener('click', async () => { await api('/api/goal', { clear: true }); close(); renderPiggy(); });
+  });
 }
 
 // =====================================================================
@@ -619,7 +661,9 @@ function showFeedback(r) {
     <button class="btn ${r.correct ? 'good' : ''} block" data-next>${r.done ? 'Bekijk je resultaat' : nextIsRetry ? 'Herkansing →' : 'Volgende →'}</button></div>`;
   $app.querySelector('[data-next]').onclick = next;
   $app.querySelector('[data-explain]')?.addEventListener('click', (e) => { e.target.remove(); askAI(true); });
+  if (r.teachback) drawTeachback(r);
   $app.querySelector('#fb').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 Weekbonus! +${r.weekBonus} cent extra voor een hele week oefenen!`, 4500); }, 400);
 
   // momenten die er toe doen
   if (r.event === 'up') celebrateLevel(r);
@@ -631,6 +675,31 @@ function showFeedback(r) {
   else if (r.easy === 'off') toast('Je bent weer op dreef! 🚀', 3000);
   for (const b of r.badges || []) setTimeout(() => toast(`${b.icon} Nieuwe badge: ${b.title}!`, 3500), 600);
 }
+// Teach-back: "Leg eens uit hoe je het deed" (uitleggen = beter onthouden)
+function drawTeachback() {
+  const box = $app.querySelector('#ai-area');
+  box.innerHTML = `<div class="teach">
+    <div style="font-weight:900">🗣️ Jij bent nu de juf of meester!</div>
+    <p class="small" style="margin:4px 0 8px">Leg in je eigen woorden uit hoe je deze som hebt uitgerekend. Wie het kan uitleggen, snapt het echt.</p>
+    <form class="stack" style="gap:8px"><textarea maxlength="600" rows="3" placeholder="Eerst deed ik ..., daarna ..."></textarea>
+    <div class="row"><button class="btn" style="flex:1">Stuur</button><button type="button" class="btn ghost" data-skip>Sla over</button></div></form></div>`;
+  const form = box.querySelector('form');
+  box.querySelector('[data-skip]').onclick = () => (box.innerHTML = '');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const text = form.querySelector('textarea').value.trim();
+    if (text.length < 3) return toast('Schrijf eerst kort op hoe je het deed.');
+    form.innerHTML = '<div><span class="loader"></span> Rekenmaatje leest je uitleg…</div>';
+    try {
+      const t = await api(`/api/session/${S.data.id}/teachback`, { index: S.cur.index, text });
+      if (t.badge) { S.badges.push(t.badge); toast(`${t.badge.icon} Nieuwe badge: ${t.badge.title}!`, 3500); }
+      box.innerHTML = `<div class="teach"><div class="small muted">Jouw uitleg:</div><p style="margin-bottom:8px">"${esc(text)}"</p>
+        ${t.feedback ? `<div style="font-weight:900;color:var(--primary)">🧑‍🏫 Rekenmaatje</div><div class="coach">${rich(t.feedback)}</div>`
+          : `<div style="font-weight:800">Top uitgelegd! Vergelijk het met deze stappen. Deed jij het ook zo?</div><ol class="steps">${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`}</div>`;
+    } catch (err) { box.innerHTML = `<div class="teach">${esc(err.message)}</div>`; }
+  };
+}
+
 function celebrateLevel(r) {
   confetti();
   sheet(`<div style="text-align:center"><div class="big-emoji">⬆️</div><h2 style="margin:8px 0">Niveau omhoog!</h2>
