@@ -2,7 +2,7 @@ import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
 import { q, one, migrate, getSetting, setSetting, pool } from './src/db.js';
-import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES } from './src/generators.js';
+import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep } from './src/generators.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, skillFromIntake, getStruggling, snapshotSkills,
@@ -175,6 +175,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
   const badges = await getBadges();
   res.json({
     name: await getName(),
+    groep: await getSetting('groep', null),
     ai: aiEnabled(),
     intakeDone: intake?.status === 'done',
     intakeActive: intake?.status === 'active' ? intake.id : null,
@@ -192,11 +193,11 @@ app.get('/api/state', child, wrap(async (req, res) => {
   });
 }));
 
-async function createSession(kind, plan, total, maxPoints, skills) {
-  const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state: {} };
+async function createSession(kind, plan, total, maxPoints, skills, state = {}) {
+  const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
   s.questions.push(nextQuestion(s, skills));
-  return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING *`,
-    [kind, todayNL(), JSON.stringify(s.questions), total, maxPoints, JSON.stringify(plan)]);
+  return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [kind, todayNL(), JSON.stringify(s.questions), total, maxPoints, JSON.stringify(plan), JSON.stringify(state)]);
 }
 
 app.post('/api/session/start', child, wrap(async (req, res) => {
@@ -208,8 +209,11 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
   if (kind === 'intake') {
     if (intake?.status === 'done') return res.status(400).json({ error: 'De starttoets is al gedaan.' });
     if (intake) return res.json(sessionPayload(await loadSession(intake.id), skills));
+    const groep = Number(req.body.groep);
+    if (!(groep >= 4 && groep <= 8)) return res.status(400).json({ error: 'In welke groep zit je?' });
+    await setSetting('groep', groep);
     const plan = intakePlan();
-    return res.json(sessionPayload(await createSession('intake', plan, plan.length, INTAKE_POINTS, skills), skills));
+    return res.json(sessionPayload(await createSession('intake', plan, plan.length, INTAKE_POINTS, skills, { startLevel: startLevelForGroep(groep) }), skills));
   }
   if (intake?.status !== 'done') return res.status(400).json({ error: 'Doe eerst de starttoets.' });
 
@@ -578,7 +582,7 @@ app.post('/api/parent/advice', parent, wrap(async (req, res) => {
   const days = (await q(`SELECT COUNT(*)::int n FROM sessions WHERE kind='daily' AND status='done'`)).rows[0].n;
   const summary = [
     `Aantal afgeronde dagtaken: ${days}. Reeks: ${await streak()} schooldagen.`,
-    'Score per onderdeel (0-100). Niveaus: opstap = groep 5/6, basis = groep 6/7, 1F = fundamenteel eind groep 8, 1S = streefniveau. Laatste 14 dagen: goed / totaal (met tussenstappen):',
+    `Het kind zit in groep ${await getSetting('groep', 8)}. Score per onderdeel (0-100). Niveau = op welk groepsniveau hij dit onderdeel nu oefent (groep 5 t/m 8; groep 7 bevat de meeste 1F-stof, groep 8 = eindniveau 1F/1S). Laatste 14 dagen: goed / totaal (met tussenstappen):`,
     ...list.map((s) => `- ${s.label} (${s.domain}): score ${s.score}, niveau ${s.levelName}${s.trend != null ? `, trend ${s.trend >= 0 ? '+' : ''}${s.trend}` : ''}${accBy[s.cat] ? `, ${accBy[s.cat].ok}/${accBy[s.cat].n} goed (${accBy[s.cat].guided} met tussenstappen)` : ''}${s.struggling ? ' — LOOPT VAST' : ''}`),
     'Recente fouten:',
     ...wrong.map((w) => `- [${catById[w.cat].label}] ${w.text} → "${w.given}" (goed: ${w.display})`),

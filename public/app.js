@@ -9,7 +9,7 @@ const rich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 const euro = (cents) => '€ ' + (cents / 100).toFixed(2).replace('.', ',');
 const cents = (c) => (Math.round(c * 10) / 10).toString().replace('.', ',') + ' cent';
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const LEVEL = ['opstap', 'basis', '1F', '1S'];
+const LEVEL = ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -45,6 +45,41 @@ function sheet(html, onBind) {
   return close;
 }
 
+// Eigen ja/nee-popup (de standaard browser-confirm wordt soms geblokkeerd, bv. in een app op je telefoon)
+function ask(html, yes = 'Ja', no = 'Nee', danger = false) {
+  return new Promise((resolve) => {
+    let done = false;
+    const close = sheet(`<div style="text-align:center">${html}</div>
+      <button class="btn block ${danger ? '' : 'good'}" data-yes ${danger ? 'style="background:var(--bad);box-shadow:none"' : ''}>${yes}</button>
+      <button class="btn ghost block" data-no>${no}</button>`, (bg, closeFn) => {
+      bg.querySelector('[data-yes]').onclick = () => { done = true; closeFn(); resolve(true); };
+      bg.querySelector('[data-no]').onclick = () => { done = true; closeFn(); resolve(false); };
+      bg.addEventListener('click', (e) => { if (e.target === bg && !done) resolve(false); });
+    });
+    void close;
+  });
+}
+
+// ---------- humor ----------
+const MOPPEN = [
+  ['Wat zei de 0 tegen de 8?', 'Mooie riem! 😎'],
+  ['Waarom was het rekenboek verdrietig?', 'Het zat vol problemen. 📚'],
+  ['Waarom ging de breuk naar de dokter?', 'Hij voelde zich niet helemaal heel. 🤒'],
+  ['Wat is het lievelingseten van een rekenaar?', 'Pi-zza. 🍕'],
+  ['Waarom nam Sem een ladder mee naar de rekenles?', 'Hij wilde naar een hoger niveau. 🪜'],
+  ['Wat doet een 8 als hij moe is?', 'Even liggen: ∞ 😴'],
+  ['Waarom maakt een cirkel nooit ruzie?', 'Hij heeft geen zin in hoeken. ⭕'],
+  ['Wat zegt een kommagetal dat te laat komt?', '"Sorry, ik zat nog achter de komma!" ⏰'],
+  ['Waarom is een rechthoek nooit verdrietig?', 'Hij heeft vier rechte hoeken om op te leunen. 📐'],
+  ['Hoe noem je een vierkant dat sport?', 'Een fit-kant. 💪'],
+  ['Waarom kon de 7 niet slapen?', 'Hij lag te piekeren over de 8 die net op bezoek was. 🛏️'],
+  ['Wat is de favoriete muziek van een driehoek?', 'Alles met 3 akkoorden. 🎸'],
+  ['Waarom houdt een liniaal nooit op met praten?', 'Hij weet van alles de lengte. 📏'],
+  ['Wat zei de procent tegen de taart?', '"Ik neem er 100% van." 🎂'],
+];
+const mop = () => MOPPEN[Math.floor(Math.random() * MOPPEN.length)];
+const SUBLINES = ['Klaar om wat sommen een lesje te leren?', 'Je hersenen hebben zin in een workout. 🧠💪', 'Vandaag wordt een rekenmooie dag.', 'De sommen staan al te trillen van angst. 😱', 'Even je rekenspieren opwarmen?'];
+
 async function api(path, body) {
   const res = await fetch(path, {
     method: body ? 'POST' : 'GET',
@@ -79,11 +114,13 @@ const TIPS = {
 
 // Groei-mindset: prijs de aanpak en de inzet, niet "slim zijn".
 const PRAISE = {
-  solo: ['Goed zo!', 'Knap uitgerekend!', 'Yes! Jouw aanpak werkt. 🎯', 'Netjes gedaan!', 'Helemaal goed!', 'Sterk gerekend! 💪'],
-  guided: ['Samen gelukt! Je deed alle stappen zelf. 🤝', 'Goed zo! Stap voor stap werkt.', 'Top! Zo bouw je het op.'],
-  retry: ['Kijk eens! Eerst fout, nu goed. Zo leer je! 🦸', 'Comeback! Nu snap je hem. 💪'],
-  double: ['Helemaal zelf én goed — dubbele centen! 🪙🪙', 'Zelf gedaan, dubbel verdiend! 🎯'],
-  wrong: ['Nog niet goed — en dat is oké. Hiervan leer je.', 'Bijna! Kijk even hoe het werkt.', 'Fout is niet erg: nu weet je wat je moet oefenen.'],
+  solo: ['Goed zo!', 'Knap uitgerekend!', 'Yes! Jouw aanpak werkt. 🎯', 'Netjes gedaan!', 'Helemaal goed!', 'Sterk gerekend! 💪',
+    'Zo snel? Ben jij stiekem een rekenmachine? 🤖', 'Die som had geen schijn van kans. 🥊', 'Je brein draait overuren. Respect! 🧠', 'Boem! Raak. 🎯', 'Professor {naam} heeft gesproken. 🎓'],
+  guided: ['Samen gelukt! Je deed alle stappen zelf. 🤝', 'Goed zo! Stap voor stap werkt.', 'Top! Zo bouw je het op.', 'Stapje voor stapje naar de top. 🧗'],
+  retry: ['Kijk eens! Eerst fout, nu goed. Zo leer je! 🦸', 'Comeback! Nu snap je hem. 💪', 'Revanche genomen op die som! 😤'],
+  double: ['Helemaal zelf én goed — dubbele centen! 🪙🪙', 'Zelf gedaan, dubbel verdiend! 🎯', 'Kassa! Dubbel zo rijk. 💰'],
+  wrong: ['Nog niet goed — en dat is oké. Hiervan leer je.', 'Bijna! Kijk even hoe het werkt.', 'Fout is niet erg: nu weet je wat je moet oefenen.',
+    'Oeps! Die som was even stiekem. Zo zit hij in elkaar:', 'Je rekenhersenen waren nog aan het opwarmen. 🥶 Kijk:', 'Deze ging even mis, de volgende pakken we! 💪'],
 };
 
 let STATE = null;
@@ -150,7 +187,7 @@ async function renderHome() {
     main = `<div class="card hero stack">
       <div class="big-emoji">🚀</div>
       <div><div class="task-title">Starttoets</div>
-      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : 'Eerst kijken wat je al kunt. 40 sommen uit alle onderdelen. Gaat het goed, dan worden ze moeilijker; gaat het fout, dan makkelijker. Je kunt tussendoor stoppen.'}</p></div>
+      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : 'Eerst kijken wat je al kunt. 40 sommen uit alle onderdelen. We beginnen een groep lager dan jouw groep. Gaat het goed, dan worden ze moeilijker; gaat het fout, dan makkelijker. Je kunt tussendoor stoppen.'}</p></div>
       <div class="row"><span class="chip coin">🪙 tot ${s.points.intake} cent</span></div>
       <button class="btn light block" data-start="intake">${s.intakeActive ? 'Verder met de starttoets' : 'Start de starttoets'}</button>
       <p class="small muted">Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.</p></div>`;
@@ -183,16 +220,22 @@ async function renderHome() {
       <h3 style="margin-top:12px">Hier word je beter in 🌱</h3>${s.skills.slice(-3).reverse().map(mini).join('')}</div>` : '';
 
   $app.innerHTML = `<div class="stack">
-    <div class="hello"><h1>Hoi ${esc(s.name)} 👋</h1>${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}</div>
+    <div class="hello"><div><h1>Hoi ${esc(s.name)} 👋</h1><p class="muted small" style="margin-top:2px">${pick(SUBLINES)}</p></div>${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}</div>
     ${main}
     ${piggyCard(s)}
     ${s.intakeDone ? weekCard(s) : ''}
     ${coach}${badgesCard}${top}
+    ${mopCard()}
   </div>`;
   bindStart();
+  $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
 const DAG = ['ma', 'di', 'wo', 'do', 'vr'];
+function mopCard() {
+  const [vraag, clou] = mop();
+  return `<button class="card mop" data-mop style="text-align:left;width:100%"><div class="small muted">😂 Rekenmop van de dag (tik voor het antwoord)</div><div style="font-weight:800;margin-top:4px">${esc(vraag)}</div><div class="punch" hidden>${esc(clou)}</div></button>`;
+}
 function piggyCard(s) {
   const g = s.goal;
   if (!g) return `<a href="#/spaarpot" class="card coin row between" style="text-decoration:none;color:inherit"><div class="row"><span class="big-emoji" style="font-size:34px">🐷</span><div><div class="small muted">In je spaarpot</div><div class="money" style="font-size:24px">${euro(s.wallet.balance)}</div></div></div><span class="small" style="font-weight:800;color:var(--primary)">🎯 Kies een doel ›</span></a>`;
@@ -215,9 +258,25 @@ function mini(x) {
 function bindStart() {
   $app.querySelectorAll('[data-start]').forEach((b) => (b.onclick = () => startSession(b.dataset.start, b.dataset.cat)));
 }
+function askGroep() {
+  return new Promise((resolve) => {
+    sheet(`<div style="text-align:center"><div class="big-emoji">🎒</div><h2 style="margin:8px 0">In welke groep zit je?</h2>
+      <p class="muted">We beginnen een groepje lager, lekker rustig opstarten. Gaat het goed? Dan gaan de sommen vanzelf omhoog. 🚀</p></div>
+      <div class="groep-pick">${[4, 5, 6, 7, 8].map((g) => `<button class="choice" data-g="${g}">${g}</button>`).join('')}</div>
+      <button class="btn ghost block" data-close>Toch niet</button>`, (bg, close) => {
+      bg.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { close(); resolve(Number(b.dataset.g)); }));
+      bg.querySelector('[data-close]').addEventListener('click', () => resolve(null));
+    });
+  });
+}
 async function startSession(kind, cat) {
   try {
-    const data = await api('/api/session/start', { kind, cat });
+    let groep;
+    if (kind === 'intake' && !STATE?.intakeActive) {
+      groep = await askGroep();
+      if (!groep) return;
+    }
+    const data = await api('/api/session/start', { kind, cat, groep });
     SESSION_CACHE = data;
     location.hash = `#/sessie/${data.id}`;
   } catch (e) { if (e.message !== 'login') toast(e.message); }
@@ -262,8 +321,8 @@ async function renderProgress() {
       <span class="ico">${x.icon}</span>
       <div><div class="name"><span>${esc(x.label)}</span><span class="small">${trend(x.trend)} <span class="chip">${x.levelName}</span></span></div>
       <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
-      <div class="small muted" style="margin-top:4px">${x.toNext != null ? `Op weg naar ${LEVEL[LEVELIDX(x.levelName) + 1]}: ${x.toNext}% (80% nodig)` : 'Hoogste niveau! 🏆'}${x.struggling ? ' · <b style="color:var(--warn)">extra hulp aan</b>' : ''}</div></div></a>`).join('')}</div>
-    <p class="small muted">Niveaus: <b>opstap</b> = groep 5/6, <b>basis</b> = groep 6/7, <b>1F</b> = wat iedereen eind groep 8 moet kunnen, <b>1S</b> = streefniveau. Gaat meer dan de helft fout, dan ga je een stapje terug. Heb je 8 van de 10 goed, dan ga je een stapje omhoog.</p>
+      <div class="small muted" style="margin-top:4px">${x.toNext != null ? `Op weg naar ${LEVEL[LEVELIDX(x.levelName) + 1]}-niveau: ${x.toNext}% (80% nodig)` : 'Groep 8-niveau: eindniveau! 🏆'}${x.struggling ? ' · <b style="color:var(--warn)">extra hulp aan</b>' : ''}</div></div></a>`).join('')}</div>
+    <p class="small muted">Per onderdeel reken je op het niveau van een groep (groep 5 t/m 8). Heb je 8 van de 10 goed, dan ga je een groep omhoog. Gaat meer dan de helft fout, dan oefen je even een groep lager. Groep 8 = het eindniveau van de basisschool.</p>
   </div>`;
 }
 const LEVELIDX = (n) => LEVEL.indexOf(n);
@@ -374,7 +433,7 @@ function renderQuestion() {
   const q = cur.question;
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
+  const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
   $app.innerHTML = `
     <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>
@@ -394,8 +453,8 @@ function renderQuestion() {
       <div id="fb"></div>
     </div>
     <div id="controls"></div>`;
-  $app.querySelector('[data-quit]').onclick = () => {
-    if (confirm('Wil je stoppen? Je kunt later verder waar je was.')) location.hash = '#/';
+  $app.querySelector('[data-quit]').onclick = async () => {
+    if (await ask('<div class="big-emoji">🚪</div><h2 style="margin:8px 0">Even stoppen?</h2><p class="muted">Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵</p>', 'Ja, stoppen', 'Nee, ik ga door')) location.hash = '#/';
   };
   if (cur.offer.mode === 'choose' && !cur.chose && !cur.guided) return drawChoice();
   drawAnswer();
@@ -578,7 +637,7 @@ async function getHint() {
 
 async function askAI(answered) {
   const area = $app.querySelector('#ai-area');
-  area.innerHTML = `<div class="ai-box"><div class="who">🧑‍🏫 Rekenmaatje</div><span class="loader"></span> even denken…</div>`;
+  area.innerHTML = `<div class="ai-box"><div class="who">🧑‍🏫 Rekenmaatje</div><span class="loader"></span> ${pick(['even denken…', 'krabt even achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn rekenmachine… grapje!'])}</div>`;
   try {
     const r = await api(`/api/session/${S.data.id}/explain`, { index: S.cur.index, chat: S.chat });
     if (!r.text) { area.innerHTML = `<div class="ai-box">${esc(r.reason || 'Rekenmaatje is er nu even niet.')}</div>`; return; }
@@ -635,6 +694,7 @@ function showFeedback(r) {
   if (r.correct) {
     buzz(30);
     title = r.rewardKind === 'solo-double' ? pick(PRAISE.double) : r.retry ? pick(PRAISE.retry) : r.guided ? pick(PRAISE.guided) : pick(PRAISE.solo);
+    title = title.replace('{naam}', STATE?.name || 'Rekenaar');
     if (r.streak >= 3 && r.streak % 3 === 0) title += ` 🔥 ${r.streak} op rij!`;
     if (r.rewardKind === 'solo-double' || r.retry || (r.streak && r.streak % 5 === 0) || Math.random() < 0.15) confetti();
   } else {
@@ -670,11 +730,11 @@ function showFeedback(r) {
   // momenten die er toe doen
   if (r.event === 'up') celebrateLevel(r);
   else if (r.event === 'down') sheet(`<div style="text-align:center"><div class="big-emoji">🪜</div><h2 style="margin:8px 0">Even een stapje terug</h2>
-      <p>Bij <b>${esc(r.eventCat)}</b> gaan we verder op niveau <b>${esc(r.eventLevel)}</b>. Zo bouw je het stevig op.</p>
+      <p>Bij <b>${esc(r.eventCat)}</b> oefenen we even op <b>${esc(r.eventLevel)}-niveau</b>. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠</p>
       <p class="muted" style="margin-top:8px">Heb je daar 8 van de 10 goed? Dan ga je weer omhoog. Je krijgt de komende sommen extra hulp. 💪</p></div>
       <button class="btn block" data-close>Oké, we gaan ervoor!</button>`);
-  else if (r.easy === 'on') toast('Even rustig aan: de volgende sommen zijn wat makkelijker. 💪', 3500);
-  else if (r.easy === 'off') toast('Je bent weer op dreef! 🚀', 3000);
+  else if (r.easy === 'on') toast('Even een tandje terug. Ook raceauto\'s gaan de pitstraat in. 🏎️', 3500);
+  else if (r.easy === 'off') toast('Je bent weer op dreef! Volle gas! 🚀', 3000);
   for (const b of r.badges || []) setTimeout(() => toast(`${b.icon} Nieuwe badge: ${b.title}!`, 3500), 600);
 }
 // Teach-back: "Leg eens uit hoe je het deed" (uitleggen = beter onthouden)
@@ -705,8 +765,8 @@ function drawTeachback() {
 function celebrateLevel(r) {
   confetti();
   sheet(`<div style="text-align:center"><div class="big-emoji">⬆️</div><h2 style="margin:8px 0">Niveau omhoog!</h2>
-    <p>Bij <b>${esc(r.eventCat)}</b> ga je naar niveau <b>${esc(r.eventLevel)}</b>.</p>
-    <p class="muted" style="margin-top:8px">Dat heb je verdiend door te blijven oefenen. 🌱→🌳</p></div>
+    <p>Bij <b>${esc(r.eventCat)}</b> reken je nu op <b>${esc(r.eventLevel)}-niveau</b>.</p>
+    <p class="muted" style="margin-top:8px">Je hersenen moeten nieuwe kleren kopen, de oude passen niet meer. 🧠👕</p></div>
     <button class="btn good block" data-close>Yes!</button>`);
 }
 
@@ -744,9 +804,11 @@ async function renderSummary(sum) {
       ${STATE.skills.map((x, i) => `<div class="mini-skill"><span class="rank">${i + 1}</span><div><div style="font-weight:800">${x.icon} ${esc(x.label)}</div><div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div></div><span class="small muted">${x.levelName}</span></div>`).join('')}</div>`
     : sum.perCat ? `<div class="card"><h3>Per onderdeel</h3>${sum.perCat.map((p) => `<div class="mini-skill"><span class="ico">${p.icon}</span><div style="font-weight:800">${esc(p.label)}</div><span class="chip ${p.ok === p.n ? 'good' : p.ok === 0 ? 'bad' : ''}">${p.ok}/${p.n}</span></div>`).join('')}</div>` : ''}
     <div class="card coin row between"><div class="row"><span class="big-emoji" style="font-size:30px">🐷</span><b>Spaarpot</b></div><span class="money" style="font-size:22px">${euro(STATE.wallet.balance)}</span></div>
+    ${mopCard()}
     <a class="btn block" href="#/">Klaar</a>
   </div>`;
   $tabs.hidden = true;
+  $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
 }
 
 // ---------- plaatjes bij sommen ----------
@@ -869,7 +931,7 @@ async function renderParent() {
     e.preventDefault();
     const amt = Math.round(parseFloat(e.target.amt.value.replace(',', '.')) * 100);
     if (!(amt > 0)) return toast('Vul een bedrag in');
-    if (!confirm(`${euro(amt)} uitbetalen?`)) return;
+    if (!(await ask(`<h2>${euro(amt)} uitbetalen?</h2>`, 'Ja, uitbetalen', 'Annuleren'))) return;
     try { await api('/api/parent/payout', { cents: amt }); toast('Uitbetaald ✓'); renderParent(); } catch (err) { toast(err.message); }
   };
   $app.querySelector('[data-advice]').onclick = async (e) => {
@@ -889,8 +951,8 @@ async function renderParent() {
   };
   $app.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = async () => {
     const what = b.dataset.reset;
-    const typed = prompt(what === 'all' ? 'Alles wordt gewist, ook de spaarpot en badges. Typ RESET om door te gaan.' : 'De starttoets en alle niveaus worden opnieuw bepaald (spaarpot blijft). Typ RESET om door te gaan.');
-    if (typed !== 'RESET') return;
+    const ok = await ask(`<h2 style="margin-bottom:8px">Zeker weten?</h2><p>${what === 'all' ? 'Alles wordt gewist, ook de spaarpot en badges. Dit kan niet ongedaan worden.' : 'De starttoets en alle niveaus worden opnieuw bepaald. De spaarpot blijft.'}</p>`, what === 'all' ? 'Ja, alles wissen' : 'Ja, opnieuw', 'Annuleren', true);
+    if (!ok) return;
     await api('/api/parent/reset', { what, confirm: 'RESET' });
     toast('Gedaan ✓'); renderParent();
   }));

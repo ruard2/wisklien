@@ -18,11 +18,11 @@ Webapp die op de telefoon werkt als een echte app (PWA). Eerst een starttoets, d
 | Meten & meetkunde | Maten omrekenen · Omtrek, oppervlakte & inhoud · Tijd & snelheid |
 | Verbanden | Tabellen & grafieken |
 
-Niveaus: **opstap** (groep 5/6, als groep 8 echt nog te moeilijk is) · **basis** (groep 6/7) · **1F** · **1S**. Alle sommen worden gegenereerd, met een stappenplan én invulbare tussenstappen (96% van de sommen). `npm test` controleert per onderdeel en niveau duizenden sommen, inclusief elke tussenstap.
+Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bevat de meeste 1F-stof: breuken, procenten, schaal) · **groep 8** (eindniveau, 1F/1S zoals in de doorstroomtoets). Alle sommen worden gegenereerd, met een stappenplan én invulbare tussenstappen (96% van de sommen). `npm test` controleert per onderdeel en niveau duizenden sommen, inclusief elke tussenstap.
 
 ## Hoe het werkt
 
-1. **Starttoets (adaptief)**: 39 sommen, per onderdeel 3. Begint op basis: goed → moeilijker, fout → makkelijker. Geen hulp (eerlijk meten), wel een "Weet ik niet"-knop.
+1. **Starttoets (adaptief)**: eerst "In welke groep zit je?". Dan 40 sommen, beginnend **één groep lager** (groep 8 → groep 7-niveau): goed → moeilijker, fout → makkelijker. Geen hulp (eerlijk meten), wel een "Weet ik niet"-knop.
 2. **Dagtaak** (ma–vr): 20 sommen. Zwakke onderdelen krijgen meer sommen, sterke minder. Elke volgende som wordt pas gemaakt na het vorige antwoord, zodat de app live bijstuurt.
 3. **Niveau per onderdeel**:
    - Meer dan de helft fout (laatste 6, min. 4) → **een niveau lager** + extra hulp (tussenstappen staan klaar).
@@ -45,6 +45,7 @@ Niveaus: **opstap** (groep 5/6, als groep 8 echt nog te moeilijk is) · **basis*
 - Ouder ziet saldo en boekt uitbetalingen af in het ouderscherm (Spaarpot → "Voor ouders", pincode).
 
 ### Motivatie
+- Humor: rekenmop van de dag, grappige complimenten en troostzinnen, gekke sommen (meester Bram eet de rest van het snoep op), Rekenmaatje maakt af en toe een grapje.
 - Reeks goed op rij in de sessie (🔥), schooldagen op rij, persoonlijk record.
 - 16 badges: eerste dagtaak, 3/5/10 dagen op rij, 5/10 op rij goed, niveau omhoog, opstap gehaald, sterk, comeback (herkansing goed), zelf gedaan, foutloos, record, doorzetter, stappenmeester.
 - Feedback prijst aanpak en inzet (groei-mindset), fouten worden als leermoment gebracht.

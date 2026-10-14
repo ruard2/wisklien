@@ -70,9 +70,9 @@ export function intakePlan() {
   const r3 = shuffle(CAT_IDS).slice(0, Math.max(0, INTAKE_MAX - 2 * CAT_IDS.length));
   return [...shuffle(CAT_IDS), ...shuffle(CAT_IDS), ...r3];
 }
-export function intakeLevel(history) {
+export function intakeLevel(history, start = 2) {
   // history: [{level, correct}] voor dit onderdeel in de starttoets
-  if (!history.length) return 1;
+  if (!history.length) return start;
   const last = history.at(-1);
   if (last.correct) return Math.min(3, last.level + 1);
   return Math.max(0, last.level - 1);
@@ -166,7 +166,7 @@ export function nextQuestion(session, skills) {
   if (session.kind === 'intake') {
     const cat = session.plan[i];
     const history = session.questions.map((qq, k) => ({ cat: qq.cat, level: qq.level, correct: session.results[k]?.correct })).filter((h) => h.cat === cat);
-    const qq = generate(cat, intakeLevel(history));
+    const qq = generate(cat, intakeLevel(history, session.state?.startLevel ?? 2));
     qq.noHelp = true; // starttoets: eerlijk meten, geen tussenstappen
     return qq;
   }
@@ -251,7 +251,7 @@ export const BADGES = {
   rij5: { icon: '⚡', title: '5 op rij', text: 'Vijf sommen achter elkaar goed.' },
   rij10: { icon: '⚡⚡', title: '10 op rij', text: 'Tien sommen achter elkaar goed!' },
   omhoog: { icon: '⬆️', title: 'Niveau omhoog', text: 'Je bent bij een onderdeel een niveau gestegen.' },
-  opstap: { icon: '🪜', title: 'Opstap gehaald', text: 'Van opstap naar basis: knap doorgezet!' },
+  opstap: { icon: '🪜', title: 'Klimmer', text: 'Van het laagste niveau omhoog geklommen!' },
   sterk: { icon: '💪', title: 'Sterk!', text: 'Een onderdeel staat op "Sterk".' },
   comeback: { icon: '🦸', title: 'Comeback', text: 'Eerst fout, daarna de herkansing goed.' },
   zelf: { icon: '🎯', title: 'Zelf gedaan', text: 'Je koos "helemaal zelf" en had het goed.' },

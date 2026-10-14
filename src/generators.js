@@ -16,7 +16,11 @@
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
 
 export const LEVELS = [0, 1, 2, 3];
-export const LEVEL_NAMES = ['opstap', 'basis', '1F', '1S'];
+// Niveaus als groep: groep 7 bevat de meeste 1F-stof (breuken, procenten, schaal),
+// groep 8 is het eindniveau van de basisschool (1F/1S, doorstroomtoets).
+export const LEVEL_NAMES = ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
+// Bij de starttoets: begin één groep lager dan de groep van het kind.
+export const startLevelForGroep = (groep) => Math.max(0, Math.min(3, Number(groep) - 6));
 
 export const CATEGORIES = [
   { id: 'optellen', label: 'Optellen & aftrekken', domain: 'Getallen', icon: '➕' },
@@ -235,6 +239,10 @@ const vermenigvuldigen = {
     const t = pick(['tafel', 'tafel', 'nul', 'handig']);
     if (t === 'tafel') {
       const a = rnd(6, 9), b = rnd(4, 9);
+      if (Math.random() < 0.3) {
+        const [wie, wat] = pick([['Een alpaca', 'kilo hooi'], ['Een hamster', 'zonnebloempitten'], ['De kat van Zoë', 'uurtjes slaap']]);
+        return withGuide(num(`${wie} krijgt elke dag ${a} ${wat}. Hoeveel ${wat} is dat in ${b} dagen?`, a * b, tafel(a, b).steps), tafel(a, b));
+      }
       return withGuide(num(`${a} × ${b} =`, a * b, tafel(a, b).steps), tafel(a, b));
     }
     if (t === 'nul') {
@@ -301,6 +309,8 @@ const delen = {
       return withGuide(num(`${d * q} : ${d} =`, q, g.steps), g);
     }
     const d = rnd(6, 8), q = rnd(28, 46), r = rnd(1, d - 1), n = pick(NAMES), total = d * q + r, g = happen(total, d);
+    if (Math.random() < 0.4) return withGuide(num(`Meester Bram verdeelt ${total} snoepjes in zakjes van ${d}. Wat overblijft eet hij zelf op (dat zegt hij niet hardop 🤫). Hoeveel volle zakjes zijn er?`,
+      q, [...g.steps, `De rest (${r}) gaat in de mond van meester Bram.`]), { ...g, final: g.final + ' (de rest telt niet mee)' });
     return withGuide(num(`${n} verdeelt ${total} kaarten in stapels van ${d}. Hoeveel volle stapels kan ${n} maken?`,
       q, [...g.steps, `Alleen volle stapels tellen, de rest (${r}) telt niet mee.`]), { ...g, final: g.final + ' (de rest telt niet mee)' });
   },
@@ -682,7 +692,7 @@ function vtabel(rows) {
 
 const verhoudingen = {
   0() {
-    const p = rnd(2, 6), k = rnd(2, 5), item = pick(['ijsjes', 'stickers', 'ballonnen']);
+    const p = rnd(2, 6), k = rnd(2, 5), item = pick(['ijsjes', 'stickers', 'ballonnen', 'scheetkussens', 'nepsnorren']);
     return { ...num(`Eén zakje ${item} kost € ${p}. Hoeveel kosten ${k} zakjes?`, p * k, [`${k} keer € ${p}.`, `${k} × ${p} = ${p * k}`], { unit: 'euro', visual: vtabel([['zakjes', 1, k], ['euro', p, '?']]) }),
       guide: k > 2 ? [st(`Wat kosten 2 zakjes?`, 2 * p, 'Het dubbele.')] : [], guideFinal: k > 2 ? `En ${k} zakjes (${k} × ${p})` : null };
   },

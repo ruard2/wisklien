@@ -295,3 +295,10 @@ table.list th { color: var(--muted); font-weight: 800; }
 .week span.today:not(.on) { border-color: var(--primary); color: var(--primary); }
 .teach { margin-top: 12px; padding: 14px; border-radius: 16px; background: var(--primary-soft); }
 .teach textarea { width: 100%; border-radius: 12px; border: 2px solid var(--line); padding: 10px 12px; font: inherit; background: var(--card); color: var(--ink); resize: vertical; }
+
+/* ---------- v5: groep kiezen, mop ---------- */
+.groep-pick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.groep-pick .choice { text-align: center; font-size: 26px; font-weight: 900; padding: 14px 0; }
+.mop { border: 2px dashed var(--line); box-shadow: none; }
+.mop .punch { margin-top: 6px; font-weight: 900; color: var(--primary); animation: pop .3s; }
+.hello h1 { line-height: 1.1; }

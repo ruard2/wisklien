@@ -54,8 +54,9 @@ await api('/api/parent/login', { pin: process.env.PARENT_PIN || '1234' });
 await api('/api/parent/reset', { what: 'all', confirm: 'RESET' });
 
 // ---- Starttoets: adaptief ----
-const intake = await play('intake', (i, cur, full) => (full.level >= 2 ? 'bad' : 'good'));
+const intake = await play('intake', (i, cur, full) => (full.level >= 2 ? 'bad' : 'good'), { groep: 8 });
 const lv = intake.log.map((l) => l.full.level);
+assert(intake.log.slice(0, 14).every((l) => l.full.level === 2), 'groep 8 → starttoets begint op groep 7-niveau');
 assert(intake.log.length === 40, `starttoets 40 sommen (${intake.log.length})`);
 assert(!lv.includes(3), 'starttoets: na fout op 1F geen 1S-sommen');
 assert(intake.log.every((l) => l.cur.offer.mode === 'none'), 'starttoets: geen tussenstappen (eerlijk meten)');
