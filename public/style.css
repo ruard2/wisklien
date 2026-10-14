@@ -191,6 +191,20 @@ p { margin: 0; }
 .choice.sel { border-color: var(--primary); background: var(--primary-soft); }
 .help-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .hints { margin-top: 12px; display: grid; gap: 8px; }
+/* kladblok */
+.klad { margin-top: 12px; border: 2px dashed var(--line); border-radius: 16px; background: var(--card); }
+.klad > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: baseline; font-weight: 900; }
+.klad > summary > span:first-child { white-space: nowrap; }
+.klad > summary > .small { flex: 1; font-weight: 700; }
+.klad > summary::-webkit-details-marker { display: none; }
+.klad > summary::after { content: '▾'; color: var(--muted); }
+.klad[open] > summary::after { content: '▴'; }
+.klad[open] { border-style: solid; border-color: var(--primary-soft); }
+.klad-body { padding: 0 12px 12px; }
+#klad-c { display: block; width: 100%; height: 240px; border-radius: 12px; border: 1px solid var(--line); touch-action: none; cursor: crosshair; }
+#klad-t { width: 100%; margin-top: 8px; font: inherit; font-size: 17px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; }
+.klad-tools { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.btn.sm { padding: 6px 12px; font-size: 14px; min-height: 0; }
 .hint { background: var(--coin-soft); border-radius: 14px; padding: 10px 12px; font-weight: 700; }
 .feedback { margin-top: 14px; border-radius: 18px; padding: 16px; }
 .feedback.ok { background: var(--good-soft); }

@@ -136,6 +136,17 @@ const KID_TABLES = `
       last_at timestamptz
     );
     CREATE INDEX IF NOT EXISTS reviews_due ON reviews(done, due);
+    -- kladblok: wat het kind uitrekende (tekening + tekst) en wat de leraar erin zag
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_text text;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS scratch_note text;
+    CREATE TABLE IF NOT EXISTS scratch (
+      session_id int NOT NULL,
+      idx int NOT NULL,
+      image text,
+      text text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (session_id, idx)
+    );
 `;
 
 export async function migrateKid(kid) {

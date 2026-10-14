@@ -41,6 +41,8 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
 - **Voordoen → samen → zelf**: bij een nieuw niveau of een zwak onderdeel eerst een uitgewerkt voorbeeld (stap voor stap), daarna samen met tussenstappen, daarna zelf. Max. 2 per sessie.
 - **Ezelsbruggetjes** (`src/mnemonics.js`): gangbare Nederlandse ezelsbruggetjes (Kan Het Dametje Met De Centimeter Meten, Nooit Oorlog Zonder Wapens, tafel-van-9-trucs, …) plus eenvoudige geheugensteuntjes. In hints, voorbeelden, bij Voortgang en Max gebruikt ze waar het helpt.
 - **Voorlezen** 🔊 (gratis, browser-spraak) en plaatjes: breukstroken en getallenlijn.
+- **Kladblok** ✏️: uitvouwbaar ruitjesblaadje onder elke som; schrijven met de vinger of typen. Het gaat mee met het antwoord: Max kijkt (via OpenAI vision) naar de uitwerking, wijst aan wáár het misging, en een korte analyse ("aanpak / fout / denkfout") gaat naar het leerlingprofiel en het ouderscherm. Alleen de laatste 60 kladblaadjes worden bewaard.
+- **Uitleg in kindertaal**: moeilijke woorden (noemer, gelijknamig, omtrek, …) worden één keer per som uitgelegd; kommasommen via "doe alsof de komma er niet is, en zet hem daarna terug" in plaats van schatten met ≈.
 
 ### Beloning
 - Centen, 100 cent = € 1. **Alleen voor goede antwoorden.**

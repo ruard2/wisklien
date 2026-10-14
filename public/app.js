@@ -156,8 +156,9 @@ const PRAISE = {
   guided: ['Samen gelukt! Je deed alle stappen zelf. 🤝', 'Goed zo! Stap voor stap werkt.', 'Top! Zo bouw je het op.', 'Stapje voor stapje naar de top. 🧗'],
   retry: ['Kijk eens! Eerst fout, nu goed. Zo leer je! 🦸', 'Comeback! Nu snap je hem. 💪', 'Revanche genomen op die som! 😤'],
   double: ['Helemaal zelf én goed — dubbele centen! 🪙🪙', 'Zelf gedaan, dubbel verdiend! 🎯', 'Kassa! Dubbel zo rijk. 💰'],
-  wrong: ['Nog niet goed — en dat is oké. Hiervan leer je.', 'Bijna! Kijk even hoe het werkt.', 'Fout is niet erg: nu weet je wat je moet oefenen.',
+  wrong: ['Nog niet goed — en dat is oké. Hiervan leer je.', 'Fout is niet erg: nu weet je wat je moet oefenen.',
     'Oeps! Die som was even stiekem. Zo zit hij in elkaar:', 'Je rekenhersenen waren nog aan het opwarmen. 🥶 Kijk:', 'Deze ging even mis, de volgende pakken we! 💪'],
+  dunno: ['Eerlijk gezegd, knap! Dan leren we hem nu.', 'Weet je het niet? Prima, daar zijn we voor. 🙂', 'Goed dat je het zegt. Kijk even mee:'],
 };
 
 let STATE = null;
@@ -625,6 +626,7 @@ function renderExample() {
 function renderQuestion() {
   const { data, cur } = S;
   const q = cur.question;
+  if (S.klad?.index !== cur.index) kladReset(cur.index);
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
   const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : q.review ? `<span class="chip">🔁 Herhaling · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
@@ -642,12 +644,14 @@ function renderQuestion() {
       ${q.visual ? `<div class="visual">${renderVisual(q.visual)}</div>` : ''}
       <div id="guide"></div>
       <div id="answer-area"></div>
+      ${kladHTML()}
       <div id="hints" class="hints">${(cur.hints || []).map(hintHTML).join('')}</div>
       <div id="fb"></div>
       <div id="ai-area"></div>
     </div>
     <div id="controls"></div>`;
   bindSpeak($app);
+  bindKlad();
   $app.querySelector('[data-quit]').onclick = async () => {
     if (await ask('<div class="big-emoji">🚪</div><h2 style="margin:8px 0">Even stoppen?</h2><p class="muted">Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵</p>', 'Ja, stoppen', 'Nee, ik ga door')) location.hash = '#/';
   };
@@ -779,7 +783,7 @@ function keyPress(k) {
   drawAnswer();
 }
 document.addEventListener('keydown', (e) => {
-  if (!S || !location.hash.startsWith('#/sessie') || e.target.tagName === 'INPUT') return;
+  if (!S || !location.hash.startsWith('#/sessie') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (S.phase === 'feedback' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); return next(); }
   if (S.phase !== 'ask') return;
   const c = S.cur;
@@ -863,12 +867,102 @@ async function talk(message, mode, extra = {}) {
   if (message) S.cur.chat = [...(S.cur.chat || []), { role: 'kid', text: message }];
   drawTeacher(true);
   try {
-    const r = await api(`/api/session/${S.data.id}/chat`, { index: S.cur.index, message, mode, ...extra });
+    const r = await api(`/api/session/${S.data.id}/chat`, { index: S.cur.index, message, mode, scratch: S.phase === 'ask' ? kladPayload() : null, ...extra });
     if (r.chat) S.cur.chat = r.chat;
     else if (r.reason) S.cur.chat = [...(S.cur.chat || []), { role: 'teacher', text: r.reason }];
   } catch (e) { S.cur.chat = [...(S.cur.chat || []), { role: 'teacher', text: e.message }]; }
   S.talking = false;
   drawTeacher();
+}
+
+// ---------- kladblok: tussenstappen tekenen (vinger/muis) of typen ----------
+// Per som een leeg blaadje. Het gaat mee met je antwoord, zodat de leraar kan zien hoe je rekende.
+function kladReset(index) { S.klad = { index, strokes: [], text: '', open: S.klad?.open || false, typing: false }; }
+function kladHTML() {
+  const k = S.klad;
+  return `<details class="klad" id="klad"${k.open ? ' open' : ''}>
+    <summary><span>✏️ Kladblok</span><span class="small muted">${k.strokes.length || k.text ? 'je hebt al iets opgeschreven' : 'reken hier je tussenstappen uit'}</span></summary>
+    <div class="klad-body">
+      <canvas id="klad-c" aria-label="Kladblok: schrijf met je vinger"></canvas>
+      <textarea id="klad-t" rows="3" placeholder="Typ je tussenstappen, bijvoorbeeld: 276 : 6 = 46"${k.typing ? '' : ' hidden'}>${esc(k.text)}</textarea>
+      <div class="klad-tools">
+        <button class="btn ghost sm" data-kl="undo" aria-label="Laatste streep weg">↶ Terug</button>
+        <button class="btn ghost sm" data-kl="clear">🗑 Wissen</button>
+        <button class="btn ghost sm" data-kl="type">${k.typing ? '✏️ Tekenen' : '⌨️ Typen'}</button>
+      </div>
+      ${STATE?.ai ? `<p class="small muted" style="margin-top:6px">🧑‍🏫 ${esc(STATE.teacher)} kijkt mee in je kladblok als je hulp vraagt of iets fout gaat.</p>` : ''}
+    </div></details>`;
+}
+function kladColors() {
+  const cs = getComputedStyle(document.body);
+  return { ink: cs.getPropertyValue('--ink').trim() || '#222', line: cs.getPropertyValue('--line').trim() || '#ddd', bg: cs.getPropertyValue('--card').trim() || '#fff' };
+}
+function kladDraw() {
+  const c = document.getElementById('klad-c');
+  if (!c || !c.offsetWidth) return;
+  const dpr = window.devicePixelRatio || 1, w = c.offsetWidth, h = c.offsetHeight;
+  if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const g = c.getContext('2d'), col = kladColors();
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
+  // ruitjespapier, net als een rekenschrift
+  g.strokeStyle = col.line; g.lineWidth = 1;
+  g.beginPath();
+  for (let x = 24; x < w; x += 24) { g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, h); }
+  for (let y = 24; y < h; y += 24) { g.moveTo(0, y + 0.5); g.lineTo(w, y + 0.5); }
+  g.stroke();
+  kladStrokes(g, S.klad.strokes, w, col.ink, 1);
+}
+// punten worden bewaard als fractie van de breedte, zodat draaien/vergroten niets kapotmaakt
+function kladStrokes(g, strokes, w, ink, scale) {
+  g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round'; g.lineWidth = 3 * scale;
+  for (const s of strokes) {
+    g.beginPath();
+    s.forEach(([x, y], i) => (i ? g.lineTo(x * w, y * w) : g.moveTo(x * w, y * w)));
+    if (s.length === 1) g.lineTo(s[0][0] * w + 0.1, s[0][1] * w);
+    g.stroke();
+  }
+}
+function bindKlad() {
+  const box = document.getElementById('klad');
+  if (!box) return;
+  box.addEventListener('toggle', () => { S.klad.open = box.open; if (box.open) kladDraw(); });
+  const c = document.getElementById('klad-c'), t = document.getElementById('klad-t');
+  let cur = null;
+  const pt = (e) => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.width]; };
+  c.addEventListener('pointerdown', (e) => { e.preventDefault(); c.setPointerCapture(e.pointerId); cur = [pt(e)]; S.klad.strokes.push(cur); kladDraw(); });
+  c.addEventListener('pointermove', (e) => { if (!cur) return; cur.push(pt(e)); kladDraw(); });
+  const end = () => { cur = null; };
+  c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+  t.addEventListener('input', () => { S.klad.text = t.value.slice(0, 600); });
+  box.querySelectorAll("[data-kl]").forEach((b) => (b.onclick = () => {
+    const k = b.dataset.kl;
+    if (k === 'undo') { S.klad.strokes.pop(); kladDraw(); }
+    if (k === 'clear') { S.klad.strokes = []; S.klad.text = ''; t.value = ''; kladDraw(); }
+    if (k === 'type') { S.klad.typing = !S.klad.typing; t.hidden = !S.klad.typing; b.textContent = S.klad.typing ? '✏️ Tekenen' : '⌨️ Typen'; if (S.klad.typing) t.focus(); }
+  }));
+  if (box.open) requestAnimationFrame(kladDraw);
+}
+// buiten het kladblok tikken (antwoordvak, cijfertoetsen) = klaar met typen in het kladblok
+document.addEventListener('pointerdown', (e) => {
+  if (document.activeElement?.id === 'klad-t' && !e.target.closest('#klad')) document.activeElement.blur();
+});
+window.addEventListener('resize', () => { if (document.getElementById('klad-c')) { const c = document.getElementById('klad-c'); c.width = 0; kladDraw(); } });
+// Wat er naar de leraar gaat: een klein, wit plaatje met alleen de strepen (+ getypte tekst)
+function kladPayload() {
+  const k = S.klad;
+  if (!k || k.index !== S.cur?.index || (!k.strokes.length && !k.text.trim())) return null;
+  let image = null;
+  if (k.strokes.length) {
+    const c = document.getElementById('klad-c'), ratio = c && c.offsetWidth ? c.offsetHeight / c.offsetWidth : 0.6;
+    const W = 640, H = Math.round(W * ratio), off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const g = off.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    kladStrokes(g, k.strokes, W, '#111', W / (c?.offsetWidth || W));
+    image = off.toDataURL('image/jpeg', 0.75);
+  }
+  return { image, text: k.text.trim() };
 }
 
 async function dontKnow() {
@@ -885,7 +979,7 @@ async function sendAnswer(extra) {
   S.phase = 'checking';
   const go = $app.querySelector('[data-go]'); if (go) go.disabled = true;
   try {
-    const r = await api(`/api/session/${S.data.id}/answer`, { index: S.cur.index, timeMs: Date.now() - S.t0, ...extra });
+    const r = await api(`/api/session/${S.data.id}/answer`, { index: S.cur.index, timeMs: Date.now() - S.t0, scratch: kladPayload(), ...extra });
     S.last = r;
     S.data.correct += r.correct ? 1 : 0;
     S.data.points = r.points;
@@ -909,7 +1003,7 @@ function showFeedback(r) {
     if (r.rewardKind === 'solo-double' || r.retry || (r.streak && r.streak % 5 === 0) || Math.random() < 0.15) confetti();
   } else {
     buzz([60, 40, 60]);
-    title = pick(PRAISE.wrong);
+    title = r.given === 'weet ik niet' ? pick(PRAISE.dunno) : pick(PRAISE.wrong);
   }
   const rewardChip = S.data.maxPoints && r.correct
     ? `<span class="chip coin">+${cents(r.cents)}${r.rewardKind === 'solo-double' ? ' · dubbel!' : r.rewardKind === 'guided-half' ? ' · half (met hulp)' : ''}</span>` : '';
@@ -929,10 +1023,10 @@ function showFeedback(r) {
   </div>`;
   $app.querySelector('#guide').innerHTML = '';
   $app.querySelector('#controls').innerHTML = `<div class="stack" style="margin-top:12px">
-    ${r.correct && STATE?.ai && S.data.kind !== 'intake' && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 Praat erover met ${esc(STATE.teacher)}</button>` : ''}
+    ${STATE?.ai && (r.correct || S.data.kind === 'intake') && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 ${r.correct ? 'Praat erover met' : 'Leg het me uit,'} ${esc(STATE.teacher)}</button>` : ''}
     <button class="btn ${r.correct ? 'good' : ''} block" data-next>${r.done ? 'Bekijk je resultaat' : nextIsRetry ? 'Herkansing →' : 'Volgende →'}</button></div>`;
   $app.querySelector('[data-next]').onclick = next;
-  $app.querySelector('[data-ask2]')?.addEventListener('click', (e) => { e.target.remove(); openTeacher(); });
+  $app.querySelector('[data-ask2]')?.addEventListener('click', (e) => { e.target.remove(); if (r.correct) openTeacher(); else { S.teacherOpen = true; talk(null, 'start'); } });
   // fout? De leraar kijkt wat er misging en begint een gesprekje
   if (!r.correct && STATE?.ai && S.data.kind !== 'intake') { S.teacherOpen = true; talk(null, 'start'); }
   else drawTeacher();
@@ -1116,7 +1210,19 @@ function renderVisual(v) {
     const style = `fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="3"`;
     const lab = (x, y, t, anchor = 'middle') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="14" font-weight="800" fill="${ink}">${t}</text>`;
     if (v.kind === 'rect') return `<svg viewBox="0 0 ${W} ${H}"><rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="3" ${style}/>${lab(x0 + w / 2, y0 - 8, `${v.w} ${v.unit}`)}${lab(x0 + w + 8, y0 + h / 2 + 5, `${v.h} ${v.unit}`, 'start')}</svg>`;
-    if (v.kind === 'tri') return `<svg viewBox="0 0 ${W} ${H}"><polygon points="${x0},${y0 + h} ${x0 + w},${y0 + h} ${x0 + w * 0.35},${y0}" ${style}/><line x1="${x0 + w * 0.35}" y1="${y0}" x2="${x0 + w * 0.35}" y2="${y0 + h}" stroke="${ink}" stroke-dasharray="5 4" opacity=".6"/>${lab(x0 + w / 2, y0 + h + 20, `basis ${v.w} ${v.unit}`)}${lab(x0 + w * 0.35 + 8, y0 + h / 2, `hoogte ${v.h} ${v.unit}`, 'start')}</svg>`;
+    if (v.kind === 'tri') {
+      // driehoek met een stippel-rechthoek eromheen: zo zie je dat hij precies de helft is
+      const k2 = Math.min(190 / v.w, 120 / v.h), tw = v.w * k2, th = v.h * k2, tx = 22, ty = (H - th) / 2 - 6, ax = tx + tw * 0.35, rx = tx + tw + 14;
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="driehoek met basis ${v.w} en hoogte ${v.h}">
+        <rect x="${tx}" y="${ty}" width="${tw}" height="${th}" fill="none" stroke="${ink}" stroke-dasharray="5 4" opacity=".35"/>
+        <polygon points="${tx},${ty + th} ${tx + tw},${ty + th} ${ax},${ty}" ${style}/>
+        <line x1="${ax}" y1="${ty}" x2="${ax}" y2="${ty + th}" stroke="${ink}" stroke-dasharray="4 4" opacity=".7"/>
+        <polyline points="${ax},${ty + th - 10} ${ax + 10},${ty + th - 10} ${ax + 10},${ty + th}" fill="none" stroke="${ink}" opacity=".7"/>
+        <line x1="${rx}" y1="${ty}" x2="${rx}" y2="${ty + th}" stroke="${ink}" stroke-width="2"/>
+        <line x1="${rx - 5}" y1="${ty}" x2="${rx + 5}" y2="${ty}" stroke="${ink}" stroke-width="2"/><line x1="${rx - 5}" y1="${ty + th}" x2="${rx + 5}" y2="${ty + th}" stroke="${ink}" stroke-width="2"/>
+        ${lab(rx + 10, ty + th / 2 - 4, 'hoogte', 'start')}${lab(rx + 10, ty + th / 2 + 14, `${v.h} ${v.unit}`, 'start')}
+        ${lab(tx + tw / 2, ty + th + 22, `basis ${v.w} ${v.unit}`)}</svg>`;
+    }
     const a = v.a * k, b = v.b * k;
     return `<svg viewBox="0 0 ${W} ${H}"><polygon points="${x0},${y0} ${x0 + w - a},${y0} ${x0 + w - a},${y0 + b} ${x0 + w},${y0 + b} ${x0 + w},${y0 + h} ${x0},${y0 + h}" ${style}/>
       <rect x="${x0 + w - a}" y="${y0}" width="${a}" height="${b}" fill="none" stroke="${ink}" stroke-dasharray="5 4" opacity=".5"/>
@@ -1180,6 +1286,8 @@ async function renderParent() {
     <div class="card stack"><h2>🔎 Denkfouten & herhaling</h2>
       <p class="small">🔁 Foutenschrift: <b>${data.reviews?.open || 0}</b> sommen staan klaar om te herhalen, <b>${data.reviews?.done || 0}</b> zijn inmiddels geleerd.</p>
       ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen bekende denkfouten gezien (laatste 30 dagen).</p>'}
+      ${data.scratchNotes?.length ? `<p style="font-weight:900;margin-top:6px">✏️ Wat ${esc(STATE?.teacher || 'de leraar')} in het kladblok zag</p>
+        <table class="list">${data.scratchNotes.map((n) => `<tr><td><div class="small">${esc(n.text)} → <b>${esc(n.given)}</b> ${n.correct ? '✅' : '❌'}</div><div>${esc(n.scratch_note)}</div></td></tr>`).join('')}</table>` : ''}
     </div>
 
     <div class="card"><h2>Badges</h2><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>

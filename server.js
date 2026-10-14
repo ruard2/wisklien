@@ -11,7 +11,7 @@ import {
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -23,7 +23,7 @@ const WEEK_BONUS = Number(process.env.WEEK_BONUS ?? 25); // centen als alle 5 da
 if (!process.env.PARENT_PIN) console.warn('[let op] PARENT_PIN niet gezet — standaard is 1234');
 
 const app = express();
-app.use(express.json({ limit: '50kb' }));
+app.use(express.json({ limit: '600kb' })); // ruim genoeg voor een kladblok-plaatje
 
 // ---------- simpele inlog met ondertekende cookie ----------
 const sign = (v) => crypto.createHmac('sha256', SECRET).update(v).digest('hex').slice(0, 32);
@@ -134,7 +134,7 @@ async function goalInfo(balance) {
 async function getProfile() { return getSetting('profile', null); }
 async function refreshProfile() {
   if (!aiEnabled()) return;
-  const rows = (await q(`SELECT cat, level, text, given, display, correct, hints, guided FROM attempts ORDER BY id DESC LIMIT 60`)).rows;
+  const rows = (await q(`SELECT cat, level, text, given, display, correct, hints, guided, scratch_note FROM attempts ORDER BY id DESC LIMIT 60`)).rows;
   if (rows.length < 8) return;
   const attempts = rows.reverse().map((r) => ({ ...r, label: catById[r.cat]?.label || r.cat, level: LEVEL_NAMES[r.level] }));
   const updated = await updateProfile({ name: await getName(), oldProfile: profileText(await getProfile()), attempts });
@@ -154,6 +154,23 @@ async function memoryText() {
   const ago = (d) => { const n = Math.round((Date.parse(today) - Date.parse(d)) / 864e5); return n <= 0 ? 'vandaag' : n === 1 ? 'gisteren' : `${n} dagen geleden`; };
   return mem.map((m) => `- (${ago(m.d)}) ${m.n}`).join('\n');
 }
+// Kladblok: alleen een echt plaatje of een stukje tekst, met een maximale grootte
+function cleanScratch(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const image = typeof raw.image === 'string' && raw.image.length < 550_000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(raw.image) ? raw.image : null;
+  const text = typeof raw.text === 'string' ? raw.text.trim().slice(0, 600) : '';
+  return image || text ? { image, text } : null;
+}
+async function saveScratch(sessionId, idx, sc) {
+  await q(`INSERT INTO scratch(session_id, idx, image, text) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (session_id, idx) DO UPDATE SET image=EXCLUDED.image, text=EXCLUDED.text, created_at=now()`, [sessionId, idx, sc.image, sc.text || null]);
+  // plaatjes zijn groot: alleen de laatste 60 bewaren
+  await q(`DELETE FROM scratch WHERE (session_id, idx) NOT IN (SELECT session_id, idx FROM scratch ORDER BY created_at DESC LIMIT 60)`);
+}
+async function loadScratch(sessionId, idx) {
+  return (await one(`SELECT image, text FROM scratch WHERE session_id=$1 AND idx=$2`, [sessionId, idx])) || null;
+}
+
 // Wat er eerder in deze sessie gebeurde (voor de leraar)
 function sessionLog(s, upto) {
   const lines = [];
@@ -538,6 +555,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     const check = dontKnow ? { correct: false } : checkAnswer(qq, given);
     if (check.empty) return { status: 400, error: 'Vul eerst een antwoord in.' };
     const shownGiven = dontKnow ? 'weet ik niet' : qq.type === 'choice' ? qq.options[Number(given)] : given;
+    const scratch = cleanScratch(req.body.scratch);
     const helped = !!qq.guided || (qq.hints || 0) > 0;
 
     // ---- vaardigheid bijwerken ----
@@ -588,8 +606,8 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     s.points_acc += cents;
     s.state = updateState(s, qq, check.correct);
 
-    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null]);
+    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception, scratch_text) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null, scratch?.text || null]);
 
     // ---- badges tijdens de sessie ----
     if (s.state.streak === 5) await award(c, 'rij5');
@@ -651,6 +669,17 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   if (out.error) return res.status(out.status || 400).json({ error: out.error });
   if (out.dup) return res.json(out);
   const { s, qq, result, event, eventLevel, done, summary } = out;
+  // kladblok bewaren en (op de achtergrond) laten bekijken door de leraar: zo leert hij hoe er gerekend wordt
+  const scratch = cleanScratch(req.body.scratch);
+  if (scratch) {
+    const idx = Number(req.body.index);
+    await saveScratch(s.id, idx, scratch);
+    if (aiEnabled() && aiAllowed()) {
+      getName().then((name) => analyzeScratch({ name, question: qq, given: result.given, correct: result.correct, scratch }))
+        .then((note) => note && q(`UPDATE attempts SET scratch_note=$1 WHERE id = (SELECT id FROM attempts WHERE session_id=$2 ORDER BY id DESC LIMIT 1)`, [note, s.id]))
+        .catch((e) => console.error('[kladblok]', e.message));
+    }
+  }
   let weekBonus = 0, surprise = null;
   if (done && s.kind === 'daily') surprise = await maybeSurprise(s).catch((e) => { console.error('[verrassing]', e.message); return null; });
   if (done) {
@@ -713,9 +742,11 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
     phase = 'step'; step = qq.guide[qq.guideStep]; given = req.body.stepGiven || '';
   }
   if (message) qq.chat.push({ role: 'kid', text: message });
+  // kladblok: vóór het antwoord stuurt de app het actuele kladblok mee, daarna gebruiken we het bewaarde
+  const scratch = (!r && cleanScratch(req.body.scratch)) || (r ? await loadScratch(s.id, i) : null);
   const reply = await teacherTurn({
     name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), today: sessionLog(s, i),
-    question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception,
+    question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception, scratch,
   });
   if (reply) qq.chat.push({ role: 'teacher', text: reply, phase });
   qq.chat = qq.chat.slice(-24);
@@ -815,6 +846,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
     misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 8`)).rows,
+    scratchNotes: (await q(`SELECT cat, text, given, correct, scratch_note, created_at FROM attempts WHERE scratch_note IS NOT NULL ORDER BY id DESC LIMIT 8`)).rows,
   });
 }));
 

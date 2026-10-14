@@ -38,7 +38,22 @@ async function openaiModel() {
 export const aiModel = () => (openai ? chosenModel || PREFER[0] : anthropic ? (process.env.AI_MODEL || 'claude-opus-5-5') : null);
 
 // Eén aanroep. messages: [{role:'user'|'assistant', content}]. json: verwacht een JSON-object terug.
-async function complete(system, messages, { json = false, maxTokens = 1200 } = {}) {
+// Plaatje (kladblok) meesturen met het laatste bericht van de gebruiker
+function withImage(messages, image, provider) {
+  if (!image || !/^data:image\/(png|jpeg|webp);base64,/.test(image)) return messages;
+  const m = [...messages];
+  const i = m.map((x) => x.role).lastIndexOf('user');
+  if (i < 0) return messages;
+  const text = String(m[i].content);
+  if (provider === 'openai') m[i] = { role: 'user', content: [{ type: 'text', text }, { type: 'image_url', image_url: { url: image, detail: 'high' } }] };
+  else {
+    const [, mt, data] = image.match(/^data:(image\/\w+);base64,(.+)$/) || [];
+    m[i] = { role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mt, data } }, { type: 'text', text }] };
+  }
+  return m;
+}
+
+async function complete(system, messages, { json = false, maxTokens = 1200, image = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
@@ -53,7 +68,7 @@ async function complete(system, messages, { json = false, maxTokens = 1200 } = {
       const reasoning = /^(gpt-5|o\d)/.test(model);
       const res = await openai.chat.completions.create({
         model,
-        messages: [{ role: 'system', content: system }, ...messages],
+        messages: [{ role: 'system', content: system }, ...withImage(messages, image, 'openai')],
         max_completion_tokens: reasoning ? maxTokens + 2500 : maxTokens,
         ...(reasoning ? { reasoning_effort: process.env.OPENAI_EFFORT || 'low' } : {}),
         ...(json ? { response_format: { type: 'json_object' } } : {}),
@@ -69,7 +84,7 @@ async function complete(system, messages, { json = false, maxTokens = 1200 } = {
         fallbacks: 'default',
         output_config: { effort: 'low' },
         system: json ? system + '\n\nAntwoord uitsluitend met één geldig JSON-object, zonder uitleg eromheen.' : system,
-        messages,
+        messages: withImage(messages, image, 'anthropic'),
       });
       if (res.stop_reason === 'refusal') return null;
       const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
@@ -150,7 +165,15 @@ function describeQuestion(q) {
 
 // Eén beurt van de leraar in het gesprek bij een som.
 // phase: 'before' (nog niet geantwoord) | 'wrong' | 'right' | 'step' (vast bij een tussenstap)
-export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception }) {
+function scratchContext(name, scratch, phase) {
+  if (!scratch || (!scratch.image && !scratch.text)) return '';
+  return [`KLADBLOK: ${name} heeft op een kladblaadje gerekend${scratch.text ? `. Getypt: "${scratch.text}"` : ''}${scratch.image ? '. De afbeelding bij het laatste bericht is dat kladblaadje (met de vinger getekend, dus soms slordig).' : '.'}`,
+    phase === 'wrong' ? `Kijk heel goed naar die uitwerking: welke stappen deed ${name}, wat ging daarin goed, en op welke plek precies ging het mis? Noem eerst kort wat goed ging in de uitwerking, en wijs dan die ene plek aan waar het misging (zonder het eindantwoord te geven).`
+      : phase === 'right' ? 'Kijk naar de uitwerking: noem kort wat slim was aan de aanpak.'
+        : `Kijk mee in de uitwerking tot nu toe en help vanaf daar verder (niet het antwoord verklappen).`].join('\n');
+}
+
+export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception, scratch = null }) {
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),
@@ -163,6 +186,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
+    scratchContext(name, scratch, phase),
   ].filter(Boolean).join('\n');
 
   const opener = {
@@ -176,7 +200,21 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  return complete(LERAAR(name, profile, memory, today), messages, { maxTokens: 500 });
+  return complete(LERAAR(name, profile, memory, today), messages, { maxTokens: 500, image: scratch?.image || null });
+}
+
+// Kladblok bekijken: hoe rekende het kind, en waar ging het mis? Kort, voor het profiel en het geheugen.
+export async function analyzeScratch({ name, question, given, correct, scratch }) {
+  if (!scratch || (!scratch.image && !scratch.text)) return null;
+  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je bekijkt het kladblaadje van een kind en beschrijft kort en concreet hoe het rekende.', [{
+    role: 'user',
+    content: `${describeQuestion(question)}\nJuiste antwoord: ${question.display}\nAntwoord van ${name}: "${given}" (${correct ? 'goed' : 'FOUT'})\n${scratch.text ? `Getypt op het kladblok: "${scratch.text}"\n` : ''}${scratch.image ? 'De afbeelding is het kladblaadje (met de vinger getekend).\n' : ''}
+Geef JSON: {"leesbaar": true/false, "aanpak": "welke aanpak/stappen ${name} gebruikte, max 15 woorden", "fout": "waar het precies misging, max 15 woorden, of null als het goed ging", "denkfout": "kort label van de denkfout, of null"}
+Alleen wat je echt ziet. Gebruik alles: de tekening én de getypte tekst. Is de tekening onleesbaar maar de tekst wel bruikbaar, dan is leesbaar=true. Alleen als er nergens iets bruikbaars staat: leesbaar=false en de rest null.`,
+  }], { json: true, maxTokens: 400, image: scratch.image || null });
+  if (!data || data.leesbaar === false) return null;
+  const parts = [data.aanpak && `aanpak: ${data.aanpak}`, data.fout && `fout: ${data.fout}`, data.denkfout && `denkfout: ${data.denkfout}`].filter(Boolean);
+  return parts.length ? parts.join(' · ').slice(0, 300) : null;
 }
 
 // Interactieve mini-les voor een onderdeel. Eerste beurt: uitleg + voorbeeld + één controlevraag.
@@ -235,7 +273,7 @@ export async function reflect({ name, profile, memory, summary }) {
 export async function updateProfile({ name, oldProfile, attempts }) {
   const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je analyseert oefendata van een kind op de basisschool dat achterloopt met rekenen.', [{
     role: 'user',
-    content: `Huidig profiel (kan leeg zijn):\n${oldProfile || '(leeg)'}\n\nRecente pogingen (onderdeel | niveau | som | antwoord kind | goed antwoord | goed? | hulp):\n${attempts.map((a) => `${a.label} | ${a.level} | ${a.text} | ${a.given} | ${a.display} | ${a.correct ? 'goed' : 'FOUT'} | ${a.guided ? 'tussenstappen' : a.hints ? 'hints' : 'zelf'}`).join('\n')}
+    content: `Huidig profiel (kan leeg zijn):\n${oldProfile || '(leeg)'}\n\nRecente pogingen (onderdeel | niveau | som | antwoord kind | goed antwoord | goed? | hulp | wat er op het kladblok te zien was):\n${attempts.map((a) => `${a.label} | ${a.level} | ${a.text} | ${a.given} | ${a.display} | ${a.correct ? 'goed' : 'FOUT'} | ${a.guided ? 'tussenstappen' : a.hints ? 'hints' : 'zelf'}${a.scratch_note ? ` | kladblok: ${a.scratch_note}` : ''}`).join('\n')}
 
 Werk het profiel van ${name} bij. Geef JSON:
 {"samenvatting": "2-3 zinnen: waar staat ${name}, wat gaat goed, wat niet",
