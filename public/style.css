@@ -332,3 +332,15 @@ table.list th { color: var(--muted); font-weight: 800; }
 .plan { display: grid; gap: 8px; }
 .plan-row { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; padding: 10px; border-radius: 14px; background: var(--bg); }
 .plan-row .ico { font-size: 22px; text-align: center; }
+
+/* ---------- v12: voorbeeld, voorlezen, denkfout, verrassing ---------- */
+.speak { font-size: 18px; width: 36px; height: 36px; border-radius: 50%; background: var(--primary-soft); flex: 0 0 auto; }
+.speak.sm { width: 26px; height: 26px; font-size: 13px; vertical-align: middle; margin-left: 4px; }
+.ex-steps li { animation: pop .25s; }
+.trick { padding: 10px 12px; border-radius: 12px; background: var(--coin-soft); margin-top: 8px; }
+.mis { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--card); border: 2px dashed color-mix(in srgb, var(--bad) 45%, transparent); display: grid; gap: 4px; }
+.surprise { font-size: 24px; font-weight: 900; padding: 16px; border-radius: 18px; background: var(--coin-soft); margin-top: 10px; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+.gift { font-size: 64px; animation: wiggle 1s ease-in-out 2; }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+.btn.ghost-light { background: rgba(255, 255, 255, .18); color: inherit; box-shadow: none; }
+.field textarea, .field select { border-radius: 12px; border: 2px solid var(--line); padding: 8px 12px; background: var(--bg); font: inherit; color: inherit; }

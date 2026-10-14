@@ -14,6 +14,8 @@
 //           elke tussenstap zelf uit, daarna het eindantwoord.
 
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
+import { misconceptionsFor } from './misconceptions.js';
+import { mnemonicsFor } from './mnemonics.js';
 
 export const LEVELS = [0, 1, 2, 3];
 // Niveaus als groep: groep 7 bevat de meeste 1F-stof (breuken, procenten, schaal),
@@ -1086,7 +1088,7 @@ const meetkunde = {
       const start = pick(RICHTING), rechts = Math.random() < 0.5, eind = draai(start, rechts ? 1 : -1);
       return { ...choice(`Je kijkt naar het ${start}en. Je draait een kwartslag naar ${rechts ? 'rechts' : 'links'}. Welke kant kijk je nu op?`, RICHTING.map((r) => r), RICHTING.indexOf(eind),
         ['Denk aan het kompas: noord – oost – zuid – west is rechtsom.', `Een kwartslag naar ${rechts ? 'rechts' : 'links'} vanaf ${start}: ${eind}.`]),
-      guide: [stC('Welke volgorde is rechtsom (met de klok mee)?', ['noord – oost – zuid – west', 'noord – west – zuid – oost'], 0, 'Nooit Oost Zonder Wafels: N – O – Z – W.')], guideFinal: `Eén stap ${rechts ? 'verder' : 'terug'} vanaf ${start}` };
+      guide: [stC('Welke volgorde is rechtsom (met de klok mee)?', ['noord – oost – zuid – west', 'noord – west – zuid – oost'], 0, 'Nooit Oorlog Zonder Wapens: N – O – Z – W.')], guideFinal: `Eén stap ${rechts ? 'verder' : 'terug'} vanaf ${start}` };
     }
     const [vraag, goed] = pick([['Welke figuur heeft 4 even lange zijden en 4 rechte hoeken?', 'vierkant'], ['Welke figuur heeft 3 zijden?', 'driehoek'], ['Welke figuur is helemaal rond?', 'cirkel'], ['Welke figuur heeft 4 rechte hoeken, maar niet 4 even lange zijden?', 'rechthoek']]);
     const opts = ['vierkant', 'driehoek', 'cirkel', 'rechthoek'];
@@ -1178,7 +1180,8 @@ export const STRATEGY = {
 
 // Hints: eerst de aanpak, daarna de tussenstap-vragen (met ?), nooit de uitkomsten.
 export function hintsFor(q) {
-  return [kid(STRATEGY[q.cat]), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
+  const m = mnemonicsFor(q.cat)[0];
+  return [kid(STRATEGY[q.cat]) + (m ? `\n🧠 ${m.soort === 'ezelsbrug' ? 'Ezelsbruggetje' : 'Onthoud'}: ${m.kort}` : ''), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
 }
 
 export const GENERATORS = { optellen, vermenigvuldigen, delen, kommagetallen, getalbegrip, breuken, procenten, verhoudingen, schaal, metriek, oppervlakte, tijd, meetkunde, grafieken };
@@ -1225,6 +1228,28 @@ function kidify(q) {
 }
 
 let counter = 0;
+// "Vorm" van een som: getallen en namen weggelaten. Zo kan het foutenschrift dezelfde soort som terugbrengen.
+const NAME_RE = new RegExp(`\\b(${NAMES.join('|')}|Meester Bram)\\b`, 'g');
+export const shapeOf = (text) => String(text).replace(NAME_RE, 'N').replace(/€\s?/g, '€').replace(/\d+([.,\s\u2009]\d+)*/g, '#').replace(/\b(appels|peren|bananen|kiwi's|voetbal|hockey|zwemmen|judo|dansen|fiets|lopen|auto|bus|liter|kilo|meter|ijsjes|stickers|ballonnen|scheetkussens|nepsnorren|pakken sap|zakken chips|pennen|pakken melk|schriften|broodjes|tijdschriften|jas|skateboard|koptelefoon|museum|zwembad|dierentuin|bibliotheek)\b/gi, 'X');
+
+// Plaatjes die helpen zonder het antwoord te verklappen
+function addVisual(q) {
+  if (q.visual) return;
+  let m;
+  if ((m = q.text.match(/^(\d+)\/(\d+) [+−] (\d+)\/(\d+) =$/))) q.visual = { kind: 'strips', fracs: [[+m[1], +m[2]], [+m[3], +m[4]]] };
+  else if (q.type === 'choice' && q.options?.length === 2 && q.options.every((o) => /^\d+\/\d+$/.test(o))) q.visual = { kind: 'strips', fracs: q.options.map((o) => o.split('/').map(Number)) };
+  else if ((m = q.text.match(/^Rond ([\d\s\u2009]+) af op (tientallen|honderdtallen|duizendtallen)/))) {
+    const N = Number(m[1].replace(/\s|\u2009/g, '')), step = { tientallen: 10, honderdtallen: 100, duizendtallen: 1000 }[m[2]];
+    const lo = Math.floor(N / step) * step;
+    q.visual = { kind: 'line', from: lo, to: lo + step, mark: N, ticks: [lo, lo + step / 2, lo + step] };
+  } else if ((m = q.text.match(/midden tussen ([\d\s\u2009]+) en ([\d\s\u2009]+)\?/))) {
+    const a = Number(m[1].replace(/\s|\u2009/g, '')), b = Number(m[2].replace(/\s|\u2009/g, ''));
+    q.visual = { kind: 'line', from: a, to: b, ticks: [a, b] };
+  } else if ((m = q.text.match(/was het −(\d+) °C\. 's Middags was het (\d+) °C/))) {
+    q.visual = { kind: 'line', from: -Number(m[1]), to: Number(m[2]), ticks: [-Number(m[1]), 0, Number(m[2])], unit: '°C' };
+  }
+}
+
 export function generate(cat, level) {
   const g = GENERATORS[cat];
   const lv = Math.max(0, Math.min(3, level));
@@ -1233,7 +1258,20 @@ export function generate(cat, level) {
   q.level = lv;
   q.id = `${Date.now().toString(36)}${(counter++).toString(36)}`;
   if (!q.guide || !q.guide.length) { q.guide = []; q.guideFinal = null; }
+  q.shape = shapeOf(q.text);
+  q.wrong = misconceptionsFor(q);
+  addVisual(q);
   return kidify(q);
+}
+// Een som van dezelfde soort (voor herhaling en voorbeelden). Valt terug op een gewone som.
+export function generateLike(cat, level, shape, notText) {
+  let last = null;
+  for (let i = 0; i < 120; i++) {
+    const q = generate(cat, level);
+    if (q.shape === shape && q.text !== notText) return q;
+    last = q;
+  }
+  return last;
 }
 
 // ---------- antwoord controleren ----------
@@ -1299,7 +1337,7 @@ export function checkAnswer(q, input) {
 
 // Wat de client mag zien (zonder antwoorden, stappen en tussenstap-antwoorden).
 export function publicQuestion(q) {
-  const { answer, steps, display, requireSimplest, guide, guideFinal, ...rest } = q;
+  const { answer, steps, display, requireSimplest, guide, guideFinal, wrong, shape, example, ...rest } = q;
   return {
     ...rest,
     hasSteps: true,

@@ -35,6 +35,13 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
 5. **Tussenstappen ("samen stap voor stap")**: hij rekent elke tussenstap zelf uit. Fout → tip; nog eens fout → we laten zien hoe het moet en gaan door. Daarna het eindantwoord.
 6. **Rekenmaatje (AI)**: "Leg het anders uit", doorvragen, en uitlegkaarten bij onderdelen waar extra hulp aan staat.
 
+### Leren dat blijft hangen
+- **Denkfouten herkennen (ook zonder AI)**: bij veelvoorkomende fouten (breuken boven én onder opgeteld, uur = 100 minuten, korting i.p.v. nieuwe prijs, omtrek/oppervlakte verwisseld, komma verkeerd, lenen vergeten, …) ziet het kind meteen wat er misging en wat helpt. Max krijgt de denkfout ook door; het ouderscherm toont welke denkfouten vaak voorkomen.
+- **Foutenschrift (gespreid herhalen)**: elke fout komt na 1, 3 en 7 dagen terug als vergelijkbare som (Leitner-systeem); fout → weer na 1 dag. Max. 5 herhalingen per dagtaak.
+- **Voordoen → samen → zelf**: bij een nieuw niveau of een zwak onderdeel eerst een uitgewerkt voorbeeld (stap voor stap), daarna samen met tussenstappen, daarna zelf. Max. 2 per sessie.
+- **Ezelsbruggetjes** (`src/mnemonics.js`): gangbare Nederlandse ezelsbruggetjes (Kan Het Dametje Met De Centimeter Meten, Nooit Oorlog Zonder Wapens, tafel-van-9-trucs, …) plus eenvoudige geheugensteuntjes. In hints, voorbeelden, bij Voortgang en Max gebruikt ze waar het helpt.
+- **Voorlezen** 🔊 (gratis, browser-spraak) en plaatjes: breukstroken en getallenlijn.
+
 ### Beloning
 - Centen, 100 cent = € 1. **Alleen voor goede antwoorden.**
 - Starttoets: tot **100 cent**. Dagtaak: tot **50 cent** per schooldag (2,5 cent per goede som). Oefenen/weekend: geen centen.
@@ -42,6 +49,8 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
   - De eerste **5 keer** goed met tussenstappen: gewone beloning (leerfase, gaat vanzelf aan als het nodig is).
   - Daarna een **"Nu moet je het zelf kunnen"**-moment, met de stappen die hij steeds deed op een rij.
   - Vanaf dan **kiest Christo zelf**: *met tussenstappen* = halve beloning, *helemaal zelf* = **dubbele beloning** (de eerste 5 keer, daarna gewoon).
+- **Vooruitwerken**: na de dagtaak (of in het weekend) kan de dagtaak van de volgende schooldag alvast gedaan worden (max. 1 dag vooruit), met gewone beloning.
+- **Wekelijkse verrassing**: één keer per week op een willekeurige dag, als de dagtaak goed ging (standaard ≥ 70%): bijv. extra snoepje, half uur gametijd, 1 euro (gaat automatisch in de spaarpot) of klein cadeautje. Lijst en drempel in te stellen in het ouderscherm; daar vink je ook af wat gegeven is.
 - Ouder ziet saldo en boekt uitbetalingen af in het ouderscherm (Spaarpot → "Voor ouders", pincode).
 
 ### Motivatie

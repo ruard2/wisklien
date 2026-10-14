@@ -9,6 +9,7 @@
 //  - schrijft na elke sessie een persoonlijk berichtje en adviseert de ouder
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { mnemonicText } from './mnemonics.js';
 
 export const TEACHER = process.env.TEACHER_NAME || 'Meester Max';
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
@@ -123,6 +124,10 @@ ONTHOUDEN EN VOORTBOUWEN
 - Gebruik interesses van ${name} in voorbeelden als je die kent.
 - Herhaal niet letterlijk wat je net al zei; bouw verder op het gesprek.
 
+EZELSBRUGGETJES
+- Als het helpt (niet bij elk bericht), gebruik een ezelsbruggetje of geheugensteuntje uit de lijst bij de som. Leg kort uit hoe het werkt.
+- Noem iets alleen een "bekend ezelsbruggetje" als het zo in de lijst staat. Een eigen trucje mag, maar zeg dan "trucje".
+
 STIJL
 - Kort en to the point: meestal 2 tot 5 korte zinnen (max. ± 80 woorden). Geen lappen tekst.
 - Nederlandse notatie: 2,5 (komma), × voor keer, : voor delen.
@@ -145,7 +150,7 @@ function describeQuestion(q) {
 
 // Eén beurt van de leraar in het gesprek bij een som.
 // phase: 'before' (nog niet geantwoord) | 'wrong' | 'right' | 'step' (vast bij een tussenstap)
-export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step }) {
+export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception }) {
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),
@@ -154,6 +159,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     `Stappenplan: ${question.steps.join(' / ')}`,
     phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip.` : '',
     phase === 'wrong' ? `${name} antwoordde "${given}". Dat is FOUT.` : '',
+    phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
+    mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
   ].filter(Boolean).join('\n');
@@ -174,8 +181,9 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
 
 // Interactieve mini-les voor een onderdeel. Eerste beurt: uitleg + voorbeeld + één controlevraag.
 // Daarna: reageer op het antwoord. Na 2 goede controlevragen: [KLAAR] aan het eind.
-export async function lessonTurn({ name, profile, memory, catLabel, levelName, mistakes = [], chat = [] }) {
+export async function lessonTurn({ name, profile, memory, cat, catLabel, levelName, mistakes = [], chat = [] }) {
   const ctx = `CONTEXT: Je geeft ${name} een korte les over "${catLabel}" op ${levelName}-niveau.
+${mnemonicText(cat) ? `Ezelsbruggetjes/geheugensteuntjes die je kunt gebruiken:\n${mnemonicText(cat)}\n` : ''}
 ${mistakes.length ? `Recente fouten van ${name} bij dit onderdeel:\n${mistakes.map((m) => `- ${m.text} → gaf "${m.given}", goed was ${m.display}`).join('\n')}` : 'Nog geen recente fouten bekend.'}
 
 Zo verloopt de les:

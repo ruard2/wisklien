@@ -120,6 +120,22 @@ const KID_TABLES = `
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS mult real NOT NULL DEFAULT 1;
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note text;
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note_at timestamptz;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS ex_level int NOT NULL DEFAULT -1;
+    ALTER TABLE attempts ADD COLUMN IF NOT EXISTS misconception text;
+    -- foutenschrift: fouten komen na 1, 3 en 7 dagen terug
+    CREATE TABLE IF NOT EXISTS reviews (
+      id serial PRIMARY KEY,
+      cat text NOT NULL,
+      level int NOT NULL,
+      shape text NOT NULL,
+      text text,
+      box int NOT NULL DEFAULT 1,
+      due date NOT NULL,
+      done boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      last_at timestamptz
+    );
+    CREATE INDEX IF NOT EXISTS reviews_due ON reviews(done, due);
 `;
 
 export async function migrateKid(kid) {

@@ -3,6 +3,8 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid } from './src/db.js';
 import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep } from './src/generators.js';
+import { detectMisconception } from './src/misconceptions.js';
+import { MNEMONICS, mnemonicsFor } from './src/mnemonics.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, skillFromIntake, getStruggling, snapshotSkills,
@@ -88,11 +90,39 @@ function schoolWeek(today = todayNL()) {
   const monday = addDays(today, w === 0 ? -6 : 1 - w);
   return [0, 1, 2, 3, 4].map((k) => addDays(monday, k));
 }
-async function weekInfo() {
-  const days = schoolWeek();
+async function weekInfo(day = todayNL()) {
+  const days = schoolWeek(day);
   const done = new Set((await q(`SELECT day::text AS d FROM sessions WHERE kind='daily' AND status='done' AND day = ANY($1::date[])`, [days])).rows.map((r) => r.d));
   const given = await getSetting(`weekbonus:${days[0]}`, null);
   return { days: days.map((d) => ({ day: d, done: done.has(d), today: d === todayNL() })), count: done.size, bonus: WEEK_BONUS, given: !!given };
+}
+// volgende schooldag na een datum
+function nextSchoolDay(d) {
+  let x = addDays(d, 1);
+  while ([0, 6].includes(dowOf(x))) x = addDays(x, 1);
+  return x;
+}
+const DAGNAAM = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
+// ---------- wekelijkse verrassing (één per week, willekeurige dag, alleen als het goed ging) ----------
+const DEFAULT_REWARDS = ['🍬 Een extra snoepje', '🎮 Een half uur extra gametijd', '💶 1 euro extra', '🎁 Een klein cadeautje'];
+async function surpriseCfg() { return { enabled: true, rewards: DEFAULT_REWARDS, min: 0.7, ...(await getSetting('surprise_cfg', {})) }; }
+async function maybeSurprise(s) {
+  const cfg = await surpriseCfg();
+  if (!cfg.enabled || !cfg.rewards?.length || s.kind !== 'daily') return null;
+  const days = schoolWeek(s.day);
+  const key = `surprise:${days[0]}`;
+  let pick = await getSetting(key, null);
+  if (!pick) { pick = { day: days[Math.floor(Math.random() * days.length)], given: false }; await setSetting(key, pick); }
+  if (pick.given || s.day < pick.day || s.correct / s.total < cfg.min) return null;
+  const reward = cfg.rewards[Math.floor(Math.random() * cfg.rewards.length)];
+  const euro = reward.match(/(\d+(?:[.,]\d+)?)\s*euro/i);
+  if (euro) await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [Math.round(Number(euro[1].replace(',', '.')) * 100), `Verrassing: ${reward}`]);
+  await setSetting(key, { ...pick, given: true, reward });
+  const list = await getSetting('surprises', []);
+  list.push({ date: s.day, reward, delivered: !!euro });
+  await setSetting('surprises', list.slice(-50));
+  return reward;
 }
 async function goalInfo(balance) {
   const g = await getSetting('goal', null);
@@ -184,6 +214,8 @@ function currentPayload(s, skills) {
     hints: hintsFor(qq).slice(0, qq.hints || 0),
     hintCount: hintsFor(qq).length,
     chat: qq.chat || [],
+    example: qq.example || null,
+    mnemonic: mnemonicsFor(qq.cat)[0] || null,
     base: s.max_points / s.total,
   };
 }
@@ -271,6 +303,14 @@ app.get('/api/state', child, wrap(async (req, res) => {
     streak: await streak(),
     record: await getSetting('record', 0),
     week: await weekInfo(),
+    ahead: await (async () => {
+      const todays = daily?.status === 'done';
+      if (isSchoolDay() && !todays) return null;
+      const d = nextSchoolDay(today);
+      const s = await one(`SELECT status, answered FROM (SELECT status, jsonb_array_length(results) AS answered FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1) x`, [d]);
+      return { day: d, name: DAGNAAM[dowOf(d)], status: s?.status || null, answered: s?.answered || 0 };
+    })(),
+    mnemonics: MNEMONICS,
     goal: await goalInfo((await wallet()).balance),
     skills: list,
     struggling,
@@ -325,11 +365,21 @@ async function makePlan(n, skills, struggling) {
   return { plan: buildPlan(skills, allocate(skills, n, struggling)), coach: null };
 }
 
-async function createSession(kind, plan, total, maxPoints, skills, state = {}) {
+async function createSession(kind, plan, total, maxPoints, skills, state = {}, day = todayNL()) {
+  // foutenschrift: herhalingen die vandaag aan de beurt zijn, verspreid door de sessie
+  if (kind !== 'intake') {
+    const max = kind === 'daily' ? 5 : 3;
+    const due = (await q(`SELECT id, cat, level, shape FROM reviews WHERE NOT done AND due <= $1 ORDER BY due, id LIMIT $2`, [day, max])).rows;
+    if (due.length) {
+      plan = [...plan];
+      state = { ...state, reviews: due };
+      due.forEach((r, k) => { const pos = Math.min(plan.length - 1, 1 + k * 4); plan[pos] = `review:${k}`; });
+    }
+  }
   const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
   s.questions.push(nextQuestion(s, skills));
   return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [kind, todayNL(), JSON.stringify(s.questions), total, maxPoints, JSON.stringify(plan), JSON.stringify(state)]);
+    [kind, day, JSON.stringify(s.questions), total, maxPoints, JSON.stringify(plan), JSON.stringify(state)]);
 }
 
 app.post('/api/session/start', child, wrap(async (req, res) => {
@@ -350,11 +400,17 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
   if (intake?.status !== 'done') return res.status(400).json({ error: 'Doe eerst de starttoets.' });
 
   if (kind === 'daily') {
-    if (!isSchoolDay()) return res.status(400).json({ error: 'In het weekend is er geen dagtaak. Je kunt wel extra oefenen!' });
-    const existing = await one(`SELECT * FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
+    let day = today;
+    if (req.body.ahead) {
+      // vooruitwerken: de dagtaak van de volgende schooldag alvast doen (max. 1 dag vooruit)
+      const todays = await one(`SELECT status FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
+      if (isSchoolDay() && todays?.status !== 'done') return res.status(400).json({ error: 'Maak eerst je dagtaak van vandaag af.' });
+      day = nextSchoolDay(today);
+    } else if (!isSchoolDay()) return res.status(400).json({ error: 'In het weekend is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!' });
+    const existing = await one(`SELECT * FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [day]);
     if (existing) return res.json(sessionPayload(existing, skills, { struggling }));
     const { plan, coach } = await makePlan(DAILY_COUNT, skills, struggling);
-    return res.json(sessionPayload(await createSession('daily', plan, DAILY_COUNT, DAILY_POINTS, skills, coach ? { coach } : {}), skills, { struggling }));
+    return res.json(sessionPayload(await createSession('daily', plan, DAILY_COUNT, DAILY_POINTS, skills, coach ? { coach } : {}, day), skills, { struggling }));
   }
 
   if (kind === 'practice') {
@@ -508,14 +564,32 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
 
     const base = s.max_points / s.total;
     const cents = base * reward.mult;
-    const result = { correct: check.correct, given: shownGiven, display: qq.display, note: check.note || null, hints: qq.hints || 0, guided: !!qq.guided, cents, rewardKind: reward.kind, retry: !!qq.retry };
+    const misconception = !check.correct && !dontKnow ? detectMisconception(qq, given, checkAnswer) : null;
+    const result = { correct: check.correct, given: shownGiven, display: qq.display, note: check.note || null, hints: qq.hints || 0, guided: !!qq.guided, cents, rewardKind: reward.kind, retry: !!qq.retry, review: !!qq.review, misconception };
+    if (misconception) qq.misconception = misconception;
+    if (s.kind !== 'intake') {
+      if (qq.example) await c.query('UPDATE skills SET ex_level=$2 WHERE cat=$1', [qq.cat, qq.level]);
+      // foutenschrift bijwerken
+      const today = todayNL();
+      if (qq.reviewId) {
+        const r = (await c.query('SELECT box FROM reviews WHERE id=$1', [qq.reviewId])).rows[0];
+        if (r) {
+          if (!check.correct) await c.query(`UPDATE reviews SET box=1, due=$2, last_at=now() WHERE id=$1`, [qq.reviewId, addDays(today, 1)]);
+          else if (r.box >= 3) await c.query(`UPDATE reviews SET done=true, last_at=now() WHERE id=$1`, [qq.reviewId]);
+          else await c.query(`UPDATE reviews SET box=box+1, due=$2, last_at=now() WHERE id=$1`, [qq.reviewId, addDays(today, r.box === 1 ? 3 : 7)]);
+        }
+      } else if (!check.correct && !qq.booster && !qq.retry) {
+        const exists = (await c.query('SELECT 1 FROM reviews WHERE NOT done AND cat=$1 AND shape=$2', [qq.cat, qq.shape])).rowCount;
+        if (!exists) await c.query(`INSERT INTO reviews(cat, level, shape, text, due) VALUES ($1,$2,$3,$4,$5)`, [qq.cat, qq.level, qq.shape, qq.text, addDays(today, 1)]);
+      }
+    }
     s.results.push(result);
     s.correct += check.correct ? 1 : 0;
     s.points_acc += cents;
     s.state = updateState(s, qq, check.correct);
 
-    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult]);
+    await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null]);
 
     // ---- badges tijdens de sessie ----
     if (s.state.streak === 5) await award(c, 'rij5');
@@ -577,14 +651,15 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   if (out.error) return res.status(out.status || 400).json({ error: out.error });
   if (out.dup) return res.json(out);
   const { s, qq, result, event, eventLevel, done, summary } = out;
-  let weekBonus = 0;
+  let weekBonus = 0, surprise = null;
+  if (done && s.kind === 'daily') surprise = await maybeSurprise(s).catch((e) => { console.error('[verrassing]', e.message); return null; });
   if (done) {
     await snapshotSkills();
     if (s.kind === 'daily') {
       const st = await streak();
       for (const [n, id] of [[3, 'reeks3'], [5, 'reeks5'], [10, 'reeks10']]) if (st >= n) { const b = await awardBadge(id); if (b) newBadges.push(b); }
-      // weekbonus: alle 5 dagtaken van deze week af
-      const wk = await weekInfo();
+      // weekbonus: alle 5 dagtaken van die week af
+      const wk = await weekInfo(s.day);
       if (wk.count === 5 && !wk.given && WEEK_BONUS > 0) {
         await setSetting(`weekbonus:${wk.days[0].day}`, true);
         await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [WEEK_BONUS, `Weekbonus week van ${wk.days[0].day}`]);
@@ -611,7 +686,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   res.json({
     ...result, steps: qq.steps, done, summary, event,
     eventCat: event ? catById[qq.cat].label : null, eventLevel: event ? LEVEL_NAMES[eventLevel] : null,
-    streak: s.state.streak, easy: s.state.easyChanged, points: s.points_acc, badges: newBadges, weekBonus, teachback,
+    streak: s.state.streak, easy: s.state.easyChanged, points: s.points_acc, badges: newBadges, weekBonus, teachback, surprise,
     next: done ? null : currentPayload(s, skills),
   });
 }));
@@ -640,7 +715,7 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   if (message) qq.chat.push({ role: 'kid', text: message });
   const reply = await teacherTurn({
     name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), today: sessionLog(s, i),
-    question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step,
+    question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception,
   });
   if (reply) qq.chat.push({ role: 'teacher', text: reply, phase });
   qq.chat = qq.chat.slice(-24);
@@ -658,7 +733,7 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
   const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
-  const out = await lessonTurn({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
+  const out = await lessonTurn({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), cat, catLabel: catById[cat].label, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
   if (out?.ready && chat.length >= 2) {
     const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text}`).join('\n');
     remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});
@@ -737,6 +812,9 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     name: await getName(), ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: TEACHER, profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(),
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
+    surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
+    reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
+    misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 8`)).rows,
   });
 }));
 
@@ -780,6 +858,20 @@ app.post('/api/parent/profile', parent, wrap(async (req, res) => {
 app.post('/api/parent/settings', parent, wrap(async (req, res) => {
   const name = String(req.body.name || '').trim().slice(0, 30);
   if (name.length >= 2) await renameKid(req.kid.id, name);
+  res.json({ ok: true });
+}));
+
+app.post('/api/parent/surprise', parent, wrap(async (req, res) => {
+  const rewards = (Array.isArray(req.body.rewards) ? req.body.rewards : []).map((r) => String(r).trim().slice(0, 60)).filter(Boolean).slice(0, 12);
+  const min = Math.max(0.3, Math.min(1, Number(req.body.min) || 0.7));
+  await setSetting('surprise_cfg', { enabled: !!req.body.enabled, rewards: rewards.length ? rewards : DEFAULT_REWARDS, min });
+  res.json({ cfg: await surpriseCfg() });
+}));
+app.post('/api/parent/surprise/delivered', parent, wrap(async (req, res) => {
+  const list = await getSetting('surprises', []);
+  const i = list.length - 1 - Number(req.body.index); // de lijst wordt omgekeerd getoond
+  if (list[i]) list[i].delivered = true;
+  await setSetting('surprises', list);
   res.json({ ok: true });
 }));
 

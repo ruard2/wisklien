@@ -1,13 +1,13 @@
 // Leerlogica: adaptieve starttoets, niveau per onderdeel, live bijsturen tijdens
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
-import { CAT_IDS, generate, catById } from './generators.js';
+import { CAT_IDS, generate, generateLike, catById } from './generators.js';
 import { shuffle, todayNL } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden
 export const DAILY_POINTS = 50;
 export const DAILY_COUNT = 20;
-export const PRACTICE_COUNT = 10;
+export const PRACTICE_COUNT = 20;
 export const FREE_GUIDED = 5;   // eerste 5 keer tussenstappen: gewone beloning
 export const SOLO_BONUS = 5;    // daarna 5 keer dubbel als hij kiest om het zelf te doen
 
@@ -21,7 +21,7 @@ export function skillLabel(score) {
   return 'Oefenen';
 }
 
-const DEFAULT_SKILL = (cat) => ({ cat, level: 1, mastery: 40, recent: [], scaffold: 0, guided_wins: 0, solo_bonus: 0, transition_seen: false, attempts: 0, correct: 0 });
+const DEFAULT_SKILL = (cat) => ({ cat, level: 1, mastery: 40, recent: [], scaffold: 0, guided_wins: 0, solo_bonus: 0, transition_seen: false, attempts: 0, correct: 0, ex_level: -1 });
 export async function getSkills() {
   const rows = (await q('SELECT * FROM skills')).rows;
   const byCat = Object.fromEntries(rows.map((r) => [r.cat, r]));
@@ -222,7 +222,17 @@ export function nextQuestion(session, skills) {
   } else {
     // planwijzer: herkansingen en opstekers schuiven het plan op, ze slaan niets over
     const p = st.planIdx || 0;
-    const cat = session.plan[p] || session.plan[p % session.plan.length] || strongest.cat;
+    const item = session.plan[p] || session.plan[p % session.plan.length] || strongest.cat;
+    // herhaling uit het foutenschrift: dezelfde soort som als die eerder misging
+    if (typeof item === 'string' && item.startsWith('review:')) {
+      const r = (st.reviews || [])[Number(item.slice(7))];
+      if (r && byCat[r.cat]) {
+        const rq = generateLike(r.cat, Math.min(r.level, byCat[r.cat].level + 1), r.shape);
+        rq.review = true; rq.reviewId = r.id; rq.fromPlan = true;
+        return rq;
+      }
+    }
+    const cat = item.startsWith?.('review:') ? strongest.cat : item;
     const s = byCat[cat];
     let level = s.level;
     let suggest = (s.scaffold || 0) > 0;
@@ -230,6 +240,15 @@ export function nextQuestion(session, skills) {
     qq = generate(cat, level);
     qq.suggestGuide = suggest && qq.guide.length > 0;
     qq.fromPlan = true;
+    // eerste keer op dit niveau: eerst voordoen (uitgewerkt voorbeeld), dan samen, dan zelf
+    // (alleen bij een nieuw niveau of een zwak onderdeel, en max. 2 per sessie: niet te druk)
+    const exLevel = s.ex_level ?? -1;
+    const needsExample = (exLevel !== -1 && exLevel !== level) || (exLevel === -1 && skillScore(s) < 50);
+    if (session.kind !== 'intake' && needsExample && qq.guide.length && session.questions.filter((x) => x.example).length < 2) {
+      const ex = generateLike(cat, level, qq.shape, qq.text);
+      qq.example = { text: ex.text, steps: ex.steps, display: ex.display, visual: ex.visual || null, options: ex.options || null };
+      qq.suggestGuide = true;
+    }
   }
   return qq;
 }

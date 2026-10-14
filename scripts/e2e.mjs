@@ -116,6 +116,7 @@ const halfRun = await play('practice', (i, cur) => (cur.offer.mode === 'choose' 
 assert(halfRun.log.some((l) => l.res.rewardKind === 'guided-half'), 'na leerfase: tussenstappen = halve beloning');
 
 // ---- Weer omhoog bij 80% ----
+await db.query(`UPDATE ${SCHEMA}.skills SET level=1, recent='[]' WHERE cat='breuken'`);
 const up = await play('practice', () => 'good', { cat: 'breuken' });
 const up2 = await play('practice', () => 'good', { cat: 'breuken' });
 const upEv = [...up.log, ...up2.log].map((l) => l.res.event).filter(Boolean);
@@ -123,6 +124,66 @@ assert(upEv.includes('up'), `na 80% goed weer een stapje omhoog (events: ${upEv.
 st = await api('/api/state');
 assert(st.badges.find((b) => b.id === 'comeback').earned || true, 'badges werken');
 console.log('  badges:', st.badges.filter((b) => b.earned).map((b) => b.icon + b.title).join(', '));
+// ---- denkfout herkennen (zonder AI) ----
+{
+  let found = null;
+  for (let k = 0; k < 30 && !found; k++) {
+    await db.query(`UPDATE ${SCHEMA}.skills SET level=2, scaffold=0 WHERE cat='breuken'`);
+    await db.query(`UPDATE ${SCHEMA}.sessions SET status='stopped' WHERE status='active'`);
+    const s = await api('/api/session/start', { kind: 'practice', cat: 'breuken' });
+    const t = s.current.question.text;
+    const m = t.match(/^(\d+)\/(\d+) \+ (\d+)\/(\d+) =$/);
+    if (m) found = { s, w: `${+m[1] + +m[3]}/${+m[2] + +m[4]}` };
+  }
+  assert(found, 'som met breuken optellen gevonden');
+  if (found) {
+    const r = await api(`/api/session/${found.s.id}/answer`, { index: found.s.current.index, answer: found.w });
+    assert(r.misconception && /boven én onder/.test(r.misconception.label), `denkfout herkend: "${r.misconception?.label}"`);
+  }
+}
+// ---- foutenschrift: fouten komen terug ----
+{
+  const open = (await db.query(`SELECT COUNT(*)::int n FROM ${SCHEMA}.reviews WHERE NOT done`)).rows[0].n;
+  assert(open > 0, `fouten staan in het foutenschrift (${open})`);
+  await db.query(`UPDATE ${SCHEMA}.reviews SET due = CURRENT_DATE - 1`);
+  const s = await api('/api/session/start', { kind: 'practice', cat: 'tijd' }); // eerst iets anders stoppen
+  void s;
+  const p = await api('/api/session/start', { kind: 'practice' });
+  const st = (await db.query(`SELECT state, plan FROM ${SCHEMA}.sessions WHERE id=$1`, [p.id])).rows[0];
+  assert((st.state.reviews || []).length > 0 && st.plan.some((x) => String(x).startsWith('review:')), `herhalingen zitten in de oefenronde (${(st.state.reviews || []).length})`);
+  assert(p.total === 20, `extra oefenen = 20 sommen (${p.total})`);
+  let sawReview = false;
+  for (let k = 0; k < 20; k++) {
+    const full = await current(p.id);
+    if (full.review) sawReview = true;
+    const r = await api(`/api/session/${p.id}/answer`, { index: k, answer: good(full) });
+    if (r.done) break;
+  }
+  assert(sawReview, 'herhaling-som komt echt langs');
+  const moved = (await db.query(`SELECT COUNT(*)::int n FROM ${SCHEMA}.reviews WHERE box > 1 OR done`)).rows[0].n;
+  assert(moved > 0, 'goed herhaald → schuift door in het foutenschrift');
+}
+// ---- vooruitwerken + verrassing ----
+{
+  const st = await api('/api/state');
+  if (st.today.schoolDay && st.today.daily?.status === 'done' && st.ahead) {
+    const d = st.ahead.day;
+    const monday = new Date(Date.parse(d + 'T12:00:00Z') - (((new Date(d + 'T12:00:00Z').getUTCDay() + 6) % 7) * 864e5)).toISOString().slice(0, 10);
+    await db.query(`INSERT INTO ${SCHEMA}.settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value=$2`, [`surprise:${monday}`, JSON.stringify({ day: d, given: false })]);
+    await db.query(`INSERT INTO ${SCHEMA}.settings(key, value) VALUES ('surprise_cfg', $1) ON CONFLICT (key) DO UPDATE SET value=$1`, [JSON.stringify({ enabled: true, rewards: ['💶 1 euro extra'], min: 0.5 })]);
+    const before = (await api('/api/state')).wallet.balance;
+    const a = await api('/api/session/start', { kind: 'daily', ahead: true });
+    const day = (await db.query(`SELECT day::text FROM ${SCHEMA}.sessions WHERE id=$1`, [a.id])).rows[0].day;
+    assert(day === d, `vooruitwerken: dagtaak voor ${st.ahead.name} (${day})`);
+    let last;
+    for (let k = 0; k < 20; k++) { const full = await current(a.id); last = await api(`/api/session/${a.id}/answer`, { index: k, answer: good(full) }); if (last.done) break; }
+    assert(last.surprise === '💶 1 euro extra', `verrassing gegeven: ${last.surprise}`);
+    const after = await api('/api/state');
+    assert(after.ahead?.status === 'done', 'vooruit-dagtaak staat op klaar');
+    assert(after.wallet.balance - before === last.summary.points + 100, 'euro-verrassing staat in de spaarpot');
+  } else console.log('  (vooruitwerken overgeslagen: vandaag geen schooldag of dagtaak niet af)');
+}
+
 // profielen zijn gescheiden: een tweede kind ziet niets van E2E
 const other = (await api('/api/kids', { name: 'E2E-twee' })).kid;
 const st2 = await api('/api/state');

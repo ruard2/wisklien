@@ -60,6 +60,42 @@ function ask(html, yes = 'Ja', no = 'Nee', danger = false) {
   });
 }
 
+// ---------- voorlezen (gratis, in de browser) ----------
+const ORD = { 2: 'halve', 3: 'derde', 4: 'vierde', 5: 'vijfde', 6: 'zesde', 7: 'zevende', 8: 'achtste', 9: 'negende', 10: 'tiende', 11: 'elfde', 12: 'twaalfde', 20: 'twintigste', 100: 'honderdste' };
+const UNIT = { km: 'kilometer', m: 'meter', dm: 'decimeter', cm: 'centimeter', mm: 'millimeter' };
+function speakable(t) {
+  return String(t)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/\*\*/g, '')
+    .replace(/(\d{1,2}):(\d{2})/g, (m, h, mi) => `${h} uur ${mi === '00' ? '' : mi}`)
+    .replace(/(\d+) 1\/2\b/g, '$1 en een half')
+    .replace(/(\d+) (\d+)\/(\d+)/g, (m, w, a, b) => `${w} en ${a} ${ORD[b] || b + 'ste'}`)
+    .replace(/\b1\/2\b/g, 'een half')
+    .replace(/(\d+)\/(\d+)/g, (m, a, b) => `${a} ${ORD[b] || b + 'ste'}`)
+    .replace(/€\s?(\d+),(\d\d)/g, (m, e, c) => (c === '00' ? `${e} euro` : `${e} euro ${Number(c)}`))
+    .replace(/€\s?(\d+)/g, '$1 euro')
+    .replace(/(\d),(\d)/g, '$1 komma $2')
+    .replace(/×/g, ' keer ').replace(/ : /g, ' gedeeld door ').replace(/−/g, ' min ').replace(/\+/g, ' plus ').replace(/=/g, ' is ')
+    .replace(/%/g, ' procent').replace(/°C/g, ' graden').replace(/°/g, ' graden')
+    .replace(/\b(km|dm|cm|mm|m)([²³])/g, (x, u, p) => ` ${p === '²' ? 'vierkante' : 'kubieke'} ${UNIT[u]}`)
+    .replace(/\.\.\./g, ' hoeveel ').replace(/…/g, ' ');
+}
+function speak(text) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) return toast('Voorlezen werkt niet op dit apparaat.');
+    if (synth.speaking) { synth.cancel(); return; }
+    const u = new SpeechSynthesisUtterance(speakable(text));
+    u.lang = 'nl-NL'; u.rate = 0.92;
+    const v = synth.getVoices().find((x) => x.lang?.toLowerCase().startsWith('nl'));
+    if (v) u.voice = v;
+    synth.speak(u);
+  } catch { toast('Voorlezen lukt nu niet.'); }
+}
+const speakBtn = (text, small = false) => `<button class="speak ${small ? 'sm' : ''}" data-speak="${esc(text)}" aria-label="Voorlezen">🔊</button>`;
+function bindSpeak(root) { root.querySelectorAll('[data-speak]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); speak(b.dataset.speak); })); }
+const hintHTML = (h) => `<div class="hint">💡 ${esc(h).replace(/\n/g, '<br>')}</div>`;
+
 // ---------- humor ----------
 const MOPPEN = [
   ['Wat zei de 0 tegen de 8?', 'Mooie riem! 😎'],
@@ -236,6 +272,7 @@ async function renderHome() {
   } else if (!s.today.schoolDay) {
     main = `<div class="card hero stack"><div class="big-emoji">🌴</div>
       <div><div class="task-title">Weekend!</div><p>Geen dagtaak vandaag. Maandag weer ${s.points.dailyCount} sommen voor ${s.points.daily} cent.</p></div>
+      ${aheadBtn(s)}
       <button class="btn light block" data-start="practice">Toch even oefenen</button></div>`;
   } else if (!d || d.status === 'active') {
     main = `<div class="card hero stack"><div class="big-emoji">✏️</div>
@@ -246,7 +283,8 @@ async function renderHome() {
   } else {
     main = `<div class="card hero stack"><div class="big-emoji">🎉</div>
       <div><div class="task-title">Dagtaak klaar!</div><p>${d.correct} van de ${d.total} goed — je verdiende <b>${d.points} cent</b>.</p></div>
-      <button class="btn light block" data-start="practice">Extra oefenen</button><p class="small muted">Extra oefenen levert geen centen op, maar maakt je wel sterker.</p></div>`;
+      ${aheadBtn(s)}
+      <button class="btn ${s.ahead && s.ahead.status !== 'done' ? 'ghost-light' : 'light'} block" data-start="practice">Extra oefenen (zonder centen)</button></div>`;
   }
 
   const stuck = s.intakeDone ? s.skills.filter((x) => x.struggling) : [];
@@ -276,6 +314,13 @@ async function renderHome() {
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
 const DAG = ['ma', 'di', 'wo', 'do', 'vr'];
+function aheadBtn(s) {
+  const a = s.ahead;
+  if (!a) return '';
+  if (a.status === 'done') return `<p class="small">✅ De dagtaak van ${esc(a.name)} is ook al klaar. Lekker bezig!</p>`;
+  if (a.status === 'active') return `<button class="btn light block" data-ahead>⏩ Verder met ${esc(a.name)} (${a.answered}/${s.points.dailyCount})</button>`;
+  return `<button class="btn light block" data-ahead>⏩ Werk vooruit: doe ${esc(a.name)} alvast</button>`;
+}
 function mopCard() {
   const [vraag, clou] = mop();
   return `<button class="card mop" data-mop style="text-align:left;width:100%"><div class="small muted">😂 Rekenmop van de dag (tik voor het antwoord)</div><div style="font-weight:800;margin-top:4px">${esc(vraag)}</div><div class="punch" hidden>${esc(clou)}</div></button>`;
@@ -301,6 +346,7 @@ function mini(x) {
 }
 function bindStart() {
   $app.querySelectorAll('[data-start]').forEach((b) => (b.onclick = () => startSession(b.dataset.start, b.dataset.cat)));
+  $app.querySelectorAll('[data-ahead]').forEach((b) => (b.onclick = () => startSession('daily', null, { ahead: true })));
 }
 function askGroep() {
   return new Promise((resolve) => {
@@ -313,7 +359,7 @@ function askGroep() {
     });
   });
 }
-async function startSession(kind, cat) {
+async function startSession(kind, cat, extra = {}) {
   const btn = document.activeElement;
   const busy = STATE?.ai && (kind === 'daily' || (kind === 'practice' && !cat));
   if (busy && btn?.classList?.contains('btn')) { btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${esc(STATE.teacher)} maakt je lesplan…`; }
@@ -323,7 +369,7 @@ async function startSession(kind, cat) {
       groep = await askGroep();
       if (!groep) return;
     }
-    const data = await api('/api/session/start', { kind, cat, groep });
+    const data = await api('/api/session/start', { kind, cat, groep, ...extra });
     SESSION_CACHE = data;
     location.hash = `#/sessie/${data.id}`;
   } catch (e) { if (e.message !== 'login') toast(e.message); }
@@ -395,7 +441,7 @@ function showPlan(coach, stuck = []) {
 function teacherHTML(chat, { loading = false, quick = [], placeholder = 'Typ je vraag of antwoord…', intro = null } = {}) {
   const name = esc(STATE?.teacher || 'Meester Max');
   const msgs = chat.map((m) => m.role === 'teacher'
-    ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')}</div></div>`
+    ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')} ${speakBtn(m.text, true)}</div></div>`
     : `<div class="t-msg k"><div class="t-bub">${esc(m.text)}</div></div>`).join('');
   const thinking = pick(['denkt even na…', 'krabt achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn krijtje…']);
   return `<div class="teacher">
@@ -407,6 +453,7 @@ function teacherHTML(chat, { loading = false, quick = [], placeholder = 'Typ je 
   </div>`;
 }
 function bindTeacher(box, send) {
+  bindSpeak(box);
   box.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => send(b.dataset.q)));
   const form = box.querySelector('form');
   if (form) form.onsubmit = (e) => { e.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) send(v); };
@@ -449,7 +496,8 @@ async function renderCategory(cat) {
     <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
     <p class="small muted">${x.correct} van de ${x.attempts} sommen goed${x.trend ? ` · deze week ${x.trend > 0 ? '+' : ''}${x.trend}` : ''}</p></div>
     <div class="card flat"><b>Zo doe je het</b><p style="margin-top:4px">${esc(TIPS[cat])}</p></div>
-    <button class="btn block" data-start="practice" data-cat="${cat}">Oefen dit (10 sommen, zonder centen)</button>
+    ${(STATE.mnemonics?.[cat] || []).length ? `<div class="card flat"><b>🧠 Onthoud-trucs</b>${STATE.mnemonics[cat].map((m) => `<div class="trick"><b>${esc(m.kort)}</b>${m.soort === 'ezelsbrug' ? ' <span class="chip coin">ezelsbruggetje</span>' : ''}<div class="small muted">${esc(m.uitleg)}</div></div>`).join('')}</div>` : ''}
+    <button class="btn block" data-start="practice" data-cat="${cat}">Oefen dit (20 sommen, zonder centen)</button>
     ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 Korte les van ${esc(STATE.teacher)}</button>` : ''}
   </div>`;
   bindStart();
@@ -531,6 +579,8 @@ async function openSession(id) {
 
 async function startQuestion() {
   const c = S.cur;
+  // eerst voordoen: een uitgewerkt voorbeeld, daarna samen
+  if (c.example && !S.exampleSeen?.[c.index]) return renderExample();
   S.input = ''; S.choice = null; S.stepInput = ''; S.stepChoice = null; S.phase = 'ask'; S.t0 = Date.now(); S.stepMsg = null;
   S.teacherOpen = !!(c.chat || []).length; S.talking = false;
   // leerfase: automatisch samen stap voor stap (gewone beloning)
@@ -544,12 +594,40 @@ async function startQuestion() {
   renderQuestion();
 }
 
+function renderExample() {
+  const { data, cur } = S;
+  const ex = cur.example;
+  const meta = (STATE?.skills || []).find((x) => x.cat === cur.question.cat);
+  S.exStep = S.exStep || 0;
+  const shown = ex.steps.slice(0, S.exStep);
+  const all = S.exStep >= ex.steps.length;
+  $app.innerHTML = `
+    <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
+      <div class="progress"><i style="width:${(cur.index / data.total) * 100}%"></i></div>
+      <span class="small" style="font-weight:900">${cur.index + 1}/${data.total}</span></div>
+    <div class="card q-card">
+      <div class="row between"><span class="chip">👀 Eerst een voorbeeld · ${esc(meta?.label || '')}</span>${speakBtn(ex.text)}</div>
+      <p class="small muted" style="margin-top:8px">Kijk mee hoe ${esc(STATE?.teacher || 'de meester')} deze som oplost. Daarna doen we er samen eentje.</p>
+      <div class="q-text">${esc(ex.text)}</div>
+      ${ex.visual ? `<div class="visual">${renderVisual(ex.visual)}</div>` : ''}
+      ${ex.options ? `<div class="row" style="flex-wrap:wrap;margin-top:8px">${ex.options.map((o) => `<span class="chip">${esc(o)}</span>`).join('')}</div>` : ''}
+      <ol class="steps ex-steps">${shown.map((st) => `<li>${esc(st)}</li>`).join('')}</ol>
+      ${all ? `<div class="feedback ok" style="margin-top:10px"><div class="title">Antwoord: ${esc(ex.display)}</div></div>
+        ${cur.mnemonic ? `<div class="trick" style="margin-top:10px"><b>🧠 ${esc(cur.mnemonic.kort)}</b><div class="small muted">${esc(cur.mnemonic.uitleg)}</div></div>` : ''}` : ''}
+    </div>
+    <div style="margin-top:12px">${all ? '<button class="btn good block" data-exdone>Nu samen 👉</button>' : `<button class="btn block" data-exnext>${S.exStep ? 'Volgende stap ▸' : 'Laat de eerste stap zien ▸'}</button>`}</div>`;
+  $app.querySelector('[data-quit]').onclick = () => (location.hash = '#/');
+  bindSpeak($app);
+  $app.querySelector('[data-exnext]')?.addEventListener('click', () => { S.exStep++; renderExample(); });
+  $app.querySelector('[data-exdone]')?.addEventListener('click', () => { (S.exampleSeen ||= {})[cur.index] = true; S.exStep = 0; startQuestion(); });
+}
+
 function renderQuestion() {
   const { data, cur } = S;
   const q = cur.question;
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
+  const label = q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : q.review ? `<span class="chip">🔁 Herhaling · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
   $app.innerHTML = `
     <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>
@@ -559,16 +637,17 @@ function renderQuestion() {
       ${data.streak >= 2 ? `<span class="chip streak-chip">🔥 ${data.streak} op rij</span>` : '<span></span>'}
     </div>
     <div class="card q-card">
-      <div class="row between">${label}</div>
+      <div class="row between">${label}${speakBtn(q.text + (q.options ? '. Kies uit: ' + q.options.join(', ') : ''))}</div>
       <div class="q-text ${q.text.length > 90 ? 'long' : ''}">${esc(q.text)}</div>
       ${q.visual ? `<div class="visual">${renderVisual(q.visual)}</div>` : ''}
       <div id="guide"></div>
       <div id="answer-area"></div>
-      <div id="hints" class="hints">${(cur.hints || []).map((h) => `<div class="hint">💡 ${esc(h)}</div>`).join('')}</div>
+      <div id="hints" class="hints">${(cur.hints || []).map(hintHTML).join('')}</div>
       <div id="fb"></div>
       <div id="ai-area"></div>
     </div>
     <div id="controls"></div>`;
+  bindSpeak($app);
   $app.querySelector('[data-quit]').onclick = async () => {
     if (await ask('<div class="big-emoji">🚪</div><h2 style="margin:8px 0">Even stoppen?</h2><p class="muted">Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵</p>', 'Ja, stoppen', 'Nee, ik ga door')) location.hash = '#/';
   };
@@ -755,7 +834,7 @@ async function getHint() {
     const r = await api(`/api/session/${S.data.id}/hint`, { index: S.cur.index });
     S.cur.hints = r.hints;
     S.hintMore = r.more;
-    $app.querySelector('#hints').innerHTML = (S.cur.hints || []).map((h) => `<div class="hint">💡 ${esc(h)}</div>`).join('');
+    $app.querySelector('#hints').innerHTML = (S.cur.hints || []).map(hintHTML).join('');
     drawAnswer();
   } catch (e) { toast(e.message); }
 }
@@ -763,10 +842,10 @@ async function getHint() {
 // Gesprek met de leraar bij deze som (wordt per som op de server bewaard)
 function quickFor() {
   const answered = S.phase === 'feedback' || S.phase === 'done';
-  if (answered && S.last && !S.last.correct) return ['Ik snap het nog niet 🤔', 'Geef een voorbeeld', 'Ik snap het! 👍'];
+  if (answered && S.last && !S.last.correct) return ['Ik snap het nog niet 🤔', 'Heb je een ezelsbruggetje?', 'Ik snap het! 👍'];
   if (answered) return ['Waarom klopt dit?', 'Kan het ook sneller?'];
   if (S.cur.guided && S.cur.guideStep) return ['Ik snap deze stap niet', 'Geef een voorbeeld'];
-  return ['Ik snap de vraag niet', 'Hoe begin ik?', 'Geef een tip'];
+  return ['Ik snap de vraag niet', 'Hoe begin ik?', 'Heb je een ezelsbruggetje?'];
 }
 function drawTeacher(loading = false) {
   const area = $app.querySelector('#ai-area');
@@ -842,6 +921,8 @@ function showFeedback(r) {
   $app.querySelector('#fb').innerHTML = `<div class="feedback ${r.correct ? 'ok' : 'no'}">
     <div class="row between"><div class="title">${esc(title)}</div>${rewardChip}</div>
     ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>Het goede antwoord is <b>${esc(r.display)}</b>.${r.note ? ' ' + esc(r.note) : ''}</p>`}
+    ${r.misconception ? `<div class="mis"><b>🔎 ${esc(r.misconception.label)}</b><div>👉 ${esc(r.misconception.fix)}</div></div>` : ''}
+    ${!r.correct && r.review ? '<p class="small" style="margin-top:6px">🔁 Deze komt over een paar dagen nog eens terug. Dan lukt hij vast!</p>' : ''}
     ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">Zo reken je het uit:</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
       : `<details style="margin-top:8px"><summary class="small muted">Hoe reken je dit uit?</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
     ${nextIsRetry ? '<p class="small" style="margin-top:10px;font-weight:800">👉 Hierna krijg je een herkansing: zo\'n soort som, samen stap voor stap.</p>' : ''}
@@ -857,6 +938,7 @@ function showFeedback(r) {
   else drawTeacher();
   if (r.teachback) drawTeachback(r);
   $app.querySelector('#fb').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (r.surprise) setTimeout(() => showSurprise(r.surprise), r.weekBonus ? 1800 : 600);
   if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 Weekbonus! +${r.weekBonus} cent extra voor een hele week oefenen!`, 4500); }, 400);
 
   // momenten die er toe doen
@@ -892,6 +974,15 @@ function drawTeachback() {
           : `<div style="font-weight:800">Top uitgelegd! Vergelijk het met deze stappen. Deed jij het ook zo?</div><ol class="steps">${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`}</div>`;
     } catch (err) { box.innerHTML = `<div class="teach">${esc(err.message)}</div>`; }
   };
+}
+
+function showSurprise(reward) {
+  confetti(); setTimeout(confetti, 700);
+  sheet(`<div style="text-align:center"><div class="big-emoji gift">🎁</div><h2 style="margin:8px 0">Verrassing!</h2>
+    <p>Omdat je deze week zo goed je best doet, krijg je:</p>
+    <div class="surprise">${esc(reward)}</div>
+    <p class="muted small" style="margin-top:8px">Laat dit scherm aan papa of mama zien! 📱</p></div>
+    <button class="btn good block" data-close>Yes!! 🙌</button>`);
 }
 
 function celebrateLevel(r) {
@@ -986,6 +1077,21 @@ function renderVisual(v) {
     });
     return `<svg viewBox="0 0 340 180" role="img" aria-label="cirkeldiagram">${paths}${legend}</svg>`;
   }
+  if (v.kind === 'strips') {
+    const W = 320, H = 34, colors = ['#5b3df5', '#c27c00'];
+    return `<svg viewBox="0 0 ${W + 60} ${v.fracs.length * (H + 14)}" role="img" aria-label="breukstroken">${v.fracs.map(([a, b], r) => {
+      const y = r * (H + 14), w = W / b;
+      let cells = '';
+      for (let i = 0; i < b; i++) cells += `<rect x="${i * w}" y="${y}" width="${w}" height="${H}" fill="${i < a ? colors[r % 2] : 'transparent'}" fill-opacity="${i < a ? 0.75 : 0}" stroke="currentColor" stroke-opacity=".5" stroke-width="1.5" rx="3"/>`;
+      return `${cells}<text x="${W + 10}" y="${y + H / 2 + 6}" font-size="17" font-weight="900" fill="currentColor">${a}/${b}</text>`;
+    }).join('')}</svg>`;
+  }
+  if (v.kind === 'line') {
+    const W = 330, x0 = 20, x1 = W - 20, X = (val) => x0 + ((val - v.from) / (v.to - v.from || 1)) * (x1 - x0);
+    const ticks = (v.ticks || []).map((t) => `<line x1="${X(t)}" x2="${X(t)}" y1="28" y2="44" stroke="currentColor" stroke-width="2"/><text x="${X(t)}" y="64" text-anchor="middle" font-size="13" font-weight="800" fill="currentColor">${t}${v.unit && t === v.ticks.at(-1) ? v.unit : ''}</text>`).join('');
+    const mark = v.mark != null ? `<circle cx="${X(v.mark)}" cy="36" r="7" fill="var(--bad)"/><text x="${X(v.mark)}" y="18" text-anchor="middle" font-size="13" font-weight="900" fill="var(--bad)">${v.mark}</text>` : '';
+    return `<svg viewBox="0 0 ${W} 72" role="img" aria-label="getallenlijn"><line x1="${x0}" x2="${x1}" y1="36" y2="36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>${ticks}${mark}</svg>`;
+  }
   if (v.kind === 'pizza') {
     const cx = 90, cy = 90, r = 78;
     let paths = '';
@@ -1060,6 +1166,22 @@ async function renderParent() {
       ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ' <span class="chip bad">extra hulp</span>' : ''}<div class="small muted">${x.levelName} · ${x.guidedWins}/5 leerfase${x.soloBonus ? ` · ${x.soloBonus}× zelf-bonus` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
         <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${accBy[x.cat].guided} met stappen · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
 
+    <div class="card stack"><h2>🎁 Wekelijkse verrassing</h2>
+      <p class="small muted">Eén keer per week, op een willekeurige dag, krijgt ${esc(data.name)} een verrassing als de dagtaak goed ging. Een bedrag met "euro" gaat automatisch in de spaarpot.</p>
+      <form class="stack" data-surprise style="gap:8px">
+        <label class="row"><input type="checkbox" name="enabled" ${data.surprise.cfg.enabled ? 'checked' : ''}> <span>Aan</span></label>
+        <label class="field"><span class="small" style="font-weight:800">Verrassingen (één per regel)</span><textarea name="rewards" rows="4">${esc(data.surprise.cfg.rewards.join('\n'))}</textarea></label>
+        <label class="field"><span class="small" style="font-weight:800">Minimaal goed in de dagtaak</span><select name="min">${[0.5, 0.6, 0.7, 0.8, 0.9].map((m) => `<option value="${m}" ${Math.abs(m - data.surprise.cfg.min) < 0.01 ? 'selected' : ''}>${m * 100}%</option>`).join('')}</select></label>
+        <button class="btn ghost">Opslaan</button>
+      </form>
+      ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">Gegeven</button>`}</td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen verrassingen gegeven.</p>'}
+    </div>
+
+    <div class="card stack"><h2>🔎 Denkfouten & herhaling</h2>
+      <p class="small">🔁 Foutenschrift: <b>${data.reviews?.open || 0}</b> sommen staan klaar om te herhalen, <b>${data.reviews?.done || 0}</b> zijn inmiddels geleerd.</p>
+      ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen bekende denkfouten gezien (laatste 30 dagen).</p>'}
+    </div>
+
     <div class="card"><h2>Badges</h2><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
 
     <div class="card"><h2>Recente fouten</h2>${data.recentWrong.length ? `<table class="list"><tr><th>Som</th><th>Gaf</th><th>Goed</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : '<p class="muted">Nog geen fouten.</p>'}</div>
@@ -1084,6 +1206,13 @@ async function renderParent() {
     e.target.disabled = false; e.target.textContent = 'Profiel nu bijwerken';
   };
   $app.querySelector('[data-otherkid]').onclick = () => switchKid();
+  $app.querySelector('[data-surprise]').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    await api('/api/parent/surprise', { enabled: f.enabled.checked, rewards: f.rewards.value.split('\n'), min: Number(f.min.value) });
+    toast('Opgeslagen ✓');
+  };
+  $app.querySelectorAll('[data-delivered]').forEach((b) => (b.onclick = async () => { await api('/api/parent/surprise/delivered', { index: Number(b.dataset.delivered) }); renderParent(); }));
   $app.querySelector('[data-delkid]').onclick = async () => {
     if (!(await ask(`<h2 style="margin-bottom:8px">Profiel van ${esc(data.name)} verwijderen?</h2><p>Alles van dit kind gaat weg: niveaus, spaarpot, badges en wat ${esc(data.teacher)} onthoudt. Dit kan niet ongedaan worden.</p>`, 'Ja, verwijderen', 'Annuleren', true))) return;
     await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
