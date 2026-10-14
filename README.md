@@ -78,6 +78,7 @@ npm run dev               # terminal 2: http://localhost:3000
 - **Vast bij een tussenstap** → Max legt precies die stap uit.
 - **Korte interactieve les** bij onderdelen waar extra hulp nodig is (uitleg → voorbeeld → controlevragen).
 - **Past zich aan**: frustratie → geruststellen en kleiner stapje; snel en goed → sneller; werkt iets 2× niet → heel andere uitleg.
+- **Lesplan per dag (differentiatie)**: Max bepaalt per onderdeel op welk groepsniveau er vandaag geoefend wordt (bijv. breuken groep 5, optellen groep 8; max. 1 stap afwijking van de cijfers als vangnet), hoeveel sommen (veel bij wat lastig is, weinig bij wat goed gaat) en schrijft per onderdeel een compliment of aanmoediging. Het plan wordt na elke sessie alvast gemaakt, dus de dagtaak start direct. Zonder AI: vaste regels.
 - **Geen vaktaal** zonder uitleg: "het getal onder de streep (de noemer)". Ook alle sommen, hints en stappen gebruiken deze kindertaal.
 - **Onthoudt en bouwt voort**: na elke sessie/les schrijft Max korte notities (wat nu lukt, waar het vastliep, wat hielp, interesses) en gebruikt die in volgende gesprekken. Daarnaast een **leerlingprofiel** met denkfouten per onderdeel. Beide zichtbaar in het ouderscherm.
 - Na elke sessie een persoonlijk berichtje van Max. `AI_DAILY_LIMIT` (standaard 400 per kind per dag) begrenst de kosten.

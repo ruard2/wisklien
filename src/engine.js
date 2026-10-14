@@ -113,6 +113,40 @@ export async function snapshotSkills() {
 }
 
 // ---------- verdeling van de dagelijkse sommen ----------
+// Het lesplan van Max controleren en toepassen. Vangnet: niveau max 1 stap anders dan nu,
+// aantallen kloppen precies, onbekende onderdelen genegeerd. Geeft null bij een onbruikbaar plan.
+export function applyPlan(skills, plan, n) {
+  if (!plan || !Array.isArray(plan.onderdelen)) return null;
+  const byCat = Object.fromEntries(skills.map((s) => [s.cat, s]));
+  const items = [];
+  for (const o of plan.onderdelen) {
+    const s = byCat[o?.cat];
+    if (!s || items.some((x) => x.cat === o.cat)) continue;
+    const wanted = Number.isFinite(Number(o.niveau)) ? Math.round(Number(o.niveau)) : s.level;
+    const level = Math.max(0, Math.min(3, Math.max(s.level - 1, Math.min(s.level + 1, wanted))));
+    const count = Math.max(0, Math.min(6, Math.round(Number(o.aantal) || 0)));
+    items.push({ cat: o.cat, level, count, note: String(o.notitie || '').slice(0, 160) });
+  }
+  if (items.length < 5) return null;
+  // aantallen precies op n zetten
+  let sum = items.reduce((a, b) => a + b.count, 0);
+  if (sum === 0) return null;
+  if (sum !== n) {
+    const scaled = items.map((x) => ({ x, exact: (x.count * n) / sum }));
+    scaled.forEach((o) => (o.x.count = Math.min(6, Math.floor(o.exact))));
+    let left = n - items.reduce((a, b) => a + b.count, 0);
+    const order = scaled.sort((a, b) => (b.exact % 1) - (a.exact % 1) || skillScore(byCat[a.x.cat]) - skillScore(byCat[b.x.cat]));
+    for (let guard = 0; left > 0 && guard < 200; guard++) for (const o of order) { if (left <= 0) break; if (o.x.count < 6) { o.x.count++; left--; } }
+    sum = items.reduce((a, b) => a + b.count, 0);
+    if (sum !== n) return null;
+  }
+  return {
+    message: String(plan.bericht || '').slice(0, 600),
+    items,
+    alloc: Object.fromEntries(items.filter((x) => x.count > 0).map((x) => [x.cat, x.count])),
+  };
+}
+
 export function allocate(skills, n, struggling = []) {
   const weights = skills.map((s) => {
     const score = skillScore(s);

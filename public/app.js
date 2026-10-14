@@ -314,6 +314,9 @@ function askGroep() {
   });
 }
 async function startSession(kind, cat) {
+  const btn = document.activeElement;
+  const busy = STATE?.ai && (kind === 'daily' || (kind === 'practice' && !cat));
+  if (busy && btn?.classList?.contains('btn')) { btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${esc(STATE.teacher)} maakt je lesplan…`; }
   try {
     let groep;
     if (kind === 'intake' && !STATE?.intakeActive) {
@@ -374,6 +377,20 @@ async function showCoach(cat, intro = '') {
   });
 }
 
+// Lesplan van Max: per onderdeel niveau, aantal sommen en een woordje
+function showPlan(coach, stuck = []) {
+  const lesson = (stuck || []).find((c) => coach.items.some((i) => i.cat === c));
+  sheet(`<div class="t-msg t" style="margin-bottom:4px"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(coach.message || 'Klaar voor vandaag?')}</div></div>
+    <h3>Jouw plan voor vandaag</h3>
+    <div class="plan">${coach.items.map((i) => `<div class="plan-row"><span class="ico">${i.icon}</span>
+      <div><div class="row between"><b>${esc(i.label)}</b><span class="chip">${esc(i.levelName)} · ${i.count}×</span></div>
+      ${i.note ? `<div class="small muted">${esc(i.note)}</div>` : ''}</div></div>`).join('')}</div>
+    ${lesson ? `<button class="btn ghost block" data-lesson="${lesson}">🧑‍🏫 Eerst een korte les over ${esc(coach.items.find((i) => i.cat === lesson)?.label || '')}</button>` : ''}
+    <button class="btn good block" data-close>Let's go! 🚀</button>`, (bg, close) => {
+    bg.querySelector('[data-lesson]')?.addEventListener('click', (e) => { close(); showCoach(e.currentTarget.dataset.lesson); });
+  });
+}
+
 // ---------- chatpaneel van de leraar ----------
 function teacherHTML(chat, { loading = false, quick = [], placeholder = 'Typ je vraag of antwoord…', intro = null } = {}) {
   const name = esc(STATE?.teacher || 'Meester Max');
@@ -414,6 +431,7 @@ async function renderProgress() {
       <span class="ico">${x.icon}</span>
       <div><div class="name"><span>${esc(x.label)}</span><span class="small">${trend(x.trend)} <span class="chip">${x.levelName}</span></span></div>
       <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
+      ${x.note ? `<div class="small" style="margin-top:4px">🧑‍🏫 ${esc(x.note)}</div>` : ''}
       <div class="small muted" style="margin-top:4px">${x.toNext != null ? `Op weg naar ${LEVEL[LEVELIDX(x.levelName) + 1]}-niveau: ${x.toNext}% (80% nodig)` : 'Groep 8-niveau: eindniveau! 🏆'}${x.struggling ? ' · <b style="color:var(--warn)">extra hulp aan</b>' : ''}</div></div></a>`).join('')}</div>
     <p class="small muted">Per onderdeel reken je op het niveau van een groep (groep 5 t/m 8). Heb je 8 van de 10 goed, dan ga je een groep omhoog. Gaat meer dan de helft fout, dan oefen je even een groep lager. Groep 8 = het eindniveau van de basisschool.</p>
   </div>`;
@@ -500,10 +518,14 @@ async function openSession(id) {
   S = { data, cur: data.current, input: '', choice: null, stepInput: '', stepChoice: null, phase: 'ask', t0: Date.now(), chat: [], last: null, badges: [], stepMsg: null };
   if (!data.current) return renderSummary({ kind: data.kind, correct: data.correct, total: data.total, points: Math.round(data.points), maxPoints: data.maxPoints });
   startQuestion();
-  // uitlegkaart vooraf bij een onderdeel waar extra hulp aan staat
+  // lesplan van Max bij de start; anders de uitlegkaart bij een onderdeel waar extra hulp aan staat
   const stuck = (data.struggling || []);
   const key = `coach-shown-${data.id}`;
-  if (stuck.length && data.answered === 0 && !store.get(key)) { store.set(key, '1'); showCoach(stuck[0], 'Hier gaan we vandaag extra mee oefenen. Lees dit even rustig door.'); }
+  if (data.answered === 0 && !store.get(key)) {
+    store.set(key, '1');
+    if (data.coach) showPlan(data.coach, stuck);
+    else if (stuck.length) showCoach(stuck[0], 'Hier gaan we vandaag extra mee oefenen. Lees dit even rustig door.');
+  }
 }
 
 

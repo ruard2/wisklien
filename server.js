@@ -6,10 +6,10 @@ import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById,
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, skillFromIntake, getStruggling, snapshotSkills,
-  allocate, buildPlan, nextQuestion, updateState, rewardFor, helpOffer, skillScore, skillLabel,
+  allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember } from './src/ai.js';
+import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL } from './src/util.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -193,6 +193,7 @@ function sessionPayload(s, skills, extra = {}) {
     answered: s.results.length, correct: s.correct, maxPoints: s.max_points,
     points: s.points_acc, streak: s.state?.streak || 0, easy: !!s.state?.easy,
     current: s.status === 'active' ? currentPayload(s, skills) : null,
+    coach: s.state?.coach || null,
     ...extra,
   };
 }
@@ -208,7 +209,7 @@ async function skillsView() {
       cat: s.cat, label: meta.label, icon: meta.icon, domain: meta.domain, level: s.level, levelName: LEVEL_NAMES[s.level], score,
       tag: skillLabel(score), trend: prev[s.cat] != null ? Math.round(score - prev[s.cat]) : null,
       attempts: s.attempts, correct: s.correct, struggling: struggling.includes(s.cat),
-      guidedWins: s.guided_wins, soloBonus: s.solo_bonus,
+      guidedWins: s.guided_wins, soloBonus: s.solo_bonus, note: s.ai_note || null,
       toNext: s.level < 3 ? Math.round(((s.recent || []).reduce((a, b) => a + b, 0) / Math.max(8, (s.recent || []).length)) * 100) : null,
     };
   }).sort((a, b) => b.score - a.score);
@@ -279,6 +280,51 @@ app.get('/api/state', child, wrap(async (req, res) => {
   });
 }));
 
+// Max maakt het lesplan: niveau en aantal sommen per onderdeel + een woordje. Terugval: vaste regels.
+// Het AI-deel duurt ~10 s, daarom wordt het na elke sessie alvast op de achtergrond gemaakt (nextPlan).
+async function askPlan(n) {
+  const acc = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows.map((r) => [r.cat, r]));
+  const view = (await skillsView()).list;
+  const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '' }));
+  return planSession({ name: await getName(), profile: profileText(await getProfile()), memory: await memoryText(), groep: await getSetting('groep', 8), rows, n });
+}
+async function precomputePlan() {
+  if (!aiEnabled() || !aiAllowed()) return;
+  const raw = await askPlan(DAILY_COUNT);
+  if (raw?.onderdelen) await setSetting('nextPlan', { made: todayNL(), raw });
+}
+async function makePlan(n, skills, struggling) {
+  if (aiEnabled()) {
+    try {
+      // eerst een klaarliggend plan (max 3 dagen oud) gebruiken, anders nu vragen
+      let raw = null;
+      const cached = n === DAILY_COUNT ? await getSetting('nextPlan', null) : null;
+      if (cached && (Date.parse(todayNL()) - Date.parse(cached.made)) / 864e5 <= 3) { raw = cached.raw; await q(`DELETE FROM settings WHERE key='nextPlan'`); }
+      else if (aiAllowed()) raw = await askPlan(n);
+      const applied = applyPlan(skills, raw, n); // toetst ook aan de huidige niveaus (max 1 stap verschil)
+      if (applied) {
+        for (const it of applied.items) {
+          const s = skills.find((x) => x.cat === it.cat);
+          if (it.level !== s.level) {
+            await q(`UPDATE skills SET level=$2, mastery=50, recent='[]', updated_at=now() WHERE cat=$1`, [it.cat, it.level]);
+            s.level = it.level; s.mastery = 50; s.recent = [];
+          }
+          if (it.note) await q(`UPDATE skills SET ai_note=$2, ai_note_at=now() WHERE cat=$1`, [it.cat, it.note]);
+        }
+        const coach = {
+          message: applied.message,
+          items: applied.items.filter((x) => x.count > 0).sort((a, b) => b.count - a.count).map((x) => ({
+            cat: x.cat, label: catById[x.cat].label, icon: catById[x.cat].icon, levelName: LEVEL_NAMES[x.level], count: x.count, note: x.note,
+          })),
+        };
+        return { plan: buildPlan(skills, applied.alloc), coach };
+      }
+      if (raw) console.warn('[lesplan] onbruikbaar plan, val terug op vaste regels');
+    } catch (e) { console.error('[lesplan]', e.message); }
+  }
+  return { plan: buildPlan(skills, allocate(skills, n, struggling)), coach: null };
+}
+
 async function createSession(kind, plan, total, maxPoints, skills, state = {}) {
   const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
   s.questions.push(nextQuestion(s, skills));
@@ -307,8 +353,8 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     if (!isSchoolDay()) return res.status(400).json({ error: 'In het weekend is er geen dagtaak. Je kunt wel extra oefenen!' });
     const existing = await one(`SELECT * FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
     if (existing) return res.json(sessionPayload(existing, skills, { struggling }));
-    const plan = buildPlan(skills, allocate(skills, DAILY_COUNT, struggling));
-    return res.json(sessionPayload(await createSession('daily', plan, DAILY_COUNT, DAILY_POINTS, skills), skills, { struggling }));
+    const { plan, coach } = await makePlan(DAILY_COUNT, skills, struggling);
+    return res.json(sessionPayload(await createSession('daily', plan, DAILY_COUNT, DAILY_POINTS, skills, coach ? { coach } : {}), skills, { struggling }));
   }
 
   if (kind === 'practice') {
@@ -316,8 +362,8 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     const focus = req.body.cat && catById[req.body.cat] ? req.body.cat : null;
     if (active && (!focus || active.plan.every((c) => c === focus))) return res.json(sessionPayload(active, skills, { struggling }));
     if (active) await q(`UPDATE sessions SET status='stopped' WHERE id=$1`, [active.id]);
-    const plan = focus ? Array(PRACTICE_COUNT).fill(focus) : buildPlan(skills, allocate(skills, PRACTICE_COUNT, struggling));
-    return res.json(sessionPayload(await createSession('practice', plan, PRACTICE_COUNT, 0, skills), skills, { struggling }));
+    const made = focus ? { plan: Array(PRACTICE_COUNT).fill(focus), coach: null } : await makePlan(PRACTICE_COUNT, skills, struggling);
+    return res.json(sessionPayload(await createSession('practice', made.plan, PRACTICE_COUNT, 0, skills, made.coach ? { coach: made.coach } : {}), skills, { struggling }));
   }
   res.status(400).json({ error: 'Onbekend soort sessie' });
 }));
@@ -549,6 +595,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   }
   if (done) {
     refreshProfile().catch((e) => console.error('[profiel]', e.message));
+    precomputePlan().catch((e) => console.error('[lesplan]', e.message));
     if (aiEnabled()) {
       const full = await loadSession(s.id);
       getName().then((name) => remember({ name, transcript: sessionTranscript(full) })).then(addMemory).catch((e) => console.error('[geheugen]', e.message));

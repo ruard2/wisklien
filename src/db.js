@@ -118,6 +118,8 @@ const KID_TABLES = `
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS points_acc real NOT NULL DEFAULT 0;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS guided boolean NOT NULL DEFAULT false;
     ALTER TABLE attempts ADD COLUMN IF NOT EXISTS mult real NOT NULL DEFAULT 1;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note text;
+    ALTER TABLE skills ADD COLUMN IF NOT EXISTS ai_note_at timestamptz;
 `;
 
 export async function migrateKid(kid) {

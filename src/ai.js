@@ -192,6 +192,29 @@ Houd elk bericht kort (max. ± 90 woorden).`;
   return { text: text.replace(/\s*\[KLAAR\]\s*/g, '').trim(), ready: /\[KLAAR\]/.test(text) };
 }
 
+// Lesplan voor vandaag: Max bepaalt per onderdeel het niveau, het aantal sommen en een woordje.
+// rows: [{cat, label, level (0-3), levelName, score, recent: 'x/y', trend, struggling}]
+export async function planSession({ name, profile, memory, groep, rows, n }) {
+  const table = rows.map((r) => `${r.cat} | ${r.label} | nu: ${r.levelName} | score ${r.score}/100 | laatste 14 dagen: ${r.recent || 'nog niet geoefend'} | trend ${r.trend ?? '-'}${r.struggling ? ' | LOOPT VAST' : ''}`).join('\n');
+  return complete(LERAAR(name, profile, memory), [{
+    role: 'user',
+    content: `Maak het lesplan voor de oefensessie van vandaag (${n} sommen). ${name} zit in groep ${groep || 8}.
+Niveaus: 0 = groep 5, 1 = groep 6, 2 = groep 7, 3 = groep 8 (eindniveau). Elk onderdeel heeft een eigen niveau.
+
+Onderdelen (cat-id | naam | huidig niveau | score | resultaten | trend):
+${table}
+
+Regels:
+- Differentieer echt per onderdeel. Kies per onderdeel het niveau waarop ${name} vandaag het meeste leert: uitdagend maar haalbaar (ongeveer 70-80% goed).
+- Je mag het niveau hooguit 1 stap afwijken van het huidige. Lager als het de laatste tijd vaak fout ging (minder dan de helft goed); hoger als het heel goed gaat (85% of meer goed, met genoeg sommen); anders gelijk.
+- Verdeel precies ${n} sommen. Onderdelen die lastig zijn krijgen er meer (3 tot 6), onderdelen die goed gaan weinig (0 of 1, af en toe 1 om het bij te houden). Maximaal 6 per onderdeel. Gebruik minstens 5 verschillende onderdelen.
+- Schrijf per onderdeel een korte notitie AAN ${name} (max. 15 woorden): een concreet compliment waar het goed gaat, een eerlijke aanmoediging waar het nog lastig is. Geen vaktaal.
+- Schrijf een bericht aan ${name} (max. 55 woorden): begin met wat goed gaat (noem onderdelen), zeg waar jullie vandaag aan werken en waarom, en moedig aan. Mag een grapje bevatten.
+
+Geef JSON: {"bericht": "...", "onderdelen": [{"cat": "cat-id", "niveau": 0-3, "aantal": 0-6, "notitie": "..."}]}  (alle onderdelen noemen, ook met aantal 0)`,
+  }], { json: true, maxTokens: 1500 });
+}
+
 // Persoonlijk berichtje na een sessie.
 export async function reflect({ name, profile, memory, summary }) {
   return complete(LERAAR(name, profile, memory), [{

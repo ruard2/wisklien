@@ -327,3 +327,8 @@ table.list th { color: var(--muted); font-weight: 800; }
 .avatar-pick button { font-size: 26px; padding: 6px 0; border-radius: 12px; background: var(--bg); border: 3px solid transparent; }
 .avatar-pick button.sel { border-color: var(--primary); background: var(--primary-soft); }
 .switch-kid { width: 38px; height: 38px; border-radius: 12px; background: var(--card); box-shadow: var(--shadow); font-size: 18px; }
+
+/* ---------- v11: lesplan ---------- */
+.plan { display: grid; gap: 8px; }
+.plan-row { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; padding: 10px; border-radius: 14px; background: var(--bg); }
+.plan-row .ico { font-size: 22px; text-align: center; }
