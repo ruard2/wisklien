@@ -1,9 +1,14 @@
 import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-const url = process.env.DATABASE_URL;
+// DATABASE_URL, of (Railway) de private variant, of de losse PG-variabelen van de Postgres-service
+const E = process.env;
+const url = E.DATABASE_URL || E.DATABASE_PRIVATE_URL || E.DATABASE_PUBLIC_URL || E.POSTGRES_URL
+  || (E.PGHOST && E.PGUSER ? `postgresql://${encodeURIComponent(E.PGUSER)}:${encodeURIComponent(E.PGPASSWORD || '')}@${E.PGHOST}:${E.PGPORT || 5432}/${E.PGDATABASE || 'railway'}` : '');
 if (!url) {
-  console.error('DATABASE_URL ontbreekt. Lokaal: start eerst "npm run db" en zet de DATABASE_URL in .env');
+  const seen = Object.keys(E).filter((k) => /PG|POSTGRES|DATABASE/i.test(k));
+  console.error('DATABASE_URL ontbreekt. Lokaal: start eerst "npm run db" en zet de DATABASE_URL in .env.');
+  console.error(`Railway: voeg bij de app-service een variabele DATABASE_URL toe met waarde \${{Postgres.DATABASE_URL}}. Gevonden databasevariabelen: ${seen.length ? seen.join(', ') : '(geen)'}`);
   process.exit(1);
 }
 
