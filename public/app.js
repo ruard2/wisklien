@@ -1592,12 +1592,18 @@ async function renderSummary(sum) {
 }
 
 // ---------- plaatjes bij sommen ----------
+// Een plaatje mag een som nooit laten vastlopen: lukt tekenen niet, dan de som zonder plaatje.
 function renderVisual(v) {
+  try { return drawVisual(v) || ''; } catch (e) { console.error('[plaatje]', v?.kind, e); return ''; }
+}
+function drawVisual(v) {
+  if (!v || typeof v !== 'object') return '';
   const ink = 'currentColor';
   if (v.kind === 'table') {
     return `<table>${v.headers ? `<tr>${v.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>` : ''}${v.rows.map((r) => `<tr>${r.map((c, i) => (i === 0 && !v.headers ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('')}</tr>`).join('')}</table>`;
   }
-  if (v.kind === 'bar' || v.kind === 'line') {
+  // grafiek (staaf of lijn) heeft waarden; een getallenlijn ('line' met from/to) niet
+  if ((v.kind === 'bar' || v.kind === 'line') && Array.isArray(v.values) && v.values.length) {
     const W = 340, H = 210, L = 38, B = 28, T = 26, top = Math.ceil(Math.max(...v.values) / v.step) * v.step + v.step;
     const xs = (i) => L + ((W - L - 10) / v.values.length) * (i + 0.5);
     const ys = (val) => H - B - ((H - B - T) * val) / top;
