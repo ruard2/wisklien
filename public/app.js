@@ -158,13 +158,27 @@ const mop = () => { const m = L(MOPPEN, MOPPEN_AF); return m[Math.floor(Math.ran
 const SUBLINES = ['Klaar om wat sommen een lesje te leren?', 'Je hersenen hebben zin in een workout. 🧠💪', 'Vandaag wordt een rekenmooie dag.', 'De sommen staan al te trillen van angst. 😱', 'Even je rekenspieren opwarmen?'];
 const SUBLINES_AF = ['Gereed om ’n paar somme ’n les te leer?', 'Jou brein het lus vir ’n oefensessie. 🧠💪', 'Vandag word ’n lekker wiskundedag.', 'Die somme bewe al van vrees. 😱', 'Kom ons maak jou wiskundespiere warm!'];
 
+// Elke aanvraag heeft een tijdslimiet: nooit eindeloos wachten (vooral als de AI traag is).
+// Aanvragen waarbij Max moet nadenken krijgen langer.
+const SLOW = /\/(chat|lesson|reflect|teachback|advice|profile)\b/;
 async function api(path, body) {
-  const res = await fetch(path, {
-    method: body ? 'POST' : 'GET',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  });
+  const ctl = new AbortController();
+  const ms = SLOW.test(path) ? 90000 : /\/session\/start/.test(path) ? 45000 : 25000;
+  const timer = setTimeout(() => ctl.abort(), ms);
+  let res;
+  try {
+    res = await fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+      signal: ctl.signal,
+    });
+  } catch (e) {
+    const er = new Error(e.name === 'AbortError' ? t('Dat duurt te lang. Probeer het nog eens.') : t('Geen verbinding. Controleer je internet en probeer het nog eens.'));
+    er.status = 0; er.network = true;
+    throw er;
+  } finally { clearTimeout(timer); }
   let data = {};
   try { data = await res.json(); } catch {}
   if (res.status === 401 && data.error === 'login') { renderLogin(); throw new Error('login'); }
@@ -228,9 +242,27 @@ async function route() {
     if (parts[0] === 'overzicht') return await renderOverview();
     location.hash = '#/';
   } catch (e) {
-    if (e.message !== 'login') { $app.innerHTML = `<div class="card"><h2>${t('Oeps')}</h2><p class="muted">${esc(e.message)}</p><br><button class="btn" onclick="location.reload()">${t('Opnieuw')}</button></div>`; }
+    if (e.message !== 'login') showError(e);
   }
 }
+// Foutscherm: nooit een leeg of vastgelopen scherm, altijd "opnieuw" of "naar start"
+function showError(e) {
+  $tabs.hidden = false;
+  $app.classList.remove('full');
+  $app.innerHTML = `<div class="card stack" style="margin-top:6vh;text-align:center"><div class="big-emoji">🙈</div><h2>${t('Oeps')}</h2>
+    <p class="muted">${esc(e?.message || t('Er ging iets mis'))}</p>
+    <button class="btn block" data-retry>${t('Opnieuw')}</button><button class="btn ghost block" data-home>${t('Naar het begin')}</button></div>`;
+  $app.querySelector('[data-retry]').onclick = () => { STATE = null; route(); };
+  $app.querySelector('[data-home]').onclick = () => { STATE = null; if (location.hash === '#/' || !location.hash) route(); else location.hash = '#/'; };
+}
+// Onverwachte fouten in de app: melden en doorgaan in plaats van vastlopen
+window.addEventListener('unhandledrejection', (ev) => {
+  const m = ev.reason?.message;
+  if (m === 'login') return;
+  console.error(ev.reason);
+  try { toast(m || t('Er ging iets mis')); } catch {}
+});
+window.addEventListener('error', (ev) => { console.error(ev.error || ev.message); });
 function setTab(name) {
   $tabs.hidden = name === 'sessie' || name === 'ouder' || name === 'overzicht';
   for (const a of $tabs.querySelectorAll('a')) a.classList.toggle('on', a.dataset.tab === name);
@@ -724,7 +756,11 @@ async function startSession(kind, cat, extra = {}) {
     const data = await api('/api/session/start', { kind, cat, groep, ...extra });
     SESSION_CACHE = data;
     location.hash = `#/sessie/${data.id}`;
-  } catch (e) { if (e.message !== 'login') toast(e.message); }
+  } catch (e) {
+    if (e.message === 'login') return;
+    toast(e.message);
+    if (busy && btn?.isConnected) route(); // knop weer bruikbaar maken
+  }
 }
 
 // Korte interactieve les van de leraar. Zonder AI: vaste uitleg.

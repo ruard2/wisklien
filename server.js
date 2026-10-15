@@ -470,7 +470,16 @@ async function makePlan(n, skills, struggling) {
       let raw = null;
       const cached = n === (await rewardCfg()).dailyCount ? await getSetting('nextPlan', null) : null;
       if (cached && (Date.parse(todayNL()) - Date.parse(cached.made)) / 864e5 <= 3) { raw = cached.raw; await q(`DELETE FROM settings WHERE key='nextPlan'`); }
-      else if (aiAllowed()) raw = await askPlan(n);
+      else if (aiAllowed()) {
+        // het kind wacht hierop: na PLAN_WAIT_MS gaan we door met de vaste regels;
+        // komt Max' plan later alsnog, dan ligt het klaar voor de volgende keer
+        const ask = askPlan(n).catch(() => null);
+        raw = await Promise.race([ask, new Promise((r) => setTimeout(() => r(null), Number(process.env.PLAN_WAIT_MS || 12000)))]);
+        if (!raw) {
+          console.warn('[lesplan] Max deed er te lang over; vaste regels gebruikt');
+          ask.then(async (late) => { if (late?.onderdelen && n === (await rewardCfg()).dailyCount) await setSetting('nextPlan', { made: todayNL(), raw: late }); }).catch(() => {});
+        }
+      }
       const applied = applyPlan(skills, raw, n); // toetst ook aan de huidige niveaus (max 1 stap verschil)
       if (applied) {
         for (const it of applied.items) {

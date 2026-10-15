@@ -19,6 +19,9 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  "Dat duurt te lang. Probeer het nog eens.": "Dit neem te lank. Probeer weer.",
+  "Geen verbinding. Controleer je internet en probeer het nog eens.": "Geen verbinding nie. Kyk na jou internet en probeer weer.",
+  "Naar het begin": "Terug na die begin",
   // feedback en meehelpen
   "Snap ik niet": "Verstaan nie",
   "Te lang": "Te lank",
