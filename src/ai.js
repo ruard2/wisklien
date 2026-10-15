@@ -50,8 +50,22 @@ function mapStrings(v, f) {
 }
 
 export const TEACHER = process.env.TEACHER_NAME || 'Meester Max'; // (oud; gebruik teacherName())
-const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
-const anthropic = !openai && process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+// Sleutels opschonen (spaties, aanhalingstekens) en controleren: een sleutel met tekens als • (gemaskeerd
+// gekopieerd) laat elke AI-aanroep mislukken. Dan liever duidelijk melden en de AI netjes uitzetten.
+function cleanKey(name) {
+  const raw = process.env[name];
+  if (!raw) return null;
+  const k = raw.trim().replace(/^["']|["']$/g, '').trim();
+  if (!/^[\x21-\x7e]+$/.test(k)) {
+    console.error(`[ai] ${name} bevat ongeldige tekens (bijvoorbeeld • of een spatie): waarschijnlijk is een gemaskeerde sleutel gekopieerd. De AI-leraar staat uit tot de echte sleutel is ingevuld.`);
+    return null;
+  }
+  process.env[name] = k;
+  return k;
+}
+const openaiKey = cleanKey('OPENAI_API_KEY'), anthropicKey = cleanKey('ANTHROPIC_API_KEY');
+const openai = openaiKey ? new OpenAI({ apiKey: openaiKey, timeout: Number(process.env.AI_TIMEOUT_MS || 60000), maxRetries: 1 }) : null;
+const anthropic = !openai && anthropicKey ? new Anthropic({ apiKey: anthropicKey, timeout: Number(process.env.AI_TIMEOUT_MS || 60000), maxRetries: 1 }) : null;
 // AI_MOCK=1: nep-leraar om de schermen te testen zonder API-sleutel (alleen voor ontwikkeling)
 const mock = process.env.AI_MOCK === '1' && !openai && !anthropic;
 export const aiEnabled = () => !!(openai || anthropic || mock);
