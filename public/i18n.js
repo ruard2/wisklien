@@ -19,6 +19,9 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  "Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een graad lager dan jouw graad. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.": "Eers kyk ons wat jy al kan: {n} somme uit al die onderwerpe (omtrent 'n kwartier). Ons begin een graad laer as jou graad. Daarna leer die app jou al hoe beter ken. Jy kan tussenin stop.",
+  "Graad 7-niveau: eindniveau! 🏆": "Graad 7-vlak: eindvlak! 🏆",
+  "Per onderdeel reken je op het niveau van een graad (graad 4 t/m 7). Heb je 8 van de 10 goed, dan ga je een graad omhoog. Gaat meer dan de helft fout, dan oefen je even een graad lager. Graad 7 = het eindniveau van de laerskool.": "By elke onderwerp reken jy op die vlak van 'n graad (graad 4 tot 7). Kry jy 8 uit 10 reg, gaan jy 'n graad op. Is meer as die helfte verkeerd, oefen jy eers 'n bietjie 'n graad laer. Graad 7 = die eindvlak van die laerskool.",
   "Ja": "Ja",
   "Nee": "Nee",
   "Voorlezen werkt niet op dit apparaat.": "Voorlees werk nie op hierdie toestel nie.",

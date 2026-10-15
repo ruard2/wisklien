@@ -136,6 +136,33 @@ Het kind ziet geen signalen of labels; ze staan alleen in het ouderscherm en het
 ## Overzicht voor ouder/leerkracht
 `#/overzicht` (link onderaan "Wie ben jij?", pincode `PARENT_PIN`): alle kinderen op één pagina — laatst geoefend, sommen en % goed deze week, reeks, spaarpot, samenvatting, zwakke punten met status, sterke kanten, niveau per onderdeel (g5–g8 + trend), denkfouten, kladblok en wat Max onthoudt. "Details" opent het ouderscherm van dat kind.
 
+## Suid-Afrika (Afrikaans, KABV)
+Bij het maken van een profiel kies je **land, taal, groep/graad en leeftijd**. Kies je Suid-Afrika/Afrikaans, dan
+krijgt het kind een eigen curriculum (`src/za/`). De motor is dezelfde: beloning, niveaus, starttoets, foutenschrift,
+signalen. Wat anders is, is de methode en de inhoud:
+- **14 KABV-onderdelen** (Getalle 50%, Patrone 10%, Ruimte en vorm 15%, Meting 15%, Data 10%): optel, vermenigvuldig,
+  deling, getalbegrip, breuke, desimale, persentasie, finansies, patrone, meetkunde, meting, omtrek, tyd, data.
+- **Niveaus graad 4–7**; de begintoets start één graad lager.
+- **Methodes uit de DBE-werkboeke** (Rainbow Workbooks gr 5/6/7, Afrikaans) en de KABV-dokumente:
+  - kolommen met oordra/omruil;
+  - opbou/afbreek;
+  - "voltooi tot die volgende 1 000";
+  - uitgebreide notasie (8 × 4 362 = 8 × (4 000 + 300 + 60 + 2));
+  - langdeling met deelprodukte en "res";
+  - deelbaarheidsreëls;
+  - breuken van heelgetallen via groepen;
+  - persentasie als "uit 100" en via breuke;
+  - vloeidiagrammen en getallesinne met □;
+  - BODMAS;
+  - beraam (afronden) bij grote vermenigvuldigingen, altijd uitgelegd.
+- **Notatie en contexten**: ÷, R12,50, `;` tussen getallen, Thabo, Pick n Pay, Olimpiese Spele, skaapboer.
+- **Handboek** `src/za/didactiek.js`: Max (hier **Meneer Max**) krijgt per onderwerp de Suid-Afrikaanse aanpak en antwoordt in het Afrikaans.
+- **Ouderschermen** volgen de taal van het kind.
+- **Tests**:
+  - `node --env-file=.env scripts/za-check.mjs`: 22 400 sommen;
+  - `node scripts/e2e-za.mjs`: end-to-end met een Afrikaans kind;
+  - `LES_LANG=af node scripts/lessen-check.mjs breuke:2`: lessen van Max.
+
 ## Profielen
 Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.
 

@@ -12,8 +12,11 @@
 // Alles deterministisch berekend uit de pogingen; Max krijgt het als feiten met vaste regels.
 import { q } from './db.js';
 import { catById } from './curriculum.js';
+import { isAF } from './i18n.js';
+const tx = (nl, af) => (isAF() ? af : nl);
 
-const FACT_CATS = ['vermenigvuldigen', 'delen', 'optellen'];
+// basissommen (tafels, optellen): Nederlandse en Suid-Afrikaanse onderdeelnamen
+const FACT_CATS = ['vermenigvuldigen', 'delen', 'optellen', 'vermenigvuldig', 'deling', 'optel'];
 const median = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 const pct = (ok, n) => (n ? Math.round((100 * ok) / n) : null);
 const sec = (ms) => Math.round(ms / 1000);
@@ -28,96 +31,98 @@ export async function computeSignals() {
   const sessions = (await q(`SELECT status, kind FROM sessions WHERE created_at > now() - interval '30 days' AND kind <> 'intake'`)).rows;
   for (const r of rows) if (r.word == null) r.word = isWordProblem(r.text); // oudere pogingen: afleiden uit de tekst
   const solo = rows.filter((r) => !r.guided && !r.hints);
-  const dunno = (r) => r.given === 'weet ik niet';
+  const dunno = (r) => r.given === 'weet ik niet' || r.given === 'weet nie';
   const out = [];
   const add = (key, title, status, text, evidence, action) => out.push({ key, title, status, text, evidence, action });
 
   // 1. Tempo: te snel (impulsief)
   const wrong = solo.filter((r) => !r.correct && !dunno(r));
   const fastWrong = wrong.filter((r) => r.time_ms > 0 && r.time_ms < 6000);
-  if (wrong.length < 6) add('impulsief', 'Tempo: te snel?', 'onbekend', 'Nog te weinig foute antwoorden om iets te zeggen.', `${wrong.length} foute antwoorden`, null);
-  else if (fastWrong.length / wrong.length >= 0.3) add('impulsief', 'Tempo: vaak te snel', 'let op',
-    'Een flink deel van de fouten wordt binnen een paar seconden gegeven: eerder haast dan niet-kunnen.',
-    `${fastWrong.length} van de ${wrong.length} foute antwoorden binnen 6 seconden`,
-    'Na een snelle fout vraagt de app rustig om eerst te schatten; Max laat eerst schatten en dan pas rekenen.');
-  else add('impulsief', 'Tempo: niet te snel', 'ok', 'Fouten komen meestal niet door haast.', `${fastWrong.length} van de ${wrong.length} fouten binnen 6 seconden`, null);
+  if (wrong.length < 6) add('impulsief', tx('Tempo: te snel?', 'Tempo: te vinnig?'), 'onbekend', tx('Nog te weinig foute antwoorden om iets te zeggen.', 'Nog te min verkeerde antwoorde om iets te sê.'), tx(`${wrong.length} foute antwoorden`, `${wrong.length} verkeerde antwoorde`), null);
+  else if (fastWrong.length / wrong.length >= 0.3) add('impulsief', tx('Tempo: vaak te snel', 'Tempo: dikwels te vinnig'), 'let op',
+    tx('Een flink deel van de fouten wordt binnen een paar seconden gegeven: eerder haast dan niet-kunnen.', '’n Groot deel van die foute word binne ’n paar sekondes gegee: eerder haastigheid as nie-kan-nie.'),
+    tx(`${fastWrong.length} van de ${wrong.length} foute antwoorden binnen 6 seconden`, `${fastWrong.length} van die ${wrong.length} verkeerde antwoorde binne 6 sekondes`),
+    tx('Na een snelle fout vraagt de app rustig om eerst te schatten; Max laat eerst schatten en dan pas rekenen.', 'Ná ’n vinnige fout vra die toep rustig om eers te skat; Max laat eers skat en dan eers uitwerk.'));
+  else add('impulsief', tx('Tempo: niet te snel', 'Tempo: nie te vinnig nie'), 'ok', tx('Fouten komen meestal niet door haast.', 'Foute kom meestal nie van haastigheid nie.'), tx(`${fastWrong.length} van de ${wrong.length} fouten binnen 6 seconden`, `${fastWrong.length} van die ${wrong.length} foute binne 6 sekondes`), null);
 
   // 2. Automatisering basisfeiten: goed maar traag = uittellen
   const facts = solo.filter((r) => FACT_CATS.includes(r.cat) && r.level <= 1 && r.correct && r.time_ms > 0);
   const mFacts = median(facts.map((r) => r.time_ms));
-  if (facts.length < 6) add('automatiseren', 'Tafels en basissommen', 'onbekend', 'Nog te weinig makkelijke tafel- en plussommen gezien.', `${facts.length} sommen`, null);
-  else if (mFacts > 12000) add('automatiseren', 'Tafels en basissommen: goed maar langzaam', 'let op',
-    'De basissommen gaan meestal goed, maar duren lang. Waarschijnlijk worden ze uitgeteld in plaats van geweten. Dat kost werkgeheugen bij grotere sommen.',
-    `gemiddeld ${sec(mFacts)} seconden per basissom (${facts.length} sommen)`,
-    'Max plant korte, snelle tafelrondjes in; geen extra uitleg nodig, wel vaker oefenen.');
-  else add('automatiseren', 'Tafels en basissommen: vlot', 'ok', 'Basissommen gaan vlot.', `gemiddeld ${sec(mFacts)} seconden (${facts.length} sommen)`, null);
+  if (facts.length < 6) add('automatiseren', tx('Tafels en basissommen', 'Tafels en basiese somme'), 'onbekend', tx('Nog te weinig makkelijke tafel- en plussommen gezien.', 'Nog te min maklike tafel- en plussomme gesien.'), tx(`${facts.length} sommen`, `${facts.length} somme`), null);
+  else if (mFacts > 12000) add('automatiseren', tx('Tafels en basissommen: goed maar langzaam', 'Tafels en basiese somme: reg maar stadig'), 'let op',
+    tx('De basissommen gaan meestal goed, maar duren lang. Waarschijnlijk worden ze uitgeteld in plaats van geweten. Dat kost werkgeheugen bij grotere sommen.', 'Die basiese somme gaan meestal reg, maar duur lank. Waarskynlik word hulle uitgetel in plaas van geken. Dit kos werkgeheue by groter somme.'),
+    tx(`gemiddeld ${sec(mFacts)} seconden per basissom (${facts.length} sommen)`, `gemiddeld ${sec(mFacts)} sekondes per basiese som (${facts.length} somme)`),
+    tx('Max plant korte, snelle tafelrondjes in; geen extra uitleg nodig, wel vaker oefenen.', 'Max beplan kort, vinnige tafelrondtes (hoofrekene); geen ekstra verduideliking nodig nie, wel meer oefen.'));
+  else add('automatiseren', tx('Tafels en basissommen: vlot', 'Tafels en basiese somme: vlot'), 'ok', tx('Basissommen gaan vlot.', 'Basiese somme gaan vlot.'), tx(`gemiddeld ${sec(mFacts)} seconden (${facts.length} sommen)`, `gemiddeld ${sec(mFacts)} sekondes (${facts.length} somme)`), null);
 
   // 3. Lang bezig en dan toch fout (verdwaalt in de som)
   const slowWrong = wrong.filter((r) => r.time_ms > 90000);
-  if (wrong.length >= 6 && slowWrong.length / wrong.length >= 0.3) add('verdwaalt', 'Lang bezig en dan toch fout', 'let op',
-    'Bij een deel van de fouten is er lang gerekend: het overzicht raakt kwijt onderweg.',
-    `${slowWrong.length} van de ${wrong.length} fouten na meer dan anderhalve minuut`,
-    'De app zet het kladblok open bij die onderdelen en Max werkt in kleinere stappen.');
+  if (wrong.length >= 6 && slowWrong.length / wrong.length >= 0.3) add('verdwaalt', tx('Lang bezig en dan toch fout', 'Lank besig en dan tog verkeerd'), 'let op',
+    tx('Bij een deel van de fouten is er lang gerekend: het overzicht raakt kwijt onderweg.', 'By ’n deel van die foute is lank gewerk: die oorsig raak onderweg weg.'),
+    tx(`${slowWrong.length} van de ${wrong.length} fouten na meer dan anderhalve minuut`, `${slowWrong.length} van die ${wrong.length} foute ná meer as ’n minuut en ’n half`),
+    tx('De app zet het kladblok open bij die onderdelen en Max werkt in kleinere stappen.', 'Die toep maak die kladblok oop by daardie onderwerpe en Max werk in kleiner stappies.'));
 
   // 4. Werkgeheugen: lange sommen (veel stappen) vs korte
   const long = solo.filter((r) => r.nsteps >= 4), short = solo.filter((r) => r.nsteps > 0 && r.nsteps <= 2);
   const pl = pct(long.filter((r) => r.correct).length, long.length), ps = pct(short.filter((r) => r.correct).length, short.length);
-  if (long.length < 6 || short.length < 6) add('werkgeheugen', 'Sommen met veel stappen', 'onbekend', 'Nog te weinig lange én korte sommen om te vergelijken.', `${long.length} lange, ${short.length} korte`, null);
-  else if (ps - pl >= 25) add('werkgeheugen', 'Sommen met veel stappen gaan veel slechter', 'let op',
-    'Korte sommen gaan goed, lange (4+ stappen) duidelijk minder. Dat wijst op overbelasting van het werkgeheugen, niet op niet-snappen.',
-    `korte sommen ${ps}% goed, lange ${pl}% goed`,
-    'Max knipt uitleg in kleinere stapjes en laat tussenresultaten opschrijven in het kladblok.');
-  else add('werkgeheugen', 'Sommen met veel stappen', 'ok', 'Lange sommen gaan ongeveer even goed als korte.', `korte ${ps}%, lange ${pl}% goed`, null);
+  if (long.length < 6 || short.length < 6) add('werkgeheugen', tx('Sommen met veel stappen', 'Somme met baie stappe'), 'onbekend', tx('Nog te weinig lange én korte sommen om te vergelijken.', 'Nog te min lang én kort somme om te vergelyk.'), tx(`${long.length} lange, ${short.length} korte`, `${long.length} lang, ${short.length} kort`), null);
+  else if (ps - pl >= 25) add('werkgeheugen', tx('Sommen met veel stappen gaan veel slechter', 'Somme met baie stappe gaan baie swakker'), 'let op',
+    tx('Korte sommen gaan goed, lange (4+ stappen) duidelijk minder. Dat wijst op overbelasting van het werkgeheugen, niet op niet-snappen.', 'Kort somme gaan goed, lang somme (4+ stappe) duidelik minder. Dit dui op ’n oorlaaide werkgeheue, nie op nie-verstaan nie.'),
+    tx(`korte sommen ${ps}% goed, lange ${pl}% goed`, `kort somme ${ps}% reg, lang ${pl}% reg`),
+    tx('Max knipt uitleg in kleinere stapjes en laat tussenresultaten opschrijven in het kladblok.', 'Max sny verduidelikings in kleiner stappies en laat tussenantwoorde in die kladblok neerskryf.'));
+  else add('werkgeheugen', tx('Sommen met veel stappen', 'Somme met baie stappe'), 'ok', tx('Lange sommen gaan ongeveer even goed als korte.', 'Lang somme gaan omtrent ewe goed as kort somme.'), tx(`korte ${ps}%, lange ${pl}% goed`, `kort ${ps}%, lang ${pl}% reg`), null);
 
   // 5. Lezen: verhaaltjessommen vs kale sommen (zelfde onderdelen)
   const cats = new Set(solo.filter((r) => r.word).map((r) => r.cat));
   const w = solo.filter((r) => r.word), b = solo.filter((r) => !r.word && cats.has(r.cat));
   const pw = pct(w.filter((r) => r.correct).length, w.length), pb = pct(b.filter((r) => r.correct).length, b.length);
-  if (w.length < 6 || b.length < 6) add('lezen', 'Verhaaltjessommen', 'onbekend', 'Nog te weinig verhaaltjessommen en kale sommen om te vergelijken.', `${w.length} verhaaltjes, ${b.length} kaal`, null);
-  else if (pb - pw >= 20 || (pb - pw >= 15 && w.length >= 10 && b.length >= 10)) add('lezen', 'Verhaaltjessommen gaan slechter', 'let op',
-    'Dezelfde soort som gaat kaal beter dan in een verhaaltje. Het lezen of het vertalen naar een som is waarschijnlijk het struikelblok.',
-    `kaal ${pb}% goed, verhaaltjes ${pw}% goed`,
-    'Verhaaltjessommen worden automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" voor het rekenen.');
-  else add('lezen', 'Verhaaltjessommen', 'ok', 'Verhaaltjessommen gaan ongeveer even goed als kale sommen.', `kaal ${pb}%, verhaaltjes ${pw}%`, null);
+  if (w.length < 6 || b.length < 6) add('lezen', tx('Verhaaltjessommen', 'Woordprobleme'), 'onbekend', tx('Nog te weinig verhaaltjessommen en kale sommen om te vergelijken.', 'Nog te min woordprobleme en kaal somme om te vergelyk.'), tx(`${w.length} verhaaltjes, ${b.length} kaal`, `${w.length} woordprobleme, ${b.length} kaal`), null);
+  else if (pb - pw >= 20 || (pb - pw >= 15 && w.length >= 10 && b.length >= 10)) add('lezen', tx('Verhaaltjessommen gaan slechter', 'Woordprobleme gaan swakker'), 'let op',
+    tx('Dezelfde soort som gaat kaal beter dan in een verhaaltje. Het lezen of het vertalen naar een som is waarschijnlijk het struikelblok.', 'Dieselfde soort som gaan kaal beter as in ’n woordprobleem. Die lees of die omsit na ’n som is waarskynlik die struikelblok.'),
+    tx(`kaal ${pb}% goed, verhaaltjes ${pw}% goed`, `kaal ${pb}% reg, woordprobleme ${pw}% reg`),
+    tx('Verhaaltjessommen worden automatisch voorgelezen; Max vraagt eerst "wat wordt er gevraagd?" voor het rekenen.', 'Woordprobleme word outomaties voorgelees; Max vra eers "wat word gevra?" voor die uitwerk.'));
+  else add('lezen', tx('Verhaaltjessommen', 'Woordprobleme'), 'ok', tx('Verhaaltjessommen gaan ongeveer even goed als kale sommen.', 'Woordprobleme gaan omtrent ewe goed as kaal somme.'), tx(`kaal ${pb}%, verhaaltjes ${pw}%`, `kaal ${pb}%, woordprobleme ${pw}%`), null);
 
   // 6. Zelfvertrouwen / spanning
   const nd = rows.filter(dunno).length, stopped = sessions.filter((s) => s.status === 'stopped').length;
   let giveUp = 0, afterWrong = 0;
   const chrono = [...rows].reverse();
   for (let i = 1; i < chrono.length; i++) if (!chrono[i - 1].correct) { afterWrong++; if (dunno(chrono[i]) || (chrono[i].time_ms > 0 && chrono[i].time_ms < 4000 && !chrono[i].correct)) giveUp++; }
-  if (rows.length < 15) add('zelfvertrouwen', 'Zelfvertrouwen', 'onbekend', 'Nog te weinig sommen gezien.', `${rows.length} sommen`, null);
-  else if (nd / rows.length >= 0.15 || stopped >= 3 || (afterWrong >= 6 && giveUp / afterWrong >= 0.35)) add('zelfvertrouwen', 'Zelfvertrouwen: kwetsbaar', 'let op',
-    'Er wordt vaak "weet ik niet" gekozen, gestopt, of opgegeven na een fout. Spanning of weinig vertrouwen zit het leren dan in de weg.',
-    `${nd}× "weet ik niet" op ${rows.length} sommen · ${stopped} keer gestopt · na een fout ${giveUp} van de ${afterWrong} keer opgegeven`,
-    'Rustige modus: eerder makkelijkere sommen tussendoor, meer succeservaringen, Max extra kalm en geruststellend, geen druk.');
-  else add('zelfvertrouwen', 'Zelfvertrouwen', 'ok', 'Geen tekenen van opgeven of veel spanning.', `${nd}× "weet ik niet" op ${rows.length} sommen · ${stopped} keer gestopt`, null);
+  if (rows.length < 15) add('zelfvertrouwen', tx('Zelfvertrouwen', 'Selfvertroue'), 'onbekend', tx('Nog te weinig sommen gezien.', 'Nog te min somme gesien.'), tx(`${rows.length} sommen`, `${rows.length} somme`), null);
+  else if (nd / rows.length >= 0.15 || stopped >= 3 || (afterWrong >= 6 && giveUp / afterWrong >= 0.35)) add('zelfvertrouwen', tx('Zelfvertrouwen: kwetsbaar', 'Selfvertroue: kwesbaar'), 'let op',
+    tx('Er wordt vaak "weet ik niet" gekozen, gestopt, of opgegeven na een fout. Spanning of weinig vertrouwen zit het leren dan in de weg.', 'Daar word dikwels "weet nie" gekies, gestop, of opgegee ná ’n fout. Spanning of min selfvertroue staan die leer dan in die pad.'),
+    tx(`${nd}× "weet ik niet" op ${rows.length} sommen · ${stopped} keer gestopt · na een fout ${giveUp} van de ${afterWrong} keer opgegeven`, `${nd}× "weet nie" uit ${rows.length} somme · ${stopped} keer gestop · ná ’n fout ${giveUp} van die ${afterWrong} keer opgegee`),
+    tx('Rustige modus: eerder makkelijkere sommen tussendoor, meer succeservaringen, Max extra kalm en geruststellend, geen druk.', 'Rustige modus: gouer makliker somme tussenin, meer suksesbelewenisse, Max ekstra kalm en gerusstellend, geen druk nie.'));
+  else add('zelfvertrouwen', tx('Zelfvertrouwen', 'Selfvertroue'), 'ok', tx('Geen tekenen van opgeven of veel spanning.', 'Geen tekens van opgee of baie spanning nie.'), tx(`${nd}× "weet ik niet" op ${rows.length} sommen · ${stopped} keer gestopt`, `${nd}× "weet nie" uit ${rows.length} somme · ${stopped} keer gestop`), null);
 
   // 7. Vastlopers op een bepaalde soort tussenstap
   const steps = {};
   for (const r of rows) for (const s of r.step_errors || []) { const k = `${r.cat}|${stepShape(s)}`; (steps[k] ||= { cat: r.cat, step: s, n: 0 }).n++; }
   const stuck = Object.values(steps).filter((s) => s.n >= 2).sort((a, b) => b.n - a.n).slice(0, 4);
-  if (stuck.length) add('stappen', 'Loopt vast bij een bepaalde stap', 'let op',
-    'Dezelfde soort tussenstap gaat steeds mis. Precies daar zit het probleem, niet in de hele som.',
+  if (stuck.length) add('stappen', tx('Loopt vast bij een bepaalde stap', 'Sit vas by ’n sekere stap'), 'let op',
+    tx('Dezelfde soort tussenstap gaat steeds mis. Precies daar zit het probleem, niet in de hele som.', 'Dieselfde soort tussenstap gaan elke keer verkeerd. Presies daar lê die probleem, nie in die hele som nie.'),
     stuck.map((s) => `${catById[s.cat]?.label}: "${s.step}" (${s.n}×)`).join(' · '),
-    'Max legt juist deze stap anders uit, met een makkelijker voorbeeld.');
+    tx('Max legt juist deze stap anders uit, met een makkelijker voorbeeld.', 'Max verduidelik juis hierdie stap anders, met ’n makliker voorbeeld.'));
 
   // 8. Waar we nog niet zien wáár het misgaat → kladblok en stappen nodig
   const needWork = await needWorkCats();
-  if (needWork.length) add('laatzien', 'Hier willen we de uitwerking zien', 'let op',
-    'Bij deze onderdelen gaat het vaak fout, maar we zien nog niet precies waar. Daarom vraagt de app om de tussenstappen in het kladblok (of samen stap voor stap).',
+  if (needWork.length) add('laatzien', tx('Hier willen we de uitwerking zien', 'Hier wil ons die uitwerking sien'), 'let op',
+    tx('Bij deze onderdelen gaat het vaak fout, maar we zien nog niet precies waar. Daarom vraagt de app om de tussenstappen in het kladblok (of samen stap voor stap).', 'By hierdie onderwerpe gaan dit dikwels verkeerd, maar ons sien nog nie presies waar nie. Daarom vra die toep vir die stappe in die kladblok (of saam stap vir stap).'),
     needWork.map((c) => catById[c]?.label).join(', '),
-    'Kladblok gaat vanzelf open bij deze onderdelen; Max kijkt mee en wijst de foute stap aan. Stopt vanzelf zodra duidelijk is waar het misgaat.');
+    tx('Kladblok gaat vanzelf open bij deze onderdelen; Max kijkt mee en wijst de foute stap aan. Stopt vanzelf zodra duidelijk is waar het misgaat.', 'Die kladblok gaan vanself oop by hierdie onderwerpe; Max kyk saam en wys die verkeerde stap uit. Stop vanself sodra dit duidelik is waar dit skeefloop.'));
 
   // 9. Wat helpt (uitleg-vormen per onderwerp)
   const helps = await whatHelps();
-  if (helps.length) add('wathelpt', 'Welke uitleg helpt', 'info',
-    'Per onderwerp: na welke soort uitleg de volgende som goed ging. Geen vast "type", maar per onderwerp bewijs.',
-    helps.map((h) => `${h.label}: ${h.forms.map((f) => `${FORM[f.form] || f.form} ${f.ok}/${f.n}`).join(', ')}`).join(' · '), null);
+  if (helps.length) add('wathelpt', tx('Welke uitleg helpt', 'Watter verduideliking help'), 'info',
+    tx('Per onderwerp: na welke soort uitleg de volgende som goed ging. Geen vast "type", maar per onderwerp bewijs.', 'Per onderwerp: ná watter soort verduideliking die volgende som reg was. Geen vaste "tipe" nie, maar bewys per onderwerp.'),
+    helps.map((h) => `${h.label}: ${h.forms.map((f) => `${formName(f.form)} ${f.ok}/${f.n}`).join(', ')}`).join(' · '), null);
 
   return { at: new Date().toISOString(), n: rows.length, signals: out };
 }
 
 export const FORM = { plaatje: 'plaatje/model', verhaal: 'verhaaltje/geld', regel: 'regel/trucje', stappen: 'stap voor stap', voorbeeld: 'voordoen' };
+const FORM_AF = { plaatje: 'prent/model', verhaal: 'storie/geld', regel: 'reël/truuk', stappen: 'stap vir stap', voorbeeld: 'voordoen' };
+const formName = (f) => (isAF() ? FORM_AF : FORM)[f] || f;
 
 // Onderdelen waar het vaak fout gaat zonder dat we weten waar: laatste 8 sommen ≥ 4 fout (zelf gedaan),
 // en geen herkende denkfout en (bijna) geen kladblok-analyse van de laatste week.

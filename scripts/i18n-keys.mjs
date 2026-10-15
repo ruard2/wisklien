@@ -7,6 +7,9 @@ const keys = new Set();
 const re = /\bt\((['"])((?:\\.|(?!\1).)*)\1/g;
 let m;
 while ((m = re.exec(src))) keys.add(m[2].replace(/\\(['"\\])/g, '$1'));
+// ook t(voorwaarde ? '…' : '…'); takken met "groep" zien alleen Nederlandse kinderen
+const tern = /\bt\(([^?`;]{0,80}?)\?\s*'((?:[^'\\]|\\.)*)'\s*:\s*'((?:[^'\\]|\\.)*)'/g;
+while ((m = tern.exec(src))) for (const k of [m[2], m[3]].map((x) => x.replace(/\\(['"\\])/g, '$1'))) if (/[a-z]{3,}/.test(k) && !/groep/i.test(k) && !/^[a-z]{2}-[A-Z]{2}$/.test(k)) keys.add(k);
 const i18n = fs.readFileSync(new URL('../public/i18n.js', import.meta.url), 'utf8');
 const AF = new Function(i18n.replace(/^let LANG.*$/m, '').replace(/document\./g, '({}).') + '; return AF;')();
 const missing = [...keys].filter((k) => AF[k] == null);

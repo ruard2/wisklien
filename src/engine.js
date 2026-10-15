@@ -2,7 +2,7 @@
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
 import { ts } from './i18n.js';
-import { CAT_IDS, generate, generateLike, catById } from './curriculum.js';
+import { CAT_IDS, generate, generateLike, catById, warmupCats } from './curriculum.js';
 import { shuffle, pick, todayNL } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden
@@ -255,7 +255,7 @@ export function nextQuestion(session, skills) {
     const item = session.plan[p] || session.plan[p % session.plan.length] || strongest.cat;
     // opwarmer: snelle tafelsom (automatiseren); meet ook of tafels vlot gaan of uitgeteld worden
     if (item === 'warmup') {
-      const wc = Math.random() < 0.7 ? 'vermenigvuldigen' : 'delen';
+      const [mul, div] = warmupCats(), wc = Math.random() < 0.7 ? mul : div;
       let wq;
       for (let k = 0; k < 12; k++) { wq = generate(wc, Math.min(1, byCat[wc]?.level ?? 1)); if (wq.text.length < 30) break; }
       wq.warmup = true; wq.fromPlan = true;

@@ -993,7 +993,9 @@ app.post('/api/parent/advice', parent, wrap(async (req, res) => {
   const days = (await q(`SELECT COUNT(*)::int n FROM sessions WHERE kind='daily' AND status='done'`)).rows[0].n;
   const summary = [
     `Aantal afgeronde dagtaken: ${days}. Reeks: ${await streak()} schooldagen.`,
-    `Het kind zit in groep ${await getSetting('groep', 8)}. Score per onderdeel (0-100). Niveau = op welk groepsniveau hij dit onderdeel nu oefent (groep 5 t/m 8; groep 7 bevat de meeste 1F-stof, groep 8 = eindniveau 1F/1S). Laatste 14 dagen: goed / totaal (met tussenstappen):`,
+    pack().id === 'za'
+      ? `Het kind zit in graad ${req.kid.grade ?? await getSetting('groep', 7)} (Suid-Afrika, KABV). Score per onderdeel (0-100). Niveau = op welk graadniveau het kind dit onderdeel nu oefent (graad 4 t/m 7). Laatste 14 dagen: goed / totaal (met tussenstappen):`
+      : `Het kind zit in groep ${req.kid.grade ?? await getSetting('groep', 8)}. Score per onderdeel (0-100). Niveau = op welk groepsniveau het kind dit onderdeel nu oefent (groep 5 t/m 8; groep 7 bevat de meeste 1F-stof, groep 8 = eindniveau 1F/1S). Laatste 14 dagen: goed / totaal (met tussenstappen):`,
     ...list.map((s) => `- ${s.label} (${s.domain}): score ${s.score}, niveau ${s.levelName}${s.trend != null ? `, trend ${s.trend >= 0 ? '+' : ''}${s.trend}` : ''}${accBy[s.cat] ? `, ${accBy[s.cat].ok}/${accBy[s.cat].n} goed (${accBy[s.cat].guided} met tussenstappen)` : ''}${s.struggling ? ' — LOOPT VAST' : ''}`),
     'Recente fouten:',
     ...wrong.map((w) => `- [${catById[w.cat].label}] ${w.text} → "${w.given}" (goed: ${w.display})`),
