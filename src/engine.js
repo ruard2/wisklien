@@ -1,7 +1,7 @@
 // Leerlogica: adaptieve starttoets, niveau per onderdeel, live bijsturen tijdens
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
-import { CAT_IDS, generate, generateLike, catById } from './generators.js';
+import { CAT_IDS, generate, generateLike, catById } from './curriculum.js';
 import { shuffle, pick, todayNL } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden

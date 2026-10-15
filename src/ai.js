@@ -10,8 +10,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
-import { mnemonicText } from './mnemonics.js';
-import { didactiekText, ALGEMEEN } from './didactiek.js';
+import { mnemonicText, didactiekText, ALGEMEEN } from './curriculum.js';
 import { kidStore } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------

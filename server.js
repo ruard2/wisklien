@@ -1,10 +1,8 @@
 import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
-import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid } from './src/db.js';
-import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep } from './src/generators.js';
-import { detectMisconception } from './src/misconceptions.js';
-import { MNEMONICS, mnemonicsFor } from './src/mnemonics.js';
+import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid, kidContext, updateKidProfile } from './src/db.js';
+import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep, detectMisconception, MNEMONICS, mnemonicsFor, DIDACTIEK, pack } from './src/curriculum.js';
 import {
   INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, INTAKE_MAX, skillFromIntake, getStruggling, snapshotSkills,
@@ -14,7 +12,6 @@ import {
 import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL, setTestClock } from './src/util.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
-import { DIDACTIEK } from './src/didactiek.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -62,7 +59,7 @@ function withKid(req, res, next) {
   (id ? getKid(id) : Promise.resolve(null)).then((kid) => {
     if (!kid) return res.status(401).json({ error: 'kid' });
     req.kid = kid;
-    kidStore.run({ kid: kid.id, name: kid.name }, next);
+    kidStore.run(kidContext(kid), next);
   }).catch(next);
 }
 const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
@@ -908,7 +905,7 @@ async function kidSummary(k) {
 }
 app.get('/api/parent/all', parentOnly, wrap(async (req, res) => {
   const kids = [];
-  for (const k of await listKids()) kids.push(await kidStore.run({ kid: k.id, name: k.name }, () => kidSummary(k)));
+  for (const k of await listKids()) kids.push(await kidStore.run(kidContext(k), () => kidSummary(k)));
   res.json({ teacher: TEACHER, ai: aiEnabled(), levels: LEVEL_NAMES, cats: CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })), kids });
 }));
 

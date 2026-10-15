@@ -21,6 +21,11 @@ export const pool = new pg.Pool({
 // Het kind van het huidige verzoek staat in kidStore; alle queries gaan automatisch naar dat schema.
 export const kidStore = new AsyncLocalStorage();
 export const currentKid = () => kidStore.getStore()?.kid ?? null;
+// Curriculum en taal van het kind van dit verzoek: 'nl' (Nederland) of 'za' (Suid-Afrika, KABV, Afrikaans)
+export const currentCur = () => kidStore.getStore()?.cur || 'nl';
+export const currentLang = () => kidStore.getStore()?.lang || 'nl';
+export const curOfKid = (k) => (k?.lang === 'af' ? 'za' : 'nl');
+export const kidContext = (k) => ({ kid: k.id, name: k.name, cur: curOfKid(k), lang: k.lang || 'nl', country: k.country || 'NL' });
 const schemaOf = (kid) => `kid_${Number(kid)}`;
 
 // Verbinding met het schema van het huidige kind (en daarna netjes terugzetten)
@@ -182,17 +187,28 @@ export async function migrate() {
       avatar text NOT NULL DEFAULT '🙂',
       created_at timestamptz NOT NULL DEFAULT now()
     );
+    -- profiel: taal (nl/af), land (NL/ZA), groep of graad, leeftijd
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS lang text NOT NULL DEFAULT 'nl';
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT 'NL';
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS grade int;
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS age int;
   `);
   for (const k of (await pool.query('SELECT id FROM public.kids')).rows) await migrateKid(k.id);
 }
 
 // ---------- kinderen ----------
-export const listKids = async () => (await pool.query('SELECT id, name, avatar FROM public.kids ORDER BY id')).rows;
-export const getKid = async (id) => (await pool.query('SELECT id, name, avatar FROM public.kids WHERE id=$1', [Number(id) || 0])).rows[0];
-export async function createKid(name, avatar) {
-  const k = (await pool.query('INSERT INTO public.kids(name, avatar) VALUES ($1,$2) RETURNING id, name, avatar', [name, avatar])).rows[0];
+const KID_COLS = 'id, name, avatar, lang, country, grade, age';
+export const listKids = async () => (await pool.query(`SELECT ${KID_COLS} FROM public.kids ORDER BY id`)).rows;
+export const getKid = async (id) => (await pool.query(`SELECT ${KID_COLS} FROM public.kids WHERE id=$1`, [Number(id) || 0])).rows[0];
+export async function createKid(name, avatar, { lang = 'nl', country = 'NL', grade = null, age = null } = {}) {
+  const k = (await pool.query(`INSERT INTO public.kids(name, avatar, lang, country, grade, age) VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${KID_COLS}`,
+    [name, avatar, lang, country, grade, age])).rows[0];
   await migrateKid(k.id);
   return k;
+}
+export async function updateKidProfile(id, { lang, country, grade, age }) {
+  await pool.query(`UPDATE public.kids SET lang=COALESCE($2, lang), country=COALESCE($3, country), grade=COALESCE($4, grade), age=COALESCE($5, age) WHERE id=$1`,
+    [id, lang ?? null, country ?? null, grade ?? null, age ?? null]);
 }
 export async function renameKid(id, name) { await pool.query('UPDATE public.kids SET name=$2 WHERE id=$1', [id, name]); }
 export async function deleteKid(id) {

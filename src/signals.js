@@ -11,7 +11,7 @@
 //  - welke uitleg-vorm per onderwerp aantoonbaar helpt (handelingsmodel: concreet → model → abstract)
 // Alles deterministisch berekend uit de pogingen; Max krijgt het als feiten met vaste regels.
 import { q } from './db.js';
-import { catById } from './generators.js';
+import { catById } from './curriculum.js';
 
 const FACT_CATS = ['vermenigvuldigen', 'delen', 'optellen'];
 const median = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
