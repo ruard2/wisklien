@@ -192,6 +192,7 @@ export async function migrate() {
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT 'NL';
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS grade int;
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS age int;
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS parent_pw text;
   `);
   for (const k of (await pool.query('SELECT id FROM public.kids')).rows) await migrateKid(k.id);
 }
@@ -210,6 +211,10 @@ export async function updateKidProfile(id, { lang, country, grade, age }) {
   await pool.query(`UPDATE public.kids SET lang=COALESCE($2, lang), country=COALESCE($3, country), grade=COALESCE($4, grade), age=COALESCE($5, age) WHERE id=$1`,
     [id, lang ?? null, country ?? null, grade ?? null, age ?? null]);
 }
+// Ouderwachtwoord per kind (gehasht; nooit in KID_COLS, zodat het nergens meegestuurd wordt)
+export async function setKidPassword(id, hash) { await pool.query('UPDATE public.kids SET parent_pw=$2 WHERE id=$1', [id, hash]); }
+export const kidPasswords = async () => (await pool.query('SELECT id, parent_pw FROM public.kids WHERE parent_pw IS NOT NULL')).rows;
+export const kidHasPassword = async (id) => !!(await pool.query('SELECT 1 FROM public.kids WHERE id=$1 AND parent_pw IS NOT NULL', [id])).rows[0];
 export async function renameKid(id, name) { await pool.query('UPDATE public.kids SET name=$2 WHERE id=$1', [id, name]); }
 export async function deleteKid(id) {
   await pool.query(`DROP SCHEMA IF EXISTS ${schemaOf(id)} CASCADE`);

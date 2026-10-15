@@ -22,6 +22,8 @@ const AFS = {
   'Er is al een {n}. Kies die hierboven!': 'Daar is al ’n {n}. Kies dié een hierbo!',
   'Dat profiel bestaat niet meer.': 'Daardie profiel bestaan nie meer nie.',
   'Verkeerde pincode': 'Verkeerde PIN-kode',
+  'Verkeerd wachtwoord': 'Verkeerde wagwoord',
+  'Vandaag is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!': 'Vandag is daar geen dagtaak nie. Jy kan wel ekstra oefen of vooruitwerk!',
   'De starttoets is al gedaan.': 'Die begintoets is al gedoen.',
   'Doe eerst de starttoets.': 'Doen eers die begintoets.',
   'Maak eerst je dagtaak van vandaag af.': 'Maak eers vandag se dagtaak klaar.',

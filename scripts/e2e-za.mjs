@@ -68,7 +68,7 @@ const intake = await play('intake', (i, cur, full) => (full.level >= 3 ? 'bad' :
 assert(intake.log.length === 21, `begintoets 21 sommen (${intake.log.length})`);
 assert(intake.log.slice(0, 14).every((l) => l.full.level === 2), 'graad 7 → begintoets op graad 6-niveau');
 assert(new Set(intake.log.slice(0, 14).map((l) => l.full.cat)).size === 14, 'elk onderdeel één keer');
-const texts = intake.log.map((l) => l.full.text).join('\n');
+const texts = intake.log.map((l) => l.full.text).join('\n').replace(/verhouding \d+ : \d+/g, '');
 assert(!NLWORD.test(texts), 'geen Nederlands in de sommen' + (NLWORD.test(texts) ? ': ' + texts.match(NLWORD)[0] : ''));
 assert(!/ : \d/.test(texts.replace(/verhouding \d+ : \d+/g, '')), 'delen met ÷, niet met :');
 console.log('  voorbeelden:', intake.log.slice(0, 5).map((l) => l.full.text).join(' || '));

@@ -241,7 +241,7 @@ window.addEventListener('hashchange', route);
 async function renderOverview() {
   let data;
   try { data = await api('/api/parent/all'); } catch (e) {
-    if (e.status === 401) return pinScreen(t('Pincode voor ouder of leerkracht'), async (pin) => { await api('/api/parent/login', { pin }); renderOverview(); });
+    if (e.status === 401) return pwScreen('Ouderwachtwoord · Ouerwagwoord', 'Ouder of leerkracht · Ouer of onderwyser', async (pw) => { await api('/api/parent/login', { password: pw }); renderOverview(); });
     throw e;
   }
   const ago = (tm) => {
@@ -456,12 +456,54 @@ async function renderWho() {
     const form = $app.querySelector('[data-new]');
     if (form) {
       form.querySelector('input').focus();
-      form.onsubmit = async (e) => {
+      form.onsubmit = (e) => {
         e.preventDefault();
-        try { await api('/api/kids', { name: form.name.value, avatar, country: prof.country, lang: prof.lang, grade: form.grade.value, age: form.age.value }); location.hash = '#/'; route(); }
-        catch (err) { draw(err.message, true); }
+        keep();
+        if (String(prof.name || '').trim().length < 2) return draw(af() ? 'Wat is jou naam? (minstens 2 letters)' : 'Hoe heet je? (minstens 2 letters)', true);
+        parentSetup();
       };
     }
+  };
+  // Stap 2: voor de ouders (alles optioneel; later aan te passen in het ouderscherm, achter het wachtwoord)
+  const parentSetup = (err = '') => {
+    const za = prof.country === 'ZA', tr = (nl, a) => (af() ? a : nl);
+    const cfg = { dailyCents: 50, intakeCents: 100, weekBonusCents: 25, dailyCount: 20, days: [1, 2, 3, 4, 5], ...(prof.setup || {}) };
+    $app.innerHTML = `<form class="stack" style="margin-top:3vh" data-setup>
+      <div style="text-align:center"><div class="big-emoji">👨‍👩‍👧</div><h1 style="margin-top:6px">${tr('Voor papa of mama', 'Vir pa of ma')}</h1>
+        <p class="muted">${tr(`Stel samen in hoe ${esc(prof.name)} beloond wordt. Alles is optioneel en later te veranderen in het ouderscherm (achter je wachtwoord).`, `Stel saam in hoe ${esc(prof.name)} beloon word. Alles is opsioneel en later te verander in die ouerskerm (agter jou wagwoord).`)}</p></div>
+      <div class="card stack"><h3>🪙 ${tr('Beloning en weekplan', 'Beloning en weekplan')}</h3>${rewardFields(cfg, { tr, za, af: af() })}</div>
+      <div class="card stack"><h3>🎁 ${tr('Verrassingen en cadeautjes', 'Verrassings en geskenkies')}</h3>
+        <p class="small muted">${tr('Eén keer per week, op een willekeurige dag, als de dagtaak goed ging. Een bedrag ("1 euro", "R10") gaat vanzelf in de spaarpot; de rest geef je zelf.', 'Een keer per week, op ’n lukrake dag, as die dagtaak goed gegaan het. ’n Bedrag ("R10", "1 euro") gaan vanself in die spaarvarkie; die res gee jy self.')}</p>
+        <label class="row"><input type="checkbox" name="surprise" ${prof.surpriseOn === false ? '' : 'checked'}> <span>${tr('Aan', 'Aan')}</span></label>
+        <label class="field"><span class="small" style="font-weight:800">${tr('Eén per regel', 'Een per reël')}</span><textarea name="rewards" rows="4">${esc((prof.rewards || DEFAULT_SURPRISES(af(), za)).join('\n'))}</textarea></label></div>
+      <div class="card stack"><h3>🔒 ${tr('Ouderwachtwoord', 'Ouerwagwoord')}</h3>
+        <p class="small muted">${tr('Beschermt het ouderscherm: beloning, uitbetalen en instellingen. Minstens 4 tekens. Leeg laten mag (dan geldt de pincode van de beheerder).', 'Beskerm die ouerskerm: beloning, uitbetaal en instellings. Minstens 4 tekens. Leeg laat mag (dan geld die PIN-kode van die beheerder).')}</p>
+        <input type="password" name="pw" autocomplete="new-password" placeholder="${tr('wachtwoord', 'wagwoord')}">
+        <input type="password" name="pw2" autocomplete="new-password" placeholder="${tr('nog een keer', 'nog ’n keer')}"></div>
+      <p class="small" style="color:var(--bad);min-height:18px;text-align:center">${esc(err)}</p>
+      <button class="btn block">${tr('Opslaan en beginnen 🚀', 'Stoor en begin 🚀')}</button>
+      <button type="button" class="btn ghost block" data-skip>${tr('Overslaan (standaard gebruiken)', 'Slaan oor (gebruik die standaard)')}</button>
+      <button type="button" class="btn ghost block" data-back>‹ ${tr('Terug', 'Terug')}</button>
+    </form>`;
+    const f = $app.querySelector('[data-setup]');
+    const get = bindRewardFields(f, cfg, { tr, za });
+    const create = async (setup) => {
+      try {
+        await api('/api/kids', { name: prof.name, avatar, country: prof.country, lang: prof.lang, grade: prof.grade, age: prof.age, setup });
+        location.hash = '#/'; route();
+      } catch (er) { if (/naam|name|heet|groep|graad|oud|land/i.test(er.message)) draw(er.message, true); else parentSetup(er.message); }
+    };
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      let r;
+      try { r = get(); } catch (er) { return parentSetup(er.message); }
+      prof.setup = r; prof.surpriseOn = f.surprise.checked; prof.rewards = f.rewards.value.split('\n').map((x) => x.trim()).filter(Boolean);
+      if (f.pw.value && f.pw.value.length < 4) return parentSetup(tr('Het wachtwoord moet minstens 4 tekens hebben.', 'Die wagwoord moet minstens 4 tekens hê.'));
+      if (f.pw.value !== f.pw2.value) return parentSetup(tr('De twee wachtwoorden zijn niet hetzelfde.', 'Die twee wagwoorde is nie dieselfde nie.'));
+      create({ ...r, password: f.pw.value || undefined, surprise: { enabled: f.surprise.checked, rewards: prof.rewards } });
+    };
+    f.querySelector('[data-skip]').onclick = () => create(null);
+    f.querySelector('[data-back]').onclick = () => { draw('', true); const ff = $app.querySelector('[data-new]'); if (ff) ff.name.value = prof.name || ''; };
   };
   draw();
 }
@@ -469,6 +511,67 @@ async function switchKid() {
   await api('/api/kids/leave', {});
   STATE = null;
   renderWho();
+}
+
+// ---------- beloning & weekplan (eerste keer instellen én ouderscherm) ----------
+// tr(nl, af) kiest de taal; bij het aanmaken is de taal nog niet ingesteld, daarom geen t() hier.
+const WEEKDAYS = { nl: ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'], af: ['So', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa'] };
+const money2 = (c) => (c / 100).toFixed(2).replace('.', ',');
+const parseMoney = (v) => { const x = String(v || '').replace(/[R€\s]/g, '').replace(',', '.'); if (x === '') return 0; const n = Number(x); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : NaN; };
+const DEFAULT_SURPRISES = (af, za) => (af
+  ? ['🍬 ’n Ekstra lekkertjie', '🎮 ’n Halfuur ekstra speeltyd', za ? '💶 R10 ekstra' : '💶 1 euro ekstra', '🎁 ’n Klein geskenkie']
+  : ['🍬 Een extra snoepje', '🎮 Een half uur extra gametijd', za ? '💶 R10 extra' : '💶 1 euro extra', '🎁 Een klein cadeautje']);
+function rewardFields(cfg, { tr, za, af, counts = [10, 15, 20, 25, 30] }) {
+  const sym = za ? 'R' : '€';
+  const money = (name, label, c, help) => `<label class="field"><span style="font-weight:800">${label}</span>
+    <div class="money-in"><span>${sym}</span><input name="${name}" inputmode="decimal" value="${money2(c)}" autocomplete="off"></div>${help ? `<span class="small muted">${help}</span>` : ''}</label>`;
+  return `${money('daily', tr('Beloning per dagtaak (max.)', 'Beloning per dagtaak (maks.)'), cfg.dailyCents, tr('Alleen goede antwoorden leveren op. 0 = zonder geld (dan alleen badges en verrassingen).', 'Net regte antwoorde verdien iets. 0 = sonder geld (dan net kentekens en verrassings).'))}
+    <div class="row" style="gap:10px;align-items:flex-start">
+      <div style="flex:1">${money('intake', tr('Starttoets (max.)', 'Begintoets (maks.)'), cfg.intakeCents)}</div>
+      <div style="flex:1">${money('week', tr('Weekbonus', 'Weekbonus'), cfg.weekBonusCents)}</div></div>
+    <label class="field"><span style="font-weight:800">${tr('Sommen per dagtaak', 'Somme per dagtaak')}</span>
+      <select name="count">${counts.map((n) => `<option value="${n}" ${n === cfg.dailyCount ? 'selected' : ''}>${n} ${tr('sommen', 'somme')} (± ${n} min)</option>`).join('')}</select></label>
+    <div><div style="font-weight:800;margin-bottom:6px">${tr('Op welke dagen is er een dagtaak?', 'Op watter dae is daar ’n dagtaak?')}</div>
+      <div class="seg days">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<button type="button" class="${cfg.days.includes(d) ? 'sel' : ''}" data-day="${d}">${WEEKDAYS[af ? 'af' : 'nl'][d]}</button>`).join('')}</div></div>
+    <p class="small" style="font-weight:800" data-perweek></p>`;
+}
+// Koppelt de knoppen; geeft een functie terug die de ingevulde waarden ophaalt (of een foutmelding gooit).
+function bindRewardFields(root, cfg, { tr, za }) {
+  const days = new Set(cfg.days);
+  const sym = (c) => (za ? 'R' : '€ ') + money2(c);
+  const read = () => ({ dailyCents: parseMoney(root.querySelector('[name=daily]').value), intakeCents: parseMoney(root.querySelector('[name=intake]').value),
+    weekBonusCents: parseMoney(root.querySelector('[name=week]').value), dailyCount: Number(root.querySelector('[name=count]').value), days: [...days] });
+  const upd = () => {
+    const r = read(), el = root.querySelector('[data-perweek]');
+    if (!el) return;
+    el.textContent = !days.size ? tr('Kies minstens één dag.', 'Kies minstens een dag.')
+      : tr(`= ${r.dailyCount * days.size} sommen per week (${days.size} ${days.size === 1 ? 'dag' : 'dagen'})`, `= ${r.dailyCount * days.size} somme per week (${days.size} ${days.size === 1 ? 'dag' : 'dae'})`)
+        + (r.dailyCents > 0 && !Number.isNaN(r.dailyCents) ? tr(`, samen max. ${sym(r.dailyCents * days.size + (r.weekBonusCents || 0))} per week.`, `, saam maks. ${sym(r.dailyCents * days.size + (r.weekBonusCents || 0))} per week.`) : '.');
+  };
+  root.querySelectorAll('[data-day]').forEach((b) => (b.onclick = () => { const d = Number(b.dataset.day); days.has(d) ? days.delete(d) : days.add(d); b.classList.toggle('sel', days.has(d)); upd(); }));
+  root.querySelectorAll('[name=daily],[name=intake],[name=week],[name=count]').forEach((x) => x.addEventListener('input', upd));
+  upd();
+  return () => {
+    const r = read();
+    if ([r.dailyCents, r.intakeCents, r.weekBonusCents].some((v) => Number.isNaN(v))) throw new Error(tr('Vul bedragen in als getal, bijv. 0,50.', 'Vul bedrae in as ’n getal, bv. 0,50.'));
+    if (!r.days.length) throw new Error(tr('Kies minstens één dag.', 'Kies minstens een dag.'));
+    return r;
+  };
+}
+// Wachtwoordscherm voor ouders (tekst, geen cijfertoetsen: het mag ook een woord zijn)
+function pwScreen(title, hint, onDone) {
+  const draw = (err = '') => {
+    $app.innerHTML = `<div class="stack" style="margin-top:8vh"><form class="card stack" style="text-align:center" data-pw>
+      <div class="big-emoji">🔒</div><h2 style="margin-top:8px">${esc(title)}</h2>
+      <input type="password" name="pw" autocomplete="current-password" style="text-align:center;font-size:20px" required>
+      <p class="small muted">${esc(hint)}</p>
+      <p class="small" style="color:var(--bad);min-height:20px">${esc(err)}</p>
+      <button class="btn block">OK</button></form></div>`;
+    const f = $app.querySelector('[data-pw]');
+    f.pw.focus();
+    f.onsubmit = async (e) => { e.preventDefault(); try { await onDone(f.pw.value); } catch (er) { draw(er.message); } };
+  };
+  draw();
 }
 
 // ---------- login (alleen als APP_PIN aan staat) ----------
@@ -511,18 +614,18 @@ async function renderHome() {
       <div class="big-emoji">🚀</div>
       <div><div class="task-title">${t('Starttoets')}</div>
       <p>${s.intakeActive ? t('Je bent al begonnen. Ga verder waar je was!') : t(s.gradeWord === 'graad' ? 'Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een graad lager dan jouw graad. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.' : 'Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een groep lager dan jouw groep. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.', { n: s.points.intakeCount })}</p></div>
-      <div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
+      ${s.points.intake > 0 ? `<div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>` : ''}
       <button class="btn light block" data-start="intake">${s.intakeActive ? t('Verder met de starttoets') : t('Start de starttoets')}</button>
       <p class="small muted">${t('Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.')}</p></div>`;
   } else if (!s.today.schoolDay) {
     main = `<div class="card hero stack"><div class="big-emoji">🌴</div>
-      <div><div class="task-title">${t('Weekend!')}</div><p>${t('Geen dagtaak vandaag. Maandag weer {n} sommen voor {p} {c}.', { n: s.points.dailyCount, p: s.points.daily, c: CENT() })}</p></div>
+      <div><div class="task-title">${t('Vrij!')}</div><p>${s.points.daily > 0 ? t('Geen dagtaak vandaag. {d} weer {n} sommen voor {p} {c}.', { d: s.today.nextDay || '', n: s.points.dailyCount, p: s.points.daily, c: CENT() }) : t('Geen dagtaak vandaag. {d} weer {n} sommen.', { d: s.today.nextDay || '', n: s.points.dailyCount })}</p></div>
       ${aheadBtn(s)}
       <button class="btn light block" data-start="practice">${t('Toch even oefenen')}</button></div>`;
   } else if (!d || d.status === 'active') {
     main = `<div class="card hero stack"><div class="big-emoji">✏️</div>
       <div><div class="task-title">${t('Dagtaak')}</div><p>${d ? t('Je hebt er al {a} van de {n} gedaan. Ga verder!', { a: d.answered, n: d.total }) : t('{n} sommen, vooral van onderdelen waar je nog beter in kunt worden.', { n: s.points.dailyCount })}</p></div>
-      <div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.daily, c: CENT() })}</span><span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± 20 min</span></div>
+      <div class="row">${s.points.daily > 0 ? `<span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.daily, c: CENT() })}</span>` : ''}<span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± ${s.points.dailyCount} min</span></div>
       ${d ? `<div class="progress light"><i style="width:${(d.answered / d.total) * 100}%"></i></div>` : ''}
       <button class="btn light block" data-start="daily">${d ? t('Verder') : t('Start dagtaak')}</button></div>`;
   } else {
@@ -558,7 +661,7 @@ async function renderHome() {
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
-const DAG = ['ma', 'di', 'wo', 'do', 'vr'];
+const DAG = (dow) => WEEKDAYS[LANG === 'af' ? 'af' : 'nl'][dow];
 function aheadBtn(s) {
   const a = s.ahead;
   if (!a) return '';
@@ -577,13 +680,13 @@ function piggyCard(s) {
   return `<a href="#/spaarpot" class="card coin stack" style="text-decoration:none;color:inherit;gap:8px">
     <div class="row between"><div class="row"><span class="big-emoji" style="font-size:30px">${g.reached ? '🎉' : '🎯'}</span><div><div class="small muted">${t('Ik spaar voor')}</div><b style="font-size:18px">${esc(g.name)}</b></div></div><div style="text-align:right"><div class="money" style="font-size:20px">${euro(s.wallet.balance)}</div><div class="small muted">${t('van {b}', { b: euro(g.cents) })}</div></div></div>
     <div class="goal-bar"><i style="width:${pct}%"></i></div>
-    <div class="small" style="font-weight:800">${g.reached ? t('Doel gehaald! Laat het aan papa of mama zien. 🥳') : t('Nog {b} — dat is ongeveer {n} dagtaken.', { b: euro(g.left), n: Math.ceil(g.left / 40) })}</div></a>`;
+    <div class="small" style="font-weight:800">${g.reached ? t('Doel gehaald! Laat het aan papa of mama zien. 🥳') : (STATE?.points?.daily > 0 ? t('Nog {b} — dat is ongeveer {n} dagtaken.', { b: euro(g.left), n: Math.ceil(g.left / Math.max(1, STATE.points.daily * 0.8)) }) : t('Nog {b} te gaan.', { b: euro(g.left) }).replace(/<\/?b>/g, ''))}</div></a>`;
 }
 function weekCard(s) {
   const w = s.week;
   if (!w || !w.bonus) return '';
-  return `<div class="card row between"><div><div style="font-weight:900">📅 ${t('Weekbonus +{n} {c}', { n: w.bonus, c: CENT() })}</div><div class="small muted">${w.given ? t('Gehaald deze week! 🎉') : t('Maak alle 5 dagtaken van deze week af.')}</div></div>
-    <div class="week">${w.days.map((d, i) => `<span class="${d.done ? 'on' : ''} ${d.today ? 'today' : ''}" title="${d.day}">${d.done ? '✓' : DAG[i]}</span>`).join('')}</div></div>`;
+  return `<div class="card row between"><div><div style="font-weight:900">📅 ${t('Weekbonus +{n} {c}', { n: w.bonus, c: CENT() })}</div><div class="small muted">${w.given ? t('Gehaald deze week! 🎉') : t('Maak alle {n} dagtaken van deze week af.', { n: w.days.length })}</div></div>
+    <div class="week">${w.days.map((d, i) => `<span class="${d.done ? 'on' : ''} ${d.today ? 'today' : ''}" title="${d.day}">${d.done ? '✓' : DAG(d.dow ?? i + 1)}</span>`).join('')}</div></div>`;
 }
 const sc = (score) => (score >= 85 ? 3 : score >= 60 ? 2 : score >= 35 ? 1 : 0);
 function mini(x) {
@@ -768,10 +871,10 @@ async function renderPiggy() {
       : `<p class="muted">${t('Waar wil jij voor sparen? Een game, iets voor je fiets, een uitje? Kies een doel en zie je spaarpot vollopen.')}</p><button class="btn block" data-goal>${t('Kies een spaardoel')}</button>`}</div>
     <div class="card stack"><h3>${t('Zo verdien je centen')}</h3>
       <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>${t('Starttoets: tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
-      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>${t('Elke schooldag: tot {n} {c} ({p} per goede som)', { n: s.points.daily, c: CENT(), p: cents(s.points.daily / s.points.dailyCount) })}</span></div>
+      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>${t('Elke dagtaak: tot {n} {c} ({p} per goede som)', { n: s.points.daily, c: CENT(), p: cents(s.points.daily / s.points.dailyCount) })}</span></div>
       <div class="row"><span class="chip">🪜</span><span>${t('Met tussenstappen: de eerste {n} keer per onderdeel gewoon centen, daarna de helft.', { n: s.points.freeGuided })}</span></div>
       <div class="row"><span class="chip coin">🪙🪙</span><span>${t('Kies je daarna "helemaal zelf" en is het goed? {n} keer dubbel!', { n: s.points.soloBonus })}</span></div>
-      ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>${t('Weekbonus: alle 5 dagtaken van een week af = {n} {c} extra.', { n: s.week.bonus, c: CENT() })}</span></div>` : ''}
+      ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>${t('Weekbonus: alle {d} dagtaken van een week af = {n} {c} extra.', { d: s.week.days.length, n: s.week.bonus, c: CENT() })}</span></div>` : ''}
       <p class="small muted">${ZAR() ? t('Alleen goede antwoorden leveren centen op. 100 sent = R1.') : t('Alleen goede antwoorden leveren centen op. 100 cent = € 1.')}</p></div>
     ${s.history.length ? `<div class="card"><h3>${t('Verdiend per dag')}</h3><div class="hist">${s.history.map((h) => `<div><span>${h.points}</span><i style="height:${(h.points / max) * 80 + 4}px"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div></div>` : ''}
     <a href="#/ouder" class="small muted" style="text-align:center;display:block;margin-top:8px">${t('Voor ouders 🔒')}</a>
@@ -784,7 +887,7 @@ function editGoal() {
     <form class="stack" data-goalform>
       <label class="field"><span style="font-weight:800">${t('Waar spaar je voor?')}</span><input name="name" maxlength="40" placeholder="${t('bijv. nieuwe game')}" value="${esc(g?.name || '')}" required></label>
       <label class="field"><span style="font-weight:800">${ZAR() ? t('Hoeveel kost het? (in rand)') : t('Hoeveel kost het? (in euro)')}</span><input name="euros" inputmode="decimal" placeholder="${t('bijv. 15')}" value="${g ? String(g.cents / 100).replace('.', ',') : ''}" required></label>
-      <p class="small muted">${t('Met alle dagtaken goed verdien je ongeveer {b} per week (plus weekbonus).', { b: euro(250) })}</p>
+      <p class="small muted">${t('Met alle dagtaken goed verdien je ongeveer {b} per week (plus weekbonus).', { b: euro((STATE?.points?.daily ?? 50) * (STATE?.points?.daysPerWeek ?? 5)) })}</p>
       <button class="btn block">${t('Opslaan')}</button>
       ${g ? `<button type="button" class="btn ghost block" data-cleargoal>${t('Doel weghalen')}</button>` : ''}
     </form>`, (bg, close) => {
@@ -1500,7 +1603,7 @@ function renderVisual(v) {
 async function renderParent() {
   let data;
   try { data = await api('/api/parent/overview'); } catch (e) {
-    if (e.status === 401) return pinScreen(t('Pincode voor ouders'), async (pin) => { await api('/api/parent/login', { pin }); renderParent(); });
+    if (e.status === 401) return pwScreen(t('Ouderwachtwoord'), t('Het wachtwoord dat bij het aanmaken van het profiel is gekozen (of de pincode van de beheerder).'), async (pw) => { await api('/api/parent/login', { password: pw }); renderParent(); });
     throw e;
   }
   setLang(data.lang);
@@ -1536,6 +1639,17 @@ async function renderParent() {
       <table class="list"><tr><th>${t('Onderdeel')}</th><th>${t('Score')}</th><th>14 d</th><th></th></tr>
       ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ` <span class="chip bad">${t('extra hulp')}</span>` : ''}<div class="small muted">${x.levelName} · ${t('{n}/5 leerfase', { n: x.guidedWins })}${x.soloBonus ? ` · ${t('{n}× zelf-bonus', { n: x.soloBonus })}` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
         <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${t('{n} met stappen', { n: accBy[x.cat].guided })} · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
+
+    <form class="card stack" data-rewards><h2>🪙 ${t('Beloning en weekplan')}</h2>
+      ${rewardFields(data.rewards, { tr: (nl, a) => (LANG === 'af' ? a : nl), za: data.country === 'ZA', af: LANG === 'af', counts: data.dailyCounts })}
+      <p class="small muted">${t('Geldt vanaf de volgende dagtaak.')}</p>
+      <button class="btn ghost block">${t('Opslaan')}</button></form>
+    <form class="card stack" data-password><h2>🔒 ${t('Ouderwachtwoord')}</h2>
+      <p class="small muted">${data.hasPassword ? t('Er is een eigen wachtwoord ingesteld. Hier kun je het veranderen.') : t('Nog geen eigen wachtwoord: het ouderscherm opent met de pincode van de beheerder. Stel hier een eigen wachtwoord in.')}</p>
+      <input type="password" name="pw" autocomplete="new-password" placeholder="${t('nieuw wachtwoord (minstens 4 tekens)')}">
+      <input type="password" name="pw2" autocomplete="new-password" placeholder="${t('nog een keer')}">
+      <button class="btn ghost block">${t('Wachtwoord opslaan')}</button>
+      ${data.hasPassword ? `<button type="button" class="btn ghost block" data-pwclear>${t('Eigen wachtwoord weghalen')}</button>` : ''}</form>
 
     <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
       <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed ging. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
@@ -1591,6 +1705,24 @@ async function renderParent() {
     e.target.disabled = false; e.target.textContent = t('Profiel nu bijwerken');
   };
   $app.querySelector('[data-otherkid]').onclick = () => switchKid();
+  {
+    const tr = (nl, a) => (LANG === 'af' ? a : nl);
+    const f = $app.querySelector('[data-rewards]');
+    const get = bindRewardFields(f, data.rewards, { tr, za: data.country === 'ZA' });
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('/api/parent/rewards', get()); STATE = null; toast(t('Opgeslagen ✓')); } catch (er) { toast(er.message); }
+    };
+    const p = $app.querySelector('[data-password]');
+    p.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('/api/parent/password', { password: p.pw.value, password2: p.pw2.value }); toast(t('Wachtwoord opgeslagen ✓')); renderParent(); } catch (er) { toast(er.message); }
+    };
+    p.querySelector('[data-pwclear]')?.addEventListener('click', async () => {
+      if (!(await ask(`<div class="big-emoji">🔓</div><h2>${t('Eigen wachtwoord weghalen?')}</h2><p class="muted">${t('Daarna opent het ouderscherm weer met de pincode van de beheerder.')}</p>`, t('Weghalen'), t('Annuleren')))) return;
+      await api('/api/parent/password', { password: '' }); toast(t('Weggehaald')); renderParent();
+    });
+  }
   $app.querySelector('[data-surprise]').onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;

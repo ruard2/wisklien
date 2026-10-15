@@ -1,17 +1,18 @@
 import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
-import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid, kidContext, updateKidProfile } from './src/db.js';
+import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid, kidContext, updateKidProfile, setKidPassword, kidPasswords, kidHasPassword } from './src/db.js';
 import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep, detectMisconception, MNEMONICS, mnemonicsFor, DIDACTIEK, pack } from './src/curriculum.js';
 import {
-  INTAKE_POINTS, DAILY_POINTS, DAILY_COUNT, PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
+  PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
   getSkills, updateSkill, saveSkill, intakePlan, INTAKE_MAX, skillFromIntake, getStruggling, snapshotSkills,
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
 import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
 import { aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
-import { todayNL, isSchoolDay, weekdayNL, setTestClock } from './src/util.js';
+import { todayNL, weekdayNL, setTestClock } from './src/util.js';
+import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -19,8 +20,8 @@ const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('he
 const PARENT_PIN = process.env.PARENT_PIN || '1234';
 const APP_PIN = process.env.APP_PIN || '';
 const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 400);
-const WEEK_BONUS = Number(process.env.WEEK_BONUS ?? 25); // centen als alle 5 dagtaken van een week af zijn
 if (!process.env.PARENT_PIN) console.warn('[let op] PARENT_PIN niet gezet — standaard is 1234');
+else if (PARENT_PIN.length < 6 || PARENT_PIN === '1234') console.warn('[let op] PARENT_PIN is zwak: met de beheerderspincode open je élk kind, ook kinderen met een eigen ouderwachtwoord. Kies een lange pincode.');
 
 const app = express();
 app.use(express.json({ limit: '600kb' })); // ruim genoeg voor een kladblok-plaatje
@@ -39,7 +40,7 @@ function hasRole(req, role) {
   return r === role && Number(exp) > Date.now() && sig === sign(`${r}.${exp}`);
 }
 function setCookie(res, role, days) {
-  const name = role === 'parent' ? 'cp' : 'cc';
+  const name = role === 'child' ? 'cc' : 'cp';
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.append('Set-Cookie', `${name}=${encodeURIComponent(makeToken(role, days))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure}`);
 }
@@ -63,8 +64,33 @@ function withKid(req, res, next) {
     kidStore.run(kidContext(kid), next);
   }).catch(next);
 }
-const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
-const parent = (req, res, next) => (hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'parent-login' }));
+// ---------- ouder: wachtwoord per kind ----------
+// Rol in de ouder-cookie: 'parent' = beheerder (PARENT_PIN uit .env, alle kinderen),
+// 'pk-o-3-7' = ouder van kind 3 en 7 (wachtwoord), 'o' = ook kinderen zonder eigen wachtwoord.
+const hashPw = (pw) => { const salt = crypto.randomBytes(16).toString('hex'); return `${salt}:${crypto.scryptSync(String(pw), salt, 32).toString('hex')}`; };
+function pwMatches(pw, stored) {
+  if (!stored) return false;
+  const [salt, h] = stored.split(':'), a = crypto.scryptSync(String(pw), salt, 32), b = Buffer.from(h, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function parentScope(req) {
+  const t = cookieOf(req, 'cp');
+  if (!t) return null;
+  const [r, exp, sig] = decodeURIComponent(t).split('.');
+  if (!(Number(exp) > Date.now() && sig === sign(`${r}.${exp}`))) return null;
+  if (r === 'parent') return { all: true, ids: [] };
+  const m = r.match(/^pk(-o)?((?:-\d+)*)$/);
+  return m ? { all: false, open: !!m[1], ids: m[2].split('-').filter(Boolean).map(Number) } : null;
+}
+async function mayParent(req, kidId) {
+  const sc = parentScope(req);
+  if (!sc) return false;
+  if (sc.all || sc.ids.includes(kidId)) return true;
+  return sc.open && !(await kidHasPassword(kidId));
+}
+const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || parentScope(req) ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
+const parent = (req, res, next) => withKid(req, res, () => mayParent(req, req.kid.id)
+  .then((ok) => (ok ? next() : res.status(401).json({ error: 'parent-login' }))).catch(next));
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e); res.status(500).json({ error: ts('Er ging iets mis op de server.') }); });
 
 // ---------- AI-limiet per dag (kostenbewaking) ----------
@@ -84,23 +110,13 @@ const getName = async () => (await getKid(currentKid()))?.name || 'Rekenaar';
 const prevDay = (d) => new Date(Date.parse(d + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
 const dowOf = (d) => new Date(d + 'T12:00:00Z').getUTCDay();
 const addDays = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
-// maandag t/m vrijdag van de huidige week (Nederlandse tijd)
-function schoolWeek(today = todayNL()) {
-  const w = dowOf(today);
-  const monday = addDays(today, w === 0 ? -6 : 1 - w);
-  return [0, 1, 2, 3, 4].map((k) => addDays(monday, k));
-}
-async function weekInfo(day = todayNL()) {
-  const days = schoolWeek(day);
+// de dagtaak-dagen van deze week (welke dagen: instelling van de ouder, standaard ma t/m vr)
+async function weekInfo(day = todayNL(), rc = null) {
+  rc ||= await rewardCfg();
+  const days = taskWeek(rc, day);
   const done = new Set((await q(`SELECT day::text AS d FROM sessions WHERE kind='daily' AND status='done' AND day = ANY($1::date[])`, [days])).rows.map((r) => r.d));
   const given = await getSetting(`weekbonus:${days[0]}`, null);
-  return { days: days.map((d) => ({ day: d, done: done.has(d), today: d === todayNL() })), count: done.size, bonus: WEEK_BONUS, given: !!given };
-}
-// volgende schooldag na een datum
-function nextSchoolDay(d) {
-  let x = addDays(d, 1);
-  while ([0, 6].includes(dowOf(x))) x = addDays(x, 1);
-  return x;
+  return { days: days.map((d) => ({ day: d, dow: dowOf(d), done: done.has(d), today: d === todayNL() })), count: done.size, bonus: rc.weekBonusCents, given: !!given };
 }
 
 
@@ -109,7 +125,7 @@ async function surpriseCfg() { return { enabled: true, rewards: defaultRewards()
 async function maybeSurprise(s) {
   const cfg = await surpriseCfg();
   if (!cfg.enabled || !cfg.rewards?.length || s.kind !== 'daily') return null;
-  const days = schoolWeek(s.day);
+  const days = taskWeek(await rewardCfg(), s.day);
   const key = `surprise:${days[0]}`;
   let pick = await getSetting(key, null);
   if (!pick) { pick = { day: days[Math.floor(Math.random() * days.length)], given: false }; await setSetting(key, pick); }
@@ -238,11 +254,11 @@ async function wallet() {
 
 async function streak() {
   const done = new Set((await q(`SELECT day::text AS d FROM sessions WHERE kind='daily' AND status='done'`)).rows.map((r) => r.d));
+  const rc = await rewardCfg();
   let d = todayNL(), n = 0;
   if (!done.has(d)) d = prevDay(d);
   for (let i = 0; i < 400; i++, d = prevDay(d)) {
-    const w = dowOf(d);
-    if (w === 0 || w === 6) continue;
+    if (!isTaskDay(rc, d)) continue;
     if (done.has(d)) n++; else break;
   }
   return n;
@@ -318,6 +334,16 @@ async function loadSession(id, client = { query: q }) {
 const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐙', '🦄', '🐯', '🐨', '🚀', '⚽', '🎮', '🦖'];
 app.get('/api/kids', wrap(async (req, res) => res.json({ kids: await listKids(), current: kidIdOf(req), avatars: AVATARS })));
 // Profielgegevens controleren. Taal bepaalt het curriculum: Nederlands → NL, Afrikaans → Suid-Afrika (KABV).
+const rewardError = (e, af) => ({
+  amount: af ? 'Kies ’n bedrag van 0 tot R10 per dag (0 = geen geld).' : 'Kies een bedrag van 0 tot € 10 per dag (0 = geen geld).',
+  count: af ? 'Kies hoeveel somme per dag.' : 'Kies hoeveel sommen per dag.',
+  days: af ? 'Kies minstens een dag.' : 'Kies minstens één dag.',
+}[e] || e);
+function cleanSurprise(b) {
+  const rewards = (Array.isArray(b.rewards) ? b.rewards : String(b.rewards || '').split('\n')).map((r) => String(r).trim().slice(0, 60)).filter(Boolean).slice(0, 12);
+  const min = [0.5, 0.6, 0.7, 0.8, 0.9].includes(Number(b.min)) ? Number(b.min) : 0.7;
+  return { enabled: !!b.enabled && rewards.length > 0, rewards: rewards.length ? rewards : defaultRewards(), min };
+}
 function cleanProfile(b, partial = false) {
   const lang = b.lang === 'af' ? 'af' : b.lang === 'nl' ? 'nl' : null;
   const country = b.country === 'ZA' ? 'ZA' : b.country === 'NL' ? 'NL' : null;
@@ -338,7 +364,26 @@ app.post('/api/kids', wrap(async (req, res) => {
   if (kids.some((k) => k.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: ts('Er is al een {n}. Kies die hierboven!', { n: name }) });
   const p = cleanProfile(req.body);
   if (p.error) return res.status(400).json({ error: p.error });
+  // optioneel: de ouder stelt meteen beloning, weekplan, wachtwoord en verrassingen in
+  const setup = req.body.setup && typeof req.body.setup === 'object' ? req.body.setup : null;
+  const af = p.lang === 'af';
+  let rcfg = null, pw = null, surprise = null;
+  if (setup) {
+    const r = cleanRewards(setup);
+    if (r.error) return res.status(400).json({ error: rewardError(r.error, af) });
+    rcfg = r.cfg;
+    if (setup.password) {
+      pw = String(setup.password);
+      if (pw.length < 4 || pw.length > 64) return res.status(400).json({ error: af ? 'Die ouerwagwoord moet minstens 4 tekens hê.' : 'Het ouderwachtwoord moet minstens 4 tekens hebben.' });
+    }
+    if (setup.surprise) surprise = cleanSurprise(setup.surprise);
+  }
   const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length], p);
+  if (pw) await setKidPassword(kid.id, hashPw(pw));
+  if (rcfg || surprise) await kidStore.run(kidContext(kid), async () => {
+    if (rcfg) await setSetting('reward_cfg', rcfg);
+    if (surprise) await setSetting('surprise_cfg', surprise);
+  });
   setKidCookie(res, kid.id);
   res.json({ kid });
 }));
@@ -356,6 +401,7 @@ app.post('/api/login', wrap(async (req, res) => {
 }));
 
 app.get('/api/state', child, wrap(async (req, res) => {
+  const rc = await rewardCfg();
   const today = todayNL();
   const intake = await one(`SELECT id, status FROM sessions WHERE kind='intake' ORDER BY id DESC LIMIT 1`);
   const daily = await one(`SELECT id, status, correct, total, points, results FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
@@ -375,15 +421,15 @@ app.get('/api/state', child, wrap(async (req, res) => {
     teacher: teacherName(),
     intakeDone: intake?.status === 'done',
     intakeActive: intake?.status === 'active' ? intake.id : null,
-    today: { date: today, weekday: weekdayNL(), schoolDay: isSchoolDay(), daily: daily ? { id: daily.id, status: daily.status, correct: daily.correct, total: daily.total, points: daily.points, answered: daily.results.length } : null },
+    today: { date: today, weekday: weekdayNL(), schoolDay: isTaskDay(rc, today), nextDay: dayNames()[dowOf(nextTaskDay(rc, today))], daily: daily ? { id: daily.id, status: daily.status, correct: daily.correct, total: daily.total, points: daily.points, answered: daily.results.length } : null },
     wallet: await wallet(),
     streak: await streak(),
     record: await getSetting('record', 0),
-    week: await weekInfo(),
+    week: await weekInfo(today, rc),
     ahead: await (async () => {
       const todays = daily?.status === 'done';
-      if (isSchoolDay() && !todays) return null;
-      const d = nextSchoolDay(today);
+      if (isTaskDay(rc, today) && !todays) return null;
+      const d = nextTaskDay(rc, today);
       const s = await one(`SELECT status, answered FROM (SELECT status, jsonb_array_length(results) AS answered FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1) x`, [d]);
       return { day: d, name: dayNames()[dowOf(d)], status: s?.status || null, answered: s?.answered || 0 };
     })(),
@@ -398,7 +444,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
       const d = DIDACTIEK[s.cat], n = d?.niveaus[s.level];
       return [s.cat, n ? { kern: d.kern, stappen: n.aanpak, voorbeeld: n.voorbeeld } : null];
     })),
-    points: { intake: INTAKE_POINTS, intakeCount: INTAKE_MAX, daily: DAILY_POINTS, dailyCount: DAILY_COUNT, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
+    points: { intake: rc.intakeCents, intakeCount: INTAKE_MAX, daily: rc.dailyCents, dailyCount: rc.dailyCount, daysPerWeek: rc.days.length, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
 }));
 
@@ -412,7 +458,7 @@ async function askPlan(n) {
 }
 async function precomputePlan() {
   if (!aiEnabled() || !aiAllowed()) return;
-  const raw = await askPlan(DAILY_COUNT);
+  const raw = await askPlan((await rewardCfg()).dailyCount);
   if (raw?.onderdelen) await setSetting('nextPlan', { made: todayNL(), raw });
 }
 async function makePlan(n, skills, struggling) {
@@ -420,7 +466,7 @@ async function makePlan(n, skills, struggling) {
     try {
       // eerst een klaarliggend plan (max 3 dagen oud) gebruiken, anders nu vragen
       let raw = null;
-      const cached = n === DAILY_COUNT ? await getSetting('nextPlan', null) : null;
+      const cached = n === (await rewardCfg()).dailyCount ? await getSetting('nextPlan', null) : null;
       if (cached && (Date.parse(todayNL()) - Date.parse(cached.made)) / 864e5 <= 3) { raw = cached.raw; await q(`DELETE FROM settings WHERE key='nextPlan'`); }
       else if (aiAllowed()) raw = await askPlan(n);
       const applied = applyPlan(skills, raw, n); // toetst ook aan de huidige niveaus (max 1 stap verschil)
@@ -483,22 +529,23 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     if (!req.kid.grade) await updateKidProfile(req.kid.id, { grade: groep });
     await setSetting('groep', groep);
     const plan = intakePlan();
-    return res.json(sessionPayload(await createSession('intake', plan, plan.length, INTAKE_POINTS, skills, { startLevel: startLevelForGroep(groep) }), skills));
+    return res.json(sessionPayload(await createSession('intake', plan, plan.length, (await rewardCfg()).intakeCents, skills, { startLevel: startLevelForGroep(groep) }), skills));
   }
   if (intake?.status !== 'done') return res.status(400).json({ error: ts('Doe eerst de starttoets.') });
 
   if (kind === 'daily') {
+    const rc = await rewardCfg();
     let day = today;
     if (req.body.ahead) {
       // vooruitwerken: de dagtaak van de volgende schooldag alvast doen (max. 1 dag vooruit)
       const todays = await one(`SELECT status FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
-      if (isSchoolDay() && todays?.status !== 'done') return res.status(400).json({ error: ts('Maak eerst je dagtaak van vandaag af.') });
-      day = nextSchoolDay(today);
-    } else if (!isSchoolDay()) return res.status(400).json({ error: ts('In het weekend is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!') });
+      if (isTaskDay(rc, today) && todays?.status !== 'done') return res.status(400).json({ error: ts('Maak eerst je dagtaak van vandaag af.') });
+      day = nextTaskDay(rc, today);
+    } else if (!isTaskDay(rc, today)) return res.status(400).json({ error: ts('Vandaag is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!') });
     const existing = await one(`SELECT * FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [day]);
     if (existing) return res.json(sessionPayload(existing, skills, { struggling }));
-    const { plan, coach } = await makePlan(DAILY_COUNT, skills, struggling);
-    return res.json(sessionPayload(await createSession('daily', plan, DAILY_COUNT, DAILY_POINTS, skills, coach ? { coach } : {}, day), skills, { struggling }));
+    const { plan, coach } = await makePlan(rc.dailyCount, skills, struggling);
+    return res.json(sessionPayload(await createSession('daily', plan, rc.dailyCount, rc.dailyCents, skills, coach ? { coach } : {}, day), skills, { struggling }));
   }
 
   if (kind === 'practice') {
@@ -762,12 +809,12 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     if (s.kind === 'daily') {
       const st = await streak();
       for (const [n, id] of [[3, 'reeks3'], [5, 'reeks5'], [10, 'reeks10']]) if (st >= n) { const b = await awardBadge(id); if (b) newBadges.push(b); }
-      // weekbonus: alle 5 dagtaken van die week af
+      // weekbonus: alle dagtaken van die week af
       const wk = await weekInfo(s.day);
-      if (wk.count === 5 && !wk.given && WEEK_BONUS > 0) {
+      if (wk.count === wk.days.length && !wk.given && wk.bonus > 0) {
         await setSetting(`weekbonus:${wk.days[0].day}`, true);
-        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [WEEK_BONUS, ts('Weekbonus week van {d}', { d: wk.days[0].day })]);
-        weekBonus = WEEK_BONUS;
+        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [wk.bonus, ts('Weekbonus week van {d}', { d: wk.days[0].day })]);
+        weekBonus = wk.bonus;
         const b = await awardBadge('week'); if (b) newBadges.push(b);
       }
     }
@@ -906,7 +953,7 @@ if (process.env.ALLOW_TEST_CLOCK === '1' && process.env.NODE_ENV !== 'production
 }
 
 // ---------- overzicht voor ouder/leerkracht: alle kinderen op één pagina ----------
-const parentOnly = (req, res, next) => (hasRole(req, 'parent') ? next() : res.status(401).json({ error: 'parent-login' }));
+const parentOnly = (req, res, next) => (parentScope(req) ? next() : res.status(401).json({ error: 'parent-login' }));
 async function kidSummary(k) {
   const intake = await one(`SELECT status FROM sessions WHERE kind='intake' ORDER BY id DESC LIMIT 1`);
   const week = await one(`SELECT COUNT(*)::int n, COALESCE(SUM(CASE WHEN correct THEN 1 ELSE 0 END),0)::int ok FROM attempts WHERE created_at > now() - interval '7 days'`);
@@ -926,7 +973,7 @@ async function kidSummary(k) {
 }
 app.get('/api/parent/all', parentOnly, wrap(async (req, res) => {
   const kids = [];
-  for (const k of await listKids()) kids.push(await kidStore.run(kidContext(k), () => kidSummary(k)));
+  for (const k of await listKids()) if (await mayParent(req, k.id)) kids.push(await kidStore.run(kidContext(k), () => kidSummary(k)));
   res.json({ teacher: teacherName(), ai: aiEnabled(), levels: LEVEL_NAMES, cats: CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })), kids });
 }));
 
@@ -938,10 +985,35 @@ app.post('/api/parent/kidprofile', parent, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Inloggen: met PARENT_PIN uit .env (beheerder: alle kinderen), of met het ouderwachtwoord van een kind
+// (dan alle kinderen met dat wachtwoord). Zonder PARENT_PIN in .env opent 1234 alleen kinderen zonder eigen wachtwoord.
 app.post('/api/parent/login', wrap(async (req, res) => {
-  if (pinOk(req.body.pin, PARENT_PIN)) { setCookie(res, 'parent', 30); return res.json({ ok: true }); }
+  const pw = String(req.body.password ?? req.body.pin ?? '');
+  if (process.env.PARENT_PIN && pinOk(pw, PARENT_PIN)) { setCookie(res, 'parent', 30); return res.json({ ok: true }); }
+  const ids = pw ? (await kidPasswords()).filter((k) => pwMatches(pw, k.parent_pw)).map((k) => k.id) : [];
+  const open = !process.env.PARENT_PIN && pinOk(pw, PARENT_PIN);
+  if (ids.length || open) { setCookie(res, `pk${open ? '-o' : ''}${ids.map((i) => `-${i}`).join('')}`, 30); return res.json({ ok: true }); }
   await new Promise((r) => setTimeout(r, 800));
-  res.status(401).json({ error: ts('Verkeerde pincode') });
+  res.status(401).json({ error: ts('Verkeerd wachtwoord') });
+}));
+// Beloning en weekplan wijzigen (achter het ouderwachtwoord)
+app.post('/api/parent/rewards', parent, wrap(async (req, res) => {
+  const r = cleanRewards(req.body, await rewardCfg());
+  if (r.error) return res.status(400).json({ error: rewardError(r.error, req.kid.lang === 'af') });
+  await setSetting('reward_cfg', r.cfg);
+  res.json({ ok: true, rewards: r.cfg });
+}));
+// Ouderwachtwoord instellen, wijzigen of weghalen (leeg = weghalen)
+app.post('/api/parent/password', parent, wrap(async (req, res) => {
+  const pw = String(req.body.password || '');
+  const af = req.kid.lang === 'af';
+  if (pw && (pw.length < 4 || pw.length > 64)) return res.status(400).json({ error: af ? 'Die ouerwagwoord moet minstens 4 tekens hê.' : 'Het ouderwachtwoord moet minstens 4 tekens hebben.' });
+  if (pw && pw !== String(req.body.password2 || '')) return res.status(400).json({ error: af ? 'Die twee wagwoorde is nie dieselfde nie.' : 'De twee wachtwoorden zijn niet hetzelfde.' });
+  await setKidPassword(req.kid.id, pw ? hashPw(pw) : null);
+  // deze ouder blijft ingelogd voor dit kind
+  const sc = parentScope(req);
+  if (sc && !sc.all) setCookie(res, `pk${sc.open ? '-o' : ''}${[...new Set([...sc.ids, req.kid.id])].map((i) => `-${i}`).join('')}`, 30);
+  res.json({ ok: true, hasPassword: !!pw });
 }));
 app.post('/api/parent/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0');
@@ -949,6 +1021,7 @@ app.post('/api/parent/logout', (req, res) => {
 });
 
 app.get('/api/parent/overview', parent, wrap(async (req, res) => {
+  const rewards = await rewardCfg(), hasPassword = await kidHasPassword(req.kid.id);
   const { list, struggling } = await skillsView();
   const snaps = (await q(`SELECT day::text AS day, cat, score FROM skill_snapshots WHERE day > CURRENT_DATE - 60 ORDER BY day`)).rows;
   const sessions = (await q(`SELECT id, kind, day::text AS day, status, correct, total, points, max_points,
@@ -962,7 +1035,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
   res.json({
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
-    wallet: await wallet(), streak: await streak(),
+    wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
