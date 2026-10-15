@@ -1,6 +1,7 @@
 // Leerlogica: adaptieve starttoets, niveau per onderdeel, live bijsturen tijdens
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
+import { ts } from './i18n.js';
 import { CAT_IDS, generate, generateLike, catById } from './curriculum.js';
 import { shuffle, pick, todayNL } from './util.js';
 
@@ -358,11 +359,11 @@ export const BADGES = {
 export async function awardBadge(id, client = { query: q }) {
   if (!BADGES[id]) return null;
   const r = await client.query('INSERT INTO badges(id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING id', [id]);
-  return r.rowCount ? { id, ...BADGES[id] } : null;
+  return r.rowCount ? { id, ...BADGES[id], title: ts(BADGES[id].title), text: ts(BADGES[id].text) } : null;
 }
 export async function getBadges() {
   const got = Object.fromEntries((await q('SELECT id, earned_at FROM badges')).rows.map((r) => [r.id, r.earned_at]));
-  return Object.entries(BADGES).map(([id, b]) => ({ id, ...b, earned: !!got[id], earned_at: got[id] || null }));
+  return Object.entries(BADGES).map(([id, b]) => ({ id, ...b, title: ts(b.title), text: ts(b.text), earned: !!got[id], earned_at: got[id] || null }));
 }
 
 export const catLabel = (cat) => catById[cat]?.label || cat;

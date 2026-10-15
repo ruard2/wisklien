@@ -6,10 +6,14 @@ const $toast = document.getElementById('toast');
 // ---------- hulpjes ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rich = (s) => withModels(esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'));
-const euro = (cents) => '€ ' + (cents / 100).toFixed(2).replace('.', ',');
-const cents = (c) => (Math.round(c * 10) / 10).toString().replace('.', ',') + ' cent';
+// geld: euro/cent in Nederland, rand/sent in Suid-Afrika (zelfde bedragen, andere munt)
+const ZAR = () => STATE?.currency === 'ZAR';
+const euro = (cents) => (ZAR() ? 'R' : '€ ') + (cents / 100).toFixed(2).replace('.', ',');
+const cents = (c) => (Math.round(c * 10) / 10).toString().replace('.', ',') + (ZAR() ? ' sent' : ' cent');
+const CENT = () => (ZAR() ? 'sent' : 'cent');
+async function loadState() { STATE = await api('/api/state'); setLang(STATE.kid?.lang); return STATE; }
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
-const LEVEL = ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
+const LEVELS = () => STATE?.levelNames || ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -46,7 +50,7 @@ function sheet(html, onBind) {
 }
 
 // Eigen ja/nee-popup (de standaard browser-confirm wordt soms geblokkeerd, bv. in een app op je telefoon)
-function ask(html, yes = 'Ja', no = 'Nee', danger = false) {
+function ask(html, yes = t('Ja'), no = t('Nee'), danger = false) {
   return new Promise((resolve) => {
     let done = false;
     const close = sheet(`<div style="text-align:center">${html}</div>
@@ -63,7 +67,28 @@ function ask(html, yes = 'Ja', no = 'Nee', danger = false) {
 // ---------- voorlezen (gratis, in de browser) ----------
 const ORD = { 2: 'halve', 3: 'derde', 4: 'vierde', 5: 'vijfde', 6: 'zesde', 7: 'zevende', 8: 'achtste', 9: 'negende', 10: 'tiende', 11: 'elfde', 12: 'twaalfde', 20: 'twintigste', 100: 'honderdste' };
 const UNIT = { km: 'kilometer', m: 'meter', dm: 'decimeter', cm: 'centimeter', mm: 'millimeter' };
+const ORD_AF = { 2: 'halwes', 3: 'derdes', 4: 'vierdes', 5: 'vyfdes', 6: 'sesdes', 7: 'sewendes', 8: 'agtstes', 9: 'negendes', 10: 'tiendes', 11: 'elfdes', 12: 'twaalfdes', 20: 'twintigstes', 100: 'honderdstes' };
+// Afrikaans uitspreken (Suid-Afrika: × = maal, ÷ = gedeel deur, R = rand)
+function speakableAF(s) {
+  return String(s)
+    .replace(/\[\[[^\]]*\]\]/g, ' ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/\*\*/g, '')
+    .replace(/(\d{1,2}):(\d{2})/g, (m, h, mi) => `${h} uur ${mi === '00' ? '' : mi}`)
+    .replace(/(\d+) 1\/2\b/g, '$1 en ’n half')
+    .replace(/(\d+) (\d+)\/(\d+)/g, (m, w, a, b) => `${w} en ${a} ${ORD_AF[b] || b + 'stes'}`)
+    .replace(/\b1\/2\b/g, '’n half')
+    .replace(/(\d+)\/(\d+)/g, (m, a, b) => `${a} ${ORD_AF[b] || b + 'stes'}`)
+    .replace(/R\s?(\d+),(\d\d)/g, (m, e, c) => (c === '00' ? `${e} rand` : `${e} rand ${Number(c)}`))
+    .replace(/R\s?(\d+)/g, '$1 rand')
+    .replace(/(\d),(\d)/g, '$1 komma $2')
+    .replace(/×/g, ' maal ').replace(/÷/g, ' gedeel deur ').replace(/ : /g, ' gedeel deur ').replace(/−/g, ' min ').replace(/\+/g, ' plus ').replace(/=/g, ' is ')
+    .replace(/%/g, ' persent').replace(/°C/g, ' grade').replace(/°/g, ' grade')
+    .replace(/\b(km|dm|cm|mm|m)([²³])/g, (x, u, p) => ` ${p === '²' ? 'vierkante' : 'kubieke'} ${UNIT[u]}`)
+    .replace(/\.\.\./g, ' hoeveel ').replace(/…/g, ' ');
+}
 function speakable(t) {
+  if (LANG === 'af') return speakableAF(t);
   return String(t)
     .replace(/\[\[[^\]]*\]\]/g, ' ')
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
@@ -84,16 +109,17 @@ function speakable(t) {
 function speak(text) {
   try {
     const synth = window.speechSynthesis;
-    if (!synth) return toast('Voorlezen werkt niet op dit apparaat.');
+    if (!synth) return toast(t('Voorlezen werkt niet op dit apparaat.'));
     if (synth.speaking) { synth.cancel(); return; }
     const u = new SpeechSynthesisUtterance(speakable(text));
-    u.lang = 'nl-NL'; u.rate = 0.92;
-    const v = synth.getVoices().find((x) => x.lang?.toLowerCase().startsWith('nl'));
+    u.lang = LANG === 'af' ? 'af-ZA' : 'nl-NL'; u.rate = 0.92;
+    const voices = synth.getVoices();
+    const v = (LANG === 'af' && voices.find((x) => x.lang?.toLowerCase().startsWith('af'))) || voices.find((x) => x.lang?.toLowerCase().startsWith('nl'));
     if (v) u.voice = v;
     synth.speak(u);
-  } catch { toast('Voorlezen lukt nu niet.'); }
+  } catch { toast(t('Voorlezen lukt nu niet.')); }
 }
-const speakBtn = (text, small = false) => `<button class="speak ${small ? 'sm' : ''}" data-speak="${esc(text)}" aria-label="Voorlezen">🔊</button>`;
+const speakBtn = (text, small = false) => `<button class="speak ${small ? 'sm' : ''}" data-speak="${esc(text)}" aria-label="${t('Voorlezen')}">🔊</button>`;
 function bindSpeak(root) { root.querySelectorAll('[data-speak]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); speak(b.dataset.speak); })); }
 const hintHTML = (h) => `<div class="hint">💡 ${esc(h).replace(/\n/g, '<br>')}</div>`;
 
@@ -114,8 +140,23 @@ const MOPPEN = [
   ['Waarom houdt een liniaal nooit op met praten?', 'Hij weet van alles de lengte. 📏'],
   ['Wat zei de procent tegen de taart?', '"Ik neem er 100% van." 🎂'],
 ];
-const mop = () => MOPPEN[Math.floor(Math.random() * MOPPEN.length)];
+const MOPPEN_AF = [
+  ['Wat het die 0 vir die 8 gesê?', 'Mooi belt! 😎'],
+  ['Hoekom was die wiskundeboek hartseer?', 'Hy was vol probleme. 📚'],
+  ['Hoekom het die breuk dokter toe gegaan?', 'Hy het nie heeltemal heel gevoel nie. 🤒'],
+  ['Wat is ’n wiskundige se gunstelingkos?', 'Pi-zza. 🍕'],
+  ['Hoekom het Thabo ’n leer klas toe gevat?', 'Hy wou ’n hoër vlak bereik. 🪜'],
+  ['Wat doen ’n 8 as hy moeg is?', 'Hy gaan lê: ∞ 😴'],
+  ['Hoekom baklei ’n sirkel nooit nie?', 'Hy het nie lus vir hoeke nie. ⭕'],
+  ['Hoekom is ’n reghoek nooit hartseer nie?', 'Hy het vier regte hoeke om teen te leun. 📐'],
+  ['Wat sê die persent vir die koek?', '"Ek vat 100% daarvan." 🎂'],
+  ['Hoekom praat ’n liniaal so baie?', 'Hy weet van alles die lengte. 📏'],
+  ['Watter musiek hou ’n driehoek van?', 'Enigiets met 3 akkoorde. 🎸'],
+  ['Hoekom kon die 7 nie slaap nie?', 'Hy het gewonder hoekom die 8 by hom kuier. 🛏️'],
+];
+const mop = () => { const m = L(MOPPEN, MOPPEN_AF); return m[Math.floor(Math.random() * m.length)]; };
 const SUBLINES = ['Klaar om wat sommen een lesje te leren?', 'Je hersenen hebben zin in een workout. 🧠💪', 'Vandaag wordt een rekenmooie dag.', 'De sommen staan al te trillen van angst. 😱', 'Even je rekenspieren opwarmen?'];
+const SUBLINES_AF = ['Gereed om ’n paar somme ’n les te leer?', 'Jou brein het lus vir ’n oefensessie. 🧠💪', 'Vandag word ’n lekker wiskundedag.', 'Die somme bewe al van vrees. 😱', 'Kom ons maak jou wiskundespiere warm!'];
 
 async function api(path, body) {
   const res = await fetch(path, {
@@ -128,7 +169,7 @@ async function api(path, body) {
   try { data = await res.json(); } catch {}
   if (res.status === 401 && data.error === 'login') { renderLogin(); throw new Error('login'); }
   if (res.status === 401 && data.error === 'kid') { renderWho(); throw new Error('login'); }
-  if (!res.ok) { const e = new Error(data.error || 'Er ging iets mis'); e.status = res.status; e.data = data; throw e; }
+  if (!res.ok) { const e = new Error(data.error || t('Er ging iets mis')); e.status = res.status; e.data = data; throw e; }
   return data;
 }
 
@@ -137,12 +178,12 @@ async function api(path, body) {
 // Overal dezelfde aanpak als in de hints, tussenstappen en bij Max.
 function tipText(cat) {
   const a = STATE?.aanpak?.[cat];
-  return a ? `${a.stappen.join(' ')} Bijvoorbeeld: ${a.voorbeeld}` : '';
+  return a ? `${a.stappen.join(' ')} ${t('Bijvoorbeeld:')} ${a.voorbeeld}` : '';
 }
 function tipHTML(cat) {
   const a = STATE?.aanpak?.[cat];
   if (!a) return '';
-  return `<p class="small muted" style="margin-top:4px">${esc(a.kern)}</p><ol class="steps" style="margin-top:6px">${a.stappen.map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="small" style="margin-top:6px"><b>Voorbeeld:</b> ${esc(a.voorbeeld)}</p>`;
+  return `<p class="small muted" style="margin-top:4px">${esc(a.kern)}</p><ol class="steps" style="margin-top:6px">${a.stappen.map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="small" style="margin-top:6px"><b>${t('Voorbeeld:')}</b> ${esc(a.voorbeeld)}</p>`;
 }
 
 // Groei-mindset: prijs de aanpak en de inzet, niet "slim zijn".
@@ -157,6 +198,18 @@ const PRAISE = {
   dunno: ['Eerlijk gezegd, knap! Dan leren we hem nu.', 'Weet je het niet? Prima, daar zijn we voor. 🙂', 'Goed dat je het zegt. Kijk even mee:'],
 };
 
+const PRAISE_AF = {
+  solo: ['Mooi so!', 'Slim uitgewerk!', 'Ja! Jou metode werk. 🎯', 'Netjies gedoen!', 'Heeltemal reg!', 'Sterk gewerk! 💪',
+    'So vinnig? Is jy stiekem ’n sakrekenaar? 🤖', 'Daai som het geen kans gestaan nie. 🥊', 'Jou brein werk oortyd. Respek! 🧠', 'Boem! Raak. 🎯', 'Professor {naam} het gepraat. 🎓'],
+  guided: ['Saam reggekry! Jy het al die stappe self gedoen. 🤝', 'Mooi so! Stap vir stap werk.', 'Top! So bou jy dit op.', 'Treetjie vir treetjie na bo. 🧗'],
+  retry: ['Kyk net! Eers verkeerd, nou reg. So leer jy! 🦸', 'Comeback! Nou snap jy dit. 💪', 'Wraak geneem op daai som! 😤'],
+  double: ['Heeltemal self én reg — dubbel sente! 🪙🪙', 'Self gedoen, dubbel verdien! 🎯', 'Kaching! Dubbel so ryk. 💰'],
+  wrong: ['Nog nie reg nie — en dis oukei. Hiervan leer jy.', 'Verkeerd is nie erg nie: nou weet jy wat om te oefen.',
+    'Oeps! Daai som was skelm. So werk dit:', 'Jou wiskundebrein was nog besig om op te warm. 🥶 Kyk:', 'Die een het skeefgeloop, die volgende vat ons! 💪'],
+  dunno: ['Eerlik gesê, slim van jou! Dan leer ons dit nou.', 'Weet jy dit nie? Reg so, daarvoor is ons hier. 🙂', 'Goed dat jy dit sê. Kyk saam:'],
+};
+const praise = () => L(PRAISE, PRAISE_AF);
+
 let STATE = null;
 
 // ---------- router ----------
@@ -165,6 +218,7 @@ async function route() {
   const parts = hash.split('/').filter(Boolean);
   $app.classList.remove('full');
   setTab(parts[0] || 'home');
+  if (parts[0] === 'overzicht') setLang(store.get('ov-lang') || 'nl'); else if (STATE?.kid) setLang(STATE.kid.lang);
   try {
     if (!parts.length) return await renderHome();
     if (parts[0] === 'voortgang') return parts[1] ? await renderCategory(parts[1]) : await renderProgress();
@@ -174,7 +228,7 @@ async function route() {
     if (parts[0] === 'overzicht') return await renderOverview();
     location.hash = '#/';
   } catch (e) {
-    if (e.message !== 'login') { $app.innerHTML = `<div class="card"><h2>Oeps</h2><p class="muted">${esc(e.message)}</p><br><button class="btn" onclick="location.reload()">Opnieuw</button></div>`; }
+    if (e.message !== 'login') { $app.innerHTML = `<div class="card"><h2>${t('Oeps')}</h2><p class="muted">${esc(e.message)}</p><br><button class="btn" onclick="location.reload()">${t('Opnieuw')}</button></div>`; }
   }
 }
 function setTab(name) {
@@ -187,15 +241,15 @@ window.addEventListener('hashchange', route);
 async function renderOverview() {
   let data;
   try { data = await api('/api/parent/all'); } catch (e) {
-    if (e.status === 401) return pinScreen('Pincode voor ouder of leerkracht', async (pin) => { await api('/api/parent/login', { pin }); renderOverview(); });
+    if (e.status === 401) return pinScreen(t('Pincode voor ouder of leerkracht'), async (pin) => { await api('/api/parent/login', { pin }); renderOverview(); });
     throw e;
   }
-  const ago = (t) => {
-    if (!t) return 'nog nooit';
-    const d = Math.floor((Date.now() - new Date(t)) / 864e5);
-    return d <= 0 ? 'vandaag' : d === 1 ? 'gisteren' : `${d} dagen geleden`;
+  const ago = (tm) => {
+    if (!tm) return t('nog nooit');
+    const d = Math.floor((Date.now() - new Date(tm)) / 864e5);
+    return d <= 0 ? t('vandaag') : d === 1 ? t('gisteren') : t('{n} dagen geleden', { n: d });
   };
-  const LV = ['g5', 'g6', 'g7', 'g8'];
+  const LVof = (k) => (k.country === 'ZA' ? ['g4', 'g5', 'g6', 'g7'] : ['g5', 'g6', 'g7', 'g8']);
   const TR = { vooruit: '↗', achteruit: '↘', gelijk: '→' };
   const ST = { nieuw: '🆕', 'mee bezig': '🔧', 'gaat beter': '📈', opgelost: '✅' };
   const kidCard = (k) => {
@@ -205,37 +259,38 @@ async function renderOverview() {
     const weakest = [...k.stats].filter((s) => s.n).sort((a, b) => a.score - b.score).slice(0, 3);
     return `<div class="card stack ov-kid">
       <div class="row between"><div class="row"><span class="big-emoji" style="font-size:34px">${esc(k.avatar)}</span><div><h2 style="margin:0">${esc(k.name)}</h2>
-        <div class="small muted">laatst geoefend: ${ago(k.lastActive)}${k.intakeDone ? '' : ' · starttoets nog niet af'}</div></div></div>
-        <button class="btn ghost sm" data-open="${k.id}">Details ›</button></div>
+        <div class="small muted">${t('laatst geoefend: {d}', { d: ago(k.lastActive) })}${k.intakeDone ? '' : ` · ${t('starttoets nog niet af')}`}${k.lang === 'af' ? ' · 🇿🇦 Afrikaans' : ''}</div></div></div>
+        <button class="btn ghost sm" data-open="${k.id}">${t('Details ›')}</button></div>
       <div class="row" style="flex-wrap:wrap;gap:6px">
-        <span class="chip">📅 deze week: ${k.week.n} sommen${k.week.pct != null ? ` · ${k.week.pct}% goed` : ''}</span>
-        <span class="chip">✅ ${k.sessions7} sessies</span><span class="chip">🔥 ${k.streak} ${k.streak === 1 ? 'dag' : 'dagen'}</span>
-        <span class="chip coin">🪙 ${euro(k.wallet.balance)}</span>${k.reviewsOpen ? `<span class="chip">🔁 ${k.reviewsOpen} te herhalen</span>` : ''}
+        <span class="chip">📅 ${t('deze week: {n} sommen', { n: k.week.n })}${k.week.pct != null ? ` · ${t('{p}% goed', { p: k.week.pct })}` : ''}</span>
+        <span class="chip">✅ ${t('{n} sessies', { n: k.sessions7 })}</span><span class="chip">🔥 ${k.streak} ${k.streak === 1 ? t('dag') : t('dagen')}</span>
+        <span class="chip coin">🪙 ${(k.country === 'ZA' ? 'R' : '€ ') + (k.wallet.balance / 100).toFixed(2).replace('.', ',')}</span>${k.reviewsOpen ? `<span class="chip">🔁 ${t('{n} te herhalen', { n: k.reviewsOpen })}</span>` : ''}
       </div>
-      ${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : `<p class="small muted">${data.ai ? 'Nog geen profiel: komt na de eerste sommen.' : 'AI staat uit: geen profiel.'}</p>`}
-      ${open.length ? `<div><b>Werkt aan</b><ul class="ov-list">${open.slice(0, 5).map((z) => `<li><span title="${esc(z.status || '')}">${ST[z.status] || '•'}</span> <b>${esc(z.onderdeel)}</b>: ${esc(z.punt)}${z.bewijs ? `<div class="small muted">${esc(z.bewijs)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
-      ${p.sterk?.length ? `<p class="small"><b>💪 Sterk:</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
-      ${fixed.length ? `<p class="small"><b>✅ Opgelost:</b> ${fixed.map((z) => esc(z.punt)).join(' · ')}</p>` : ''}
-      ${(k.signals?.signals || []).some((s) => s.status === 'let op') ? `<div><b>🔧 Hoe leert ${esc(k.name)}</b><ul class="ov-list">${k.signals.signals.filter((s) => s.status === 'let op').map((s) => `<li>⚠️ <b>${esc(s.title)}</b><div class="small muted">${esc(s.evidence)}</div></li>`).join('')}</ul></div>` : ''}
-      <details><summary class="small" style="font-weight:800;cursor:pointer">Hoe leert ${esc(k.name)}: alle signalen</summary>${signalsHTML(k.signals, data.teacher)}</details>
-      <details><summary class="small" style="font-weight:800;cursor:pointer">Niveau per onderdeel</summary>
+      ${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : `<p class="small muted">${data.ai ? t('Nog geen profiel: komt na de eerste sommen.') : t('AI staat uit: geen profiel.')}</p>`}
+      ${open.length ? `<div><b>${t('Werkt aan')}</b><ul class="ov-list">${open.slice(0, 5).map((z) => `<li><span title="${esc(z.status || '')}">${ST[z.status] || '•'}</span> <b>${esc(z.onderdeel)}</b>: ${esc(z.punt)}${z.bewijs ? `<div class="small muted">${esc(z.bewijs)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
+      ${p.sterk?.length ? `<p class="small"><b>💪 ${t('Sterk:')}</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
+      ${fixed.length ? `<p class="small"><b>✅ ${t('Opgelost:')}</b> ${fixed.map((z) => esc(z.punt)).join(' · ')}</p>` : ''}
+      ${(k.signals?.signals || []).some((s) => s.status === 'let op') ? `<div><b>🔧 ${t('Hoe leert {n}', { n: esc(k.name) })}</b><ul class="ov-list">${k.signals.signals.filter((s) => s.status === 'let op').map((s) => `<li>⚠️ <b>${esc(s.title)}</b><div class="small muted">${esc(s.evidence)}</div></li>`).join('')}</ul></div>` : ''}
+      <details><summary class="small" style="font-weight:800;cursor:pointer">${t('Hoe leert {n}: alle signalen', { n: esc(k.name) })}</summary>${signalsHTML(k.signals, k.teacher || data.teacher)}</details>
+      <details><summary class="small" style="font-weight:800;cursor:pointer">${t('Niveau per onderdeel')}</summary>
         <table class="list ov-levels">${k.stats.map((s) => `<tr><td>${esc(data.cats.find((c) => c.id === s.cat)?.icon || '')} ${esc(s.label)}</td>
-          <td><span class="lv lv${s.levelIdx}">${LV[s.levelIdx]}</span></td><td class="small">${s.n ? `${s.pct14 ?? s.pct}%` : '–'}</td><td class="small" title="${esc(s.trend)}">${TR[s.trend] || ''}</td></tr>`).join('')}</table>
-        <p class="small muted">g5–g8 = op welk groepsniveau er nu geoefend wordt · % goed (laatste 14 dagen) · pijl = trend</p></details>
-      ${(k.misconceptions.length || k.scratchNotes.length || k.memory.length) ? `<details><summary class="small" style="font-weight:800;cursor:pointer">Denkfouten, kladblok en wat ${esc(data.teacher)} onthoudt</summary>
-        ${k.misconceptions.length ? `<p class="small" style="margin-top:6px"><b>Denkfouten (30 dagen):</b> ${k.misconceptions.map((m) => `${esc(m.misconception)} (${m.n}×)`).join(' · ')}</p>` : ''}
+          <td><span class="lv lv${s.levelIdx}">${LVof(k)[s.levelIdx]}</span></td><td class="small">${s.n ? `${s.pct14 ?? s.pct}%` : '–'}</td><td class="small" title="${esc(s.trend)}">${TR[s.trend] || ''}</td></tr>`).join('')}</table>
+        <p class="small muted">${k.country === 'ZA' ? t('g4–g7 = op welk graadniveau er nu geoefend wordt · % goed (laatste 14 dagen) · pijl = trend') : t('g5–g8 = op welk groepsniveau er nu geoefend wordt · % goed (laatste 14 dagen) · pijl = trend')}</p></details>
+      ${(k.misconceptions.length || k.scratchNotes.length || k.memory.length) ? `<details><summary class="small" style="font-weight:800;cursor:pointer">${t('Denkfouten, kladblok en wat {m} onthoudt', { m: esc(k.teacher || data.teacher) })}</summary>
+        ${k.misconceptions.length ? `<p class="small" style="margin-top:6px"><b>${t('Denkfouten (30 dagen):')}</b> ${k.misconceptions.map((m) => `${esc(m.misconception)} (${m.n}×)`).join(' · ')}</p>` : ''}
         ${k.scratchNotes.map((n) => `<p class="small" style="margin-top:6px">✏️ ${esc(n.text)} → <b>${esc(n.given)}</b> ${n.correct ? '✅' : '❌'}<br><span class="muted">${esc(n.scratch_note)}</span></p>`).join('')}
         ${k.memory.length ? `<ul class="ov-list small">${k.memory.map((m) => `<li>${esc(m.n)} <span class="muted">(${esc(m.d)})</span></li>`).join('')}</ul>` : ''}</details>` : ''}
-      ${!open.length && weakest.length && k.intakeDone ? `<p class="small"><b>Zwakste onderdelen nu:</b> ${weakest.map((s) => esc(s.label)).join(', ')}</p>` : ''}
+      ${!open.length && weakest.length && k.intakeDone ? `<p class="small"><b>${t('Zwakste onderdelen nu:')}</b> ${weakest.map((s) => esc(s.label)).join(', ')}</p>` : ''}
     </div>`;
   };
   $app.innerHTML = `<div class="stack">
-    <div class="row between"><a href="#/" class="small">‹ Terug</a><button class="btn ghost sm" data-logout>Uitloggen</button></div>
-    <h1>👨‍🏫 Overzicht</h1>
-    <p class="muted small">Alle kinderen op één plek. Het profiel en de zwakke punten houdt ${esc(data.teacher)} zelf bij (na elke sessie en elke 10 sommen). Namen gaan nooit naar de AI: die ziet alleen een schuilnaam.</p>
-    ${data.kids.length ? data.kids.map(kidCard).join('') : '<div class="card"><p>Nog geen kinderen.</p></div>'}
+    <div class="row between"><a href="#/" class="small">‹ ${t('Terug')}</a><div class="row" style="gap:6px"><div class="seg" style="gap:4px">${[['nl', 'NL'], ['af', 'AF']].map(([l, n]) => `<button type="button" class="${LANG === l ? 'sel' : ''}" data-ovlang="${l}" style="min-width:0;padding:6px 10px">${n}</button>`).join('')}</div><button class="btn ghost sm" data-logout>${t('Uitloggen')}</button></div></div>
+    <h1>👨‍🏫 ${t('Overzicht')}</h1>
+    <p class="muted small">${t('Alle kinderen op één plek. Het profiel en de zwakke punten houdt de AI-leraar zelf bij (na elke sessie en elke 10 sommen). Namen gaan nooit naar de AI: die ziet alleen een schuilnaam.')}</p>
+    ${data.kids.length ? data.kids.map(kidCard).join('') : `<div class="card"><p>${t('Nog geen kinderen.')}</p></div>`}
   </div>`;
-  $app.querySelectorAll('[data-open]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.open) }); location.hash = '#/ouder'; }));
+  $app.querySelectorAll('[data-open]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.open) }); STATE = null; location.hash = '#/ouder'; }));
+  $app.querySelectorAll('[data-ovlang]').forEach((b) => (b.onclick = () => { store.set('ov-lang', b.dataset.ovlang); setLang(b.dataset.ovlang); renderOverview(); }));
   $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
 }
 
@@ -247,8 +302,11 @@ const MODEL = {
   positieschema(arg) {
     const v = String(arg).trim().replace(/\s/g, '');
     const [heel, dec = ''] = v.split(',');
-    const H = ['E', 'T', 'H', 'D', 'TD', 'HD', 'M'], HN = { E: 'eenheden', T: 'tientallen', H: 'honderdtallen', D: 'duizendtallen', TD: 'tienduizendtallen', HD: 'honderdduizendtallen', M: 'miljoenen' };
-    const D = ['t', 'h', 'd'], DN = { t: 'tienden', h: 'honderdsten', d: 'duizendsten' };
+    // Nederland: E T H D …, t h d. Suid-Afrika: E T H D …, t h d (ene, tiene, honderde, duisende; tiendes, honderdstes)
+    const H = ['E', 'T', 'H', 'D', 'TD', 'HD', 'M'];
+    const HN = L({ E: 'eenheden', T: 'tientallen', H: 'honderdtallen', D: 'duizendtallen', TD: 'tienduizendtallen', HD: 'honderdduizendtallen', M: 'miljoenen' },
+      { E: 'ene', T: 'tiene', H: 'honderde', D: 'duisende', TD: 'tienduisende', HD: 'honderdduisende', M: 'miljoene' });
+    const D = ['t', 'h', 'd'], DN = L({ t: 'tienden', h: 'honderdsten', d: 'duizendsten' }, { t: 'tiendes', h: 'honderdstes', d: 'duisendstes' });
     const hc = heel.split('').reverse().map((c, i) => [H[i], c]).reverse(), dc = dec.split('').map((c, i) => [D[i], c]);
     const cols = [...hc, ...(dc.length ? [[',', ',']] : []), ...dc];
     return `<table class="m-pos"><tr>${cols.map(([k]) => `<th title="${HN[k] || DN[k] || ''}">${k}</th>`).join('')}</tr><tr>${cols.map(([k, c]) => `<td class="${k === ',' ? 'komma' : ''}">${c}</td>`).join('')}</tr></table>
@@ -309,7 +367,7 @@ const MODEL = {
     const rows = Math.min(12, +m[1]), cols = Math.min(16, +m[2]), s = Math.min(26, 300 / cols);
     let cells = '';
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) cells += `<rect x="${2 + x * s}" y="${2 + y * s}" width="${s}" height="${s}" fill="var(--primary-soft)" stroke="var(--primary)" stroke-width="1.5"/>`;
-    return `<svg viewBox="0 0 ${cols * s + 4} ${rows * s + 4}" class="m-svg" style="max-width:${cols * s + 4}px">${cells}</svg><div class="m-leg">${rows} rijen van ${cols} hokjes</div>`;
+    return `<svg viewBox="0 0 ${cols * s + 4} ${rows * s + 4}" class="m-svg" style="max-width:${cols * s + 4}px">${cells}</svg><div class="m-leg">${t('{r} rijen van {c} hokjes', { r: rows, c: cols })}</div>`;
   },
   rechthoek(arg, tri = false) {
     const [dims, unit = ''] = String(arg).split('|').map((x) => x.trim());
@@ -354,32 +412,53 @@ function withModels(html) {
 async function renderWho() {
   $tabs.hidden = true;
   STATE = null;
+  setLang('nl');
   const { kids, avatars } = await api('/api/kids');
   let avatar = avatars[kids.length % avatars.length];
+  // nog geen taal bekend: dit scherm is tweetalig (Nederlands · Afrikaans)
+  const prof = { country: 'NL', lang: 'nl', grade: '', age: '' };
+  const FLAG = { NL: '🇳🇱', ZA: '🇿🇦' };
+  const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7] : [3, 4, 5, 6, 7, 8]);
+  const af = () => prof.lang === 'af';
   const draw = (err = '', showNew = !kids.length) => {
     $app.innerHTML = `<div class="stack" style="margin-top:6vh">
-      <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij?</h1>
-        <p class="muted">${kids.length ? 'Tik op je naam.' : 'Welkom! Hoe heet je?'}</p></div>
-      ${kids.length ? `<div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b></button>`).join('')}</div>` : ''}
+      <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij? <span class="muted" style="font-size:.7em">· Wie is jy?</span></h1>
+        <p class="muted">${kids.length ? 'Tik op je naam · Tik op jou naam' : 'Welkom! · Welkom!'}</p></div>
+      ${kids.length ? `<div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b>${k.country === 'ZA' ? '<small>🇿🇦</small>' : ''}</button>`).join('')}</div>` : ''}
       ${showNew ? `<form class="card stack" data-new>
-          <h3>${kids.length ? 'Nieuw profiel' : 'Maak je profiel'}</h3>
-          <label class="field"><span style="font-weight:800">Je naam</span><input name="name" maxlength="30" placeholder="bijv. Christo" autocomplete="off" required></label>
-          <div><div style="font-weight:800;margin-bottom:6px">Kies een plaatje</div>
+          <h3>${af() ? 'Maak jou profiel' : 'Maak je profiel'}</h3>
+          <div><div style="font-weight:800;margin-bottom:6px">Land</div>
+            <div class="seg">${['NL', 'ZA'].map((c) => `<button type="button" class="${prof.country === c ? 'sel' : ''}" data-country="${c}">${FLAG[c]} ${c === 'NL' ? 'Nederland' : 'Suid-Afrika'}</button>`).join('')}</div></div>
+          <div><div style="font-weight:800;margin-bottom:6px">${af() ? 'Taal' : 'Taal'}</div>
+            <div class="seg">${[['nl', 'Nederlands'], ['af', 'Afrikaans']].map(([l, n]) => `<button type="button" class="${prof.lang === l ? 'sel' : ''}" data-lang="${l}">${n}</button>`).join('')}</div></div>
+          <label class="field"><span style="font-weight:800">${af() ? 'Jou naam' : 'Je naam'}</span><input name="name" maxlength="30" placeholder="${af() ? 'bv. Christo' : 'bijv. Christo'}" autocomplete="off" required></label>
+          <div class="row" style="gap:10px;align-items:flex-end">
+            <label class="field" style="flex:1"><span style="font-weight:800">${prof.country === 'ZA' ? 'Graad' : 'Groep'}</span>
+              <select name="grade" required><option value="">${af() ? 'Kies…' : 'Kies…'}</option>${gradeOpts().map((g) => `<option value="${g}" ${String(prof.grade) === String(g) ? 'selected' : ''}>${prof.country === 'ZA' ? 'Graad' : 'Groep'} ${g}</option>`).join('')}</select></label>
+            <label class="field" style="flex:1"><span style="font-weight:800">${af() ? 'Ouderdom' : 'Leeftijd'}</span>
+              <select name="age" required><option value="">${af() ? 'Kies…' : 'Kies…'}</option>${[7, 8, 9, 10, 11, 12, 13, 14, 15].map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} ${af() ? 'jaar' : 'jaar'}</option>`).join('')}</select></label>
+          </div>
+          <div><div style="font-weight:800;margin-bottom:6px">${af() ? 'Kies ’n prentjie' : 'Kies een plaatje'}</div>
           <div class="avatar-pick">${avatars.map((a) => `<button type="button" class="${a === avatar ? 'sel' : ''}" data-av="${a}">${a}</button>`).join('')}</div></div>
           <p class="small" style="color:var(--bad);min-height:18px">${esc(err)}</p>
-          <button class="btn block">Start! 🚀</button>
-        </form>` : '<button class="btn ghost block" data-shownew>➕ Ik ben nieuw</button>'}
-      <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? Bekijk het overzicht</a>
+          <button class="btn block">${af() ? 'Begin! 🚀' : 'Start! 🚀'}</button>
+        </form>` : '<button class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>'}
+      <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a>
     </div>`;
     $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
     $app.querySelector('[data-shownew]')?.addEventListener('click', () => draw('', true));
+    // land/taal kiezen tekent het formulier opnieuw (graad/groep en taal van de labels passen zich aan); naam blijft staan
+    const keep = () => { const f = $app.querySelector('[data-new]'); if (f) { prof.name = f.name.value; prof.grade = f.grade.value; prof.age = f.age.value; } };
+    const redraw = () => { draw('', true); const f = $app.querySelector('[data-new]'); if (f && prof.name) f.name.value = prof.name; };
+    $app.querySelectorAll('[data-country]').forEach((b) => (b.onclick = () => { keep(); prof.country = b.dataset.country; prof.lang = prof.country === 'ZA' ? 'af' : 'nl'; if (!gradeOpts().includes(Number(prof.grade))) prof.grade = ''; redraw(); }));
+    $app.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => { keep(); prof.lang = b.dataset.lang; redraw(); }));
     $app.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { avatar = b.dataset.av; $app.querySelectorAll('[data-av]').forEach((x) => x.classList.toggle('sel', x === b)); }));
     const form = $app.querySelector('[data-new]');
     if (form) {
       form.querySelector('input').focus();
       form.onsubmit = async (e) => {
         e.preventDefault();
-        try { await api('/api/kids', { name: form.name.value, avatar }); location.hash = '#/'; route(); }
+        try { await api('/api/kids', { name: form.name.value, avatar, country: prof.country, lang: prof.lang, grade: form.grade.value, age: form.age.value }); location.hash = '#/'; route(); }
         catch (err) { draw(err.message, true); }
       };
     }
@@ -395,7 +474,7 @@ async function switchKid() {
 // ---------- login (alleen als APP_PIN aan staat) ----------
 function renderLogin() {
   $tabs.hidden = true;
-  pinScreen('Hoi! Wat is je pincode?', async (pin) => { await api('/api/login', { pin }); route(); });
+  pinScreen(t('Hoi! Wat is je pincode?'), async (pin) => { await api('/api/login', { pin }); route(); });
 }
 function pinScreen(title, onDone) {
   let pin = '';
@@ -423,51 +502,51 @@ function pinScreen(title, onDone) {
 // HOME
 // =====================================================================
 async function renderHome() {
-  STATE = await api('/api/state');
+  await loadState();
   const s = STATE;
   const d = s.today.daily;
   let main = '';
   if (!s.intakeDone) {
     main = `<div class="card hero stack">
       <div class="big-emoji">🚀</div>
-      <div><div class="task-title">Starttoets</div>
-      <p>${s.intakeActive ? 'Je bent al begonnen. Ga verder waar je was!' : `Eerst kijken wat je al kunt: ${s.points.intakeCount} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een groep lager dan jouw groep. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.`}</p></div>
-      <div class="row"><span class="chip coin">🪙 tot ${s.points.intake} cent</span></div>
-      <button class="btn light block" data-start="intake">${s.intakeActive ? 'Verder met de starttoets' : 'Start de starttoets'}</button>
-      <p class="small muted">Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.</p></div>`;
+      <div><div class="task-title">${t('Starttoets')}</div>
+      <p>${s.intakeActive ? t('Je bent al begonnen. Ga verder waar je was!') : t(s.gradeWord === 'graad' ? 'Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een graad lager dan jouw graad. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.' : 'Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). We beginnen een groep lager dan jouw groep. Daarna leert de app je steeds beter kennen. Je kunt tussendoor stoppen.', { n: s.points.intakeCount })}</p></div>
+      <div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
+      <button class="btn light block" data-start="intake">${s.intakeActive ? t('Verder met de starttoets') : t('Start de starttoets')}</button>
+      <p class="small muted">${t('Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.')}</p></div>`;
   } else if (!s.today.schoolDay) {
     main = `<div class="card hero stack"><div class="big-emoji">🌴</div>
-      <div><div class="task-title">Weekend!</div><p>Geen dagtaak vandaag. Maandag weer ${s.points.dailyCount} sommen voor ${s.points.daily} cent.</p></div>
+      <div><div class="task-title">${t('Weekend!')}</div><p>${t('Geen dagtaak vandaag. Maandag weer {n} sommen voor {p} {c}.', { n: s.points.dailyCount, p: s.points.daily, c: CENT() })}</p></div>
       ${aheadBtn(s)}
-      <button class="btn light block" data-start="practice">Toch even oefenen</button></div>`;
+      <button class="btn light block" data-start="practice">${t('Toch even oefenen')}</button></div>`;
   } else if (!d || d.status === 'active') {
     main = `<div class="card hero stack"><div class="big-emoji">✏️</div>
-      <div><div class="task-title">Dagtaak</div><p>${d ? `Je hebt er al ${d.answered} van de ${d.total} gedaan. Ga verder!` : `${s.points.dailyCount} sommen, vooral van onderdelen waar je nog beter in kunt worden.`}</p></div>
-      <div class="row"><span class="chip coin">🪙 tot ${s.points.daily} cent</span><span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± 20 min</span></div>
+      <div><div class="task-title">${t('Dagtaak')}</div><p>${d ? t('Je hebt er al {a} van de {n} gedaan. Ga verder!', { a: d.answered, n: d.total }) : t('{n} sommen, vooral van onderdelen waar je nog beter in kunt worden.', { n: s.points.dailyCount })}</p></div>
+      <div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.daily, c: CENT() })}</span><span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± 20 min</span></div>
       ${d ? `<div class="progress light"><i style="width:${(d.answered / d.total) * 100}%"></i></div>` : ''}
-      <button class="btn light block" data-start="daily">${d ? 'Verder' : 'Start dagtaak'}</button></div>`;
+      <button class="btn light block" data-start="daily">${d ? t('Verder') : t('Start dagtaak')}</button></div>`;
   } else {
     main = `<div class="card hero stack"><div class="big-emoji">🎉</div>
-      <div><div class="task-title">Dagtaak klaar!</div><p>${d.correct} van de ${d.total} goed — je verdiende <b>${d.points} cent</b>.</p></div>
+      <div><div class="task-title">${t('Dagtaak klaar!')}</div><p>${t('{a} van de {n} goed — je verdiende <b>{p} {c}</b>.', { a: d.correct, n: d.total, p: d.points, c: CENT() })}</p></div>
       ${aheadBtn(s)}
-      <button class="btn ${s.ahead && s.ahead.status !== 'done' ? 'ghost-light' : 'light'} block" data-start="practice">Extra oefenen (zonder centen)</button></div>`;
+      <button class="btn ${s.ahead && s.ahead.status !== 'done' ? 'ghost-light' : 'light'} block" data-start="practice">${t('Extra oefenen (zonder centen)')}</button></div>`;
   }
 
   const stuck = s.intakeDone ? s.skills.filter((x) => x.struggling) : [];
   const coach = stuck.length ? `<div class="card stack"><div class="row"><span class="big-emoji" style="font-size:32px">🧑‍🏫</span>
-      <div><h3>Even opfrissen${s.ai ? ` met ${esc(s.teacher)}` : ''}</h3><p class="small muted">${s.ai ? 'Een korte les: uitleg, een voorbeeld en een paar vragen. Daarna oefenen.' : 'Hier gaan we extra mee aan de slag. Lees de uitleg en oefen dan.'}</p></div></div>
-      ${stuck.slice(0, 3).map((x) => `<button class="btn ghost block" data-coach="${x.cat}">${x.icon} ${s.ai ? 'Les: ' : ''}${esc(x.label)}</button>`).join('')}</div>` : '';
+      <div><h3>${s.ai ? t('Even opfrissen met {m}', { m: esc(s.teacher) }) : t('Even opfrissen')}</h3><p class="small muted">${s.ai ? t('Een korte les: uitleg, een voorbeeld en een paar vragen. Daarna oefenen.') : t('Hier gaan we extra mee aan de slag. Lees de uitleg en oefen dan.')}</p></div></div>
+      ${stuck.slice(0, 3).map((x) => `<button class="btn ghost block" data-coach="${x.cat}">${x.icon} ${s.ai ? t('Les: ') : ''}${esc(x.label)}</button>`).join('')}</div>` : '';
 
   const earned = s.badges.filter((b) => b.earned);
-  const badgesCard = earned.length ? `<a href="#/voortgang" class="card row between" style="text-decoration:none;color:inherit"><div><div class="small muted">Badges</div><div style="font-size:26px;letter-spacing:2px">${earned.slice(-8).map((b) => b.icon).join('')}</div></div><span class="muted">${earned.length}/${s.badges.length} ›</span></a>` : '';
+  const badgesCard = earned.length ? `<a href="#/voortgang" class="card row between" style="text-decoration:none;color:inherit"><div><div class="small muted">${t('Badges')}</div><div style="font-size:26px;letter-spacing:2px">${earned.slice(-8).map((b) => b.icon).join('')}</div></div><span class="muted">${earned.length}/${s.badges.length} ›</span></a>` : '';
 
-  const top = s.intakeDone ? `<div class="card"><div class="row between"><h3>Sterk 💪</h3><a href="#/voortgang" class="small">Alles</a></div>
+  const top = s.intakeDone ? `<div class="card"><div class="row between"><h3>${t('Sterk 💪')}</h3><a href="#/voortgang" class="small">${t('Alles')}</a></div>
       ${s.skills.slice(0, 3).map(mini).join('')}
-      <h3 style="margin-top:12px">Hier word je beter in 🌱</h3>${s.skills.slice(-3).reverse().map(mini).join('')}</div>` : '';
+      <h3 style="margin-top:12px">${t('Hier word je beter in 🌱')}</h3>${s.skills.slice(-3).reverse().map(mini).join('')}</div>` : '';
 
   $app.innerHTML = `<div class="stack">
-    <div class="hello"><div><h1>Hoi ${esc(s.name)} ${esc(s.kid?.avatar || '👋')}</h1><p class="muted small" style="margin-top:2px">${pick(SUBLINES)}</p></div>
-      <div class="row" style="gap:6px">${s.streak ? `<div class="streak" title="Schooldagen op rij">🔥 ${s.streak}</div>` : ''}<button class="switch-kid" data-switch title="Ander kind">👤</button></div></div>
+    <div class="hello"><div><h1>${t('Hoi')} ${esc(s.name)} ${esc(s.kid?.avatar || '👋')}</h1><p class="muted small" style="margin-top:2px">${pick(L(SUBLINES, SUBLINES_AF))}</p></div>
+      <div class="row" style="gap:6px">${s.streak ? `<div class="streak" title="${t('Schooldagen op rij')}">🔥 ${s.streak}</div>` : ''}<button class="switch-kid" data-switch title="${t('Ander kind')}">👤</button></div></div>
     ${main}
     ${piggyCard(s)}
     ${s.intakeDone ? weekCard(s) : ''}
@@ -475,7 +554,7 @@ async function renderHome() {
     ${mopCard()}
   </div>`;
   bindStart();
-  $app.querySelector('[data-switch]').onclick = async () => { if (await ask(`<div class="big-emoji">👤</div><h2>Ben jij niet ${esc(s.name)}?</h2><p class="muted">Dan kies je je eigen naam.</p>`, 'Ander kind kiezen', 'Ik ben het wel')) switchKid(); };
+  $app.querySelector('[data-switch]').onclick = async () => { if (await ask(`<div class="big-emoji">👤</div><h2>${t('Ben jij niet {n}?', { n: esc(s.name) })}</h2><p class="muted">${t('Dan kies je je eigen naam.')}</p>`, t('Ander kind kiezen'), t('Ik ben het wel'))) switchKid(); };
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
@@ -483,27 +562,27 @@ const DAG = ['ma', 'di', 'wo', 'do', 'vr'];
 function aheadBtn(s) {
   const a = s.ahead;
   if (!a) return '';
-  if (a.status === 'done') return `<p class="small">✅ De dagtaak van ${esc(a.name)} is ook al klaar. Lekker bezig!</p>`;
-  if (a.status === 'active') return `<button class="btn light block" data-ahead>⏩ Verder met ${esc(a.name)} (${a.answered}/${s.points.dailyCount})</button>`;
-  return `<button class="btn light block" data-ahead>⏩ Werk vooruit: doe ${esc(a.name)} alvast</button>`;
+  if (a.status === 'done') return `<p class="small">✅ ${t('De dagtaak van {d} is ook al klaar. Lekker bezig!', { d: esc(a.name) })}</p>`;
+  if (a.status === 'active') return `<button class="btn light block" data-ahead>⏩ ${t('Verder met {d}', { d: esc(a.name) })} (${a.answered}/${s.points.dailyCount})</button>`;
+  return `<button class="btn light block" data-ahead>⏩ ${t('Werk vooruit: doe {d} alvast', { d: esc(a.name) })}</button>`;
 }
 function mopCard() {
   const [vraag, clou] = mop();
-  return `<button class="card mop" data-mop style="text-align:left;width:100%"><div class="small muted">😂 Rekenmop van de dag (tik voor het antwoord)</div><div style="font-weight:800;margin-top:4px">${esc(vraag)}</div><div class="punch" hidden>${esc(clou)}</div></button>`;
+  return `<button class="card mop" data-mop style="text-align:left;width:100%"><div class="small muted">😂 ${t('Rekenmop van de dag (tik voor het antwoord)')}</div><div style="font-weight:800;margin-top:4px">${esc(vraag)}</div><div class="punch" hidden>${esc(clou)}</div></button>`;
 }
 function piggyCard(s) {
   const g = s.goal;
-  if (!g) return `<a href="#/spaarpot" class="card coin row between" style="text-decoration:none;color:inherit"><div class="row"><span class="big-emoji" style="font-size:34px">🐷</span><div><div class="small muted">In je spaarpot</div><div class="money" style="font-size:24px">${euro(s.wallet.balance)}</div></div></div><span class="small" style="font-weight:800;color:var(--primary)">🎯 Kies een doel ›</span></a>`;
+  if (!g) return `<a href="#/spaarpot" class="card coin row between" style="text-decoration:none;color:inherit"><div class="row"><span class="big-emoji" style="font-size:34px">🐷</span><div><div class="small muted">${t('In je spaarpot')}</div><div class="money" style="font-size:24px">${euro(s.wallet.balance)}</div></div></div><span class="small" style="font-weight:800;color:var(--primary)">🎯 ${t('Kies een doel ›')}</span></a>`;
   const pct = Math.min(100, (s.wallet.balance / g.cents) * 100);
   return `<a href="#/spaarpot" class="card coin stack" style="text-decoration:none;color:inherit;gap:8px">
-    <div class="row between"><div class="row"><span class="big-emoji" style="font-size:30px">${g.reached ? '🎉' : '🎯'}</span><div><div class="small muted">Ik spaar voor</div><b style="font-size:18px">${esc(g.name)}</b></div></div><div style="text-align:right"><div class="money" style="font-size:20px">${euro(s.wallet.balance)}</div><div class="small muted">van ${euro(g.cents)}</div></div></div>
+    <div class="row between"><div class="row"><span class="big-emoji" style="font-size:30px">${g.reached ? '🎉' : '🎯'}</span><div><div class="small muted">${t('Ik spaar voor')}</div><b style="font-size:18px">${esc(g.name)}</b></div></div><div style="text-align:right"><div class="money" style="font-size:20px">${euro(s.wallet.balance)}</div><div class="small muted">${t('van {b}', { b: euro(g.cents) })}</div></div></div>
     <div class="goal-bar"><i style="width:${pct}%"></i></div>
-    <div class="small" style="font-weight:800">${g.reached ? 'Doel gehaald! Laat het aan papa of mama zien. 🥳' : `Nog ${euro(g.left)} — dat is ongeveer ${Math.ceil(g.left / 40)} dagtaken.`}</div></a>`;
+    <div class="small" style="font-weight:800">${g.reached ? t('Doel gehaald! Laat het aan papa of mama zien. 🥳') : t('Nog {b} — dat is ongeveer {n} dagtaken.', { b: euro(g.left), n: Math.ceil(g.left / 40) })}</div></a>`;
 }
 function weekCard(s) {
   const w = s.week;
   if (!w || !w.bonus) return '';
-  return `<div class="card row between"><div><div style="font-weight:900">📅 Weekbonus +${w.bonus} cent</div><div class="small muted">${w.given ? 'Gehaald deze week! 🎉' : 'Maak alle 5 dagtaken van deze week af.'}</div></div>
+  return `<div class="card row between"><div><div style="font-weight:900">📅 ${t('Weekbonus +{n} {c}', { n: w.bonus, c: CENT() })}</div><div class="small muted">${w.given ? t('Gehaald deze week! 🎉') : t('Maak alle 5 dagtaken van deze week af.')}</div></div>
     <div class="week">${w.days.map((d, i) => `<span class="${d.done ? 'on' : ''} ${d.today ? 'today' : ''}" title="${d.day}">${d.done ? '✓' : DAG[i]}</span>`).join('')}</div></div>`;
 }
 const sc = (score) => (score >= 85 ? 3 : score >= 60 ? 2 : score >= 35 ? 1 : 0);
@@ -516,10 +595,11 @@ function bindStart() {
 }
 function askGroep() {
   return new Promise((resolve) => {
-    sheet(`<div style="text-align:center"><div class="big-emoji">🎒</div><h2 style="margin:8px 0">In welke groep zit je?</h2>
-      <p class="muted">We beginnen een groepje lager, lekker rustig opstarten. Gaat het goed? Dan gaan de sommen vanzelf omhoog. 🚀</p></div>
-      <div class="groep-pick">${[4, 5, 6, 7, 8].map((g) => `<button class="choice" data-g="${g}">${g}</button>`).join('')}</div>
-      <button class="btn ghost block" data-close>Toch niet</button>`, (bg, close) => {
+    const za = STATE?.gradeWord === 'graad';
+    sheet(`<div style="text-align:center"><div class="big-emoji">🎒</div><h2 style="margin:8px 0">${za ? t('In welke graad zit je?') : t('In welke groep zit je?')}</h2>
+      <p class="muted">${t('We beginnen een groepje lager, lekker rustig opstarten. Gaat het goed? Dan gaan de sommen vanzelf omhoog. 🚀')}</p></div>
+      <div class="groep-pick">${(za ? [3, 4, 5, 6, 7] : [4, 5, 6, 7, 8]).map((g) => `<button class="choice" data-g="${g}">${g}</button>`).join('')}</div>
+      <button class="btn ghost block" data-close>${t('Toch niet')}</button>`, (bg, close) => {
       bg.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { close(); resolve(Number(b.dataset.g)); }));
       bg.querySelector('[data-close]').addEventListener('click', () => resolve(null));
     });
@@ -528,11 +608,11 @@ function askGroep() {
 async function startSession(kind, cat, extra = {}) {
   const btn = document.activeElement;
   const busy = STATE?.ai && (kind === 'daily' || (kind === 'practice' && !cat));
-  if (busy && btn?.classList?.contains('btn')) { btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${esc(STATE.teacher)} maakt je lesplan…`; }
+  if (busy && btn?.classList?.contains('btn')) { btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${t('{m} maakt je lesplan…', { m: esc(STATE.teacher) })}`; }
   try {
     let groep;
     if (kind === 'intake' && !STATE?.intakeActive) {
-      groep = await askGroep();
+      groep = STATE?.kid?.grade || await askGroep();
       if (!groep) return;
     }
     const data = await api('/api/session/start', { kind, cat, groep, ...extra });
@@ -543,14 +623,14 @@ async function startSession(kind, cat, extra = {}) {
 
 // Korte interactieve les van de leraar. Zonder AI: vaste uitleg.
 async function showCoach(cat, intro = '') {
-  STATE ||= await api('/api/state');
+  if (!STATE) await loadState();
   const meta = STATE.skills.find((x) => x.cat === cat);
   const inSession = location.hash.startsWith('#/sessie');
-  const L = { chat: [], busy: false, ready: false };
-  sheet(`<div class="row between"><h2>${meta?.icon || ''} ${esc(meta?.label || '')}</h2><button class="btn ghost" data-close>Sluit</button></div>
+  const Lz = { chat: [], busy: false, ready: false };
+  sheet(`<div class="row between"><h2>${meta?.icon || ''} ${esc(meta?.label || '')}</h2><button class="btn ghost" data-close>${t('Sluit')}</button></div>
     ${intro ? `<p>${intro}</p>` : ''}
-    ${STATE.ai ? '<div id="lesson"></div>' : `<div class="card flat"><b>Zo pak je het aan</b>${tipHTML(cat)}</div>`}
-    <div id="lesson-end">${!STATE.ai ? (inSession ? '<button class="btn block" data-close>Begrepen, verder!</button>' : '<button class="btn block" data-practice>Oefen dit onderdeel</button>') : ''}</div>`,
+    ${STATE.ai ? '<div id="lesson"></div>' : `<div class="card flat"><b>${t('Zo pak je het aan')}</b>${tipHTML(cat)}</div>`}
+    <div id="lesson-end">${!STATE.ai ? (inSession ? `<button class="btn block" data-close>${t('Begrepen, verder!')}</button>` : `<button class="btn block" data-practice>${t('Oefen dit onderdeel')}</button>`) : ''}</div>`,
   (bg, close) => {
     const box = bg.querySelector('#lesson');
     const end = bg.querySelector('#lesson-end');
@@ -560,30 +640,30 @@ async function showCoach(cat, intro = '') {
     bindEnd();
     if (!box) return;
     const draw = () => {
-      box.innerHTML = teacherHTML(L.chat, {
-        loading: L.busy,
-        quick: L.ready ? [] : ['Ik snap het nog niet 🤔', 'Geef nog een voorbeeld', 'Kan het makkelijker?'],
-        placeholder: 'Typ je antwoord of vraag…',
-        intro: L.chat.length ? null : 'Even een korte les, dan gaan we oefenen!',
+      box.innerHTML = teacherHTML(Lz.chat, {
+        loading: Lz.busy,
+        quick: Lz.ready ? [] : [t('Ik snap het nog niet 🤔'), t('Geef nog een voorbeeld'), t('Kan het makkelijker?')],
+        placeholder: t('Typ je antwoord of vraag…'),
+        intro: Lz.chat.length ? null : t('Even een korte les, dan gaan we oefenen!'),
       });
       bindTeacher(box, (msg) => send(msg));
       box.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ block: 'nearest' });
-      if (L.ready || L.chat.length >= 2) {
-        end.innerHTML = inSession ? `<button class="btn ${L.ready ? 'good' : 'ghost'} block" data-close>${L.ready ? 'Ik ben er klaar voor! 🚀' : 'Verder met de sommen'}</button>`
-          : `<button class="btn ${L.ready ? 'good' : 'ghost'} block" data-practice>${L.ready ? 'Ik ben er klaar voor: oefenen! 🚀' : 'Oefen dit onderdeel'}</button>`;
+      if (Lz.ready || Lz.chat.length >= 2) {
+        end.innerHTML = inSession ? `<button class="btn ${Lz.ready ? 'good' : 'ghost'} block" data-close>${Lz.ready ? t('Ik ben er klaar voor! 🚀') : t('Verder met de sommen')}</button>`
+          : `<button class="btn ${Lz.ready ? 'good' : 'ghost'} block" data-practice>${Lz.ready ? t('Ik ben er klaar voor: oefenen! 🚀') : t('Oefen dit onderdeel')}</button>`;
         bindEnd();
       }
     };
     const send = async (msg) => {
-      if (L.busy) return;
-      if (msg) L.chat.push({ role: 'kid', text: msg });
-      L.busy = true; draw();
+      if (Lz.busy) return;
+      if (msg) Lz.chat.push({ role: 'kid', text: msg });
+      Lz.busy = true; draw();
       try {
-        const r = await api('/api/lesson', { cat, chat: L.chat });
-        if (r.reply) { L.chat.push({ role: 'teacher', text: r.reply }); L.ready = r.ready; }
-        else L.chat.push({ role: 'teacher', text: r.reason || tipText(cat) });
-      } catch (e) { L.chat.push({ role: 'teacher', text: e.message }); }
-      L.busy = false; draw();
+        const r = await api('/api/lesson', { cat, chat: Lz.chat });
+        if (r.reply) { Lz.chat.push({ role: 'teacher', text: r.reply }); Lz.ready = r.ready; }
+        else Lz.chat.push({ role: 'teacher', text: r.reason || tipText(cat) });
+      } catch (e) { Lz.chat.push({ role: 'teacher', text: e.message }); }
+      Lz.busy = false; draw();
     };
     send(null);
   });
@@ -592,30 +672,30 @@ async function showCoach(cat, intro = '') {
 // Lesplan van Max: per onderdeel niveau, aantal sommen en een woordje
 function showPlan(coach, stuck = []) {
   const lesson = (stuck || []).find((c) => coach.items.some((i) => i.cat === c));
-  sheet(`<div class="t-msg t" style="margin-bottom:4px"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(coach.message || 'Klaar voor vandaag?')}</div></div>
-    <h3>Jouw plan voor vandaag</h3>
+  sheet(`<div class="t-msg t" style="margin-bottom:4px"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(coach.message || t('Klaar voor vandaag?'))}</div></div>
+    <h3>${t('Jouw plan voor vandaag')}</h3>
     <div class="plan">${coach.items.map((i) => `<div class="plan-row"><span class="ico">${i.icon}</span>
       <div><div class="row between"><b>${esc(i.label)}</b><span class="chip">${esc(i.levelName)} · ${i.count}×</span></div>
       ${i.note ? `<div class="small muted">${esc(i.note)}</div>` : ''}</div></div>`).join('')}</div>
-    ${lesson ? `<button class="btn ghost block" data-lesson="${lesson}">🧑‍🏫 Eerst een korte les over ${esc(coach.items.find((i) => i.cat === lesson)?.label || '')}</button>` : ''}
-    <button class="btn good block" data-close>Let's go! 🚀</button>`, (bg, close) => {
+    ${lesson ? `<button class="btn ghost block" data-lesson="${lesson}">🧑‍🏫 ${t('Eerst een korte les over {o}', { o: esc(coach.items.find((i) => i.cat === lesson)?.label || '') })}</button>` : ''}
+    <button class="btn good block" data-close>${t("Let's go! 🚀")}</button>`, (bg, close) => {
     bg.querySelector('[data-lesson]')?.addEventListener('click', (e) => { close(); showCoach(e.currentTarget.dataset.lesson); });
   });
 }
 
 // ---------- chatpaneel van de leraar ----------
-function teacherHTML(chat, { loading = false, quick = [], placeholder = 'Typ je vraag of antwoord…', intro = null } = {}) {
+function teacherHTML(chat, { loading = false, quick = [], placeholder = t('Typ je vraag of antwoord…'), intro = null } = {}) {
   const name = esc(STATE?.teacher || 'Meester Max');
   const msgs = chat.map((m) => m.role === 'teacher'
     ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')} ${speakBtn(m.text, true)}</div></div>`
     : `<div class="t-msg k"><div class="t-bub">${esc(m.text)}</div></div>`).join('');
-  const thinking = pick(['denkt even na…', 'krabt achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn krijtje…']);
+  const thinking = pick(L(['denkt even na…', 'krabt achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn krijtje…'], ['dink gou…', 'krap agter sy oor…', 'sit sy dinkpet op… 🧢', 'tel sy krytjie op…']));
   return `<div class="teacher">
     <div class="t-head">🧑‍🏫 ${name}</div>
     <div class="t-msgs">${intro ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${esc(intro)}</div></div>` : ''}${msgs}
       ${loading ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${thinking}</div></div>` : ''}</div>
     ${quick.length && !loading ? `<div class="t-quick">${quick.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>` : ''}
-    <form class="chat-in"><input maxlength="300" placeholder="${esc(placeholder)}" enterkeyhint="send" ${loading ? 'disabled' : ''}><button class="btn ghost" ${loading ? 'disabled' : ''}>Stuur</button></form>
+    <form class="chat-in"><input maxlength="300" placeholder="${esc(placeholder)}" enterkeyhint="send" ${loading ? 'disabled' : ''}><button class="btn ghost" ${loading ? 'disabled' : ''}>${t('Stuur')}</button></form>
   </div>`;
 }
 function bindTeacher(box, send) {
@@ -629,42 +709,42 @@ function bindTeacher(box, send) {
 // VOORTGANG
 // =====================================================================
 async function renderProgress() {
-  STATE = await api('/api/state');
+  await loadState();
   const s = STATE;
   if (!s.intakeDone) {
-    $app.innerHTML = `<div class="card stack"><h2>Voortgang</h2><p class="muted">Doe eerst de starttoets. Daarna zie je hier waar je goed in bent en wat je nog gaat leren.</p><a class="btn" href="#/">Naar de starttoets</a></div>`;
+    $app.innerHTML = `<div class="card stack"><h2>${t('Voortgang')}</h2><p class="muted">${t('Doe eerst de starttoets. Daarna zie je hier waar je goed in bent en wat je nog gaat leren.')}</p><a class="btn" href="#/">${t('Naar de starttoets')}</a></div>`;
     return;
   }
-  const hist = s.history.length ? `<div class="card"><h3>Laatste dagtaken</h3><div class="hist">${s.history.map((h) => `<div><span>${h.correct}</span><i style="height:${(h.correct / h.total) * 80 + 4}px;background:var(--primary)"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div>${s.record ? `<p class="small muted" style="margin-top:6px">Jouw record: <b>${s.record}</b> goed in één dagtaak 🏅</p>` : ''}</div>` : '';
+  const hist = s.history.length ? `<div class="card"><h3>${t('Laatste dagtaken')}</h3><div class="hist">${s.history.map((h) => `<div><span>${h.correct}</span><i style="height:${(h.correct / h.total) * 80 + 4}px;background:var(--primary)"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div>${s.record ? `<p class="small muted" style="margin-top:6px">${t('Jouw record: <b>{n}</b> goed in één dagtaak 🏅', { n: s.record })}</p>` : ''}</div>` : '';
   $app.innerHTML = `<div class="stack">
-    <h1>Voortgang</h1>
+    <h1>${t('Voortgang')}</h1>
     ${hist}
-    <div class="card"><h3>Badges</h3><div class="badges">${s.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
+    <div class="card"><h3>${t('Badges')}</h3><div class="badges">${s.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
     <div class="card">${s.skills.map((x) => `<a class="skill" href="#/voortgang/${x.cat}" style="text-decoration:none;color:inherit">
       <span class="ico">${x.icon}</span>
       <div><div class="name"><span>${esc(x.label)}</span><span class="small">${trend(x.trend)} <span class="chip">${x.levelName}</span></span></div>
       <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
       ${x.note ? `<div class="small" style="margin-top:4px">🧑‍🏫 ${esc(x.note)}</div>` : ''}
-      <div class="small muted" style="margin-top:4px">${x.toNext != null ? `Op weg naar ${LEVEL[LEVELIDX(x.levelName) + 1]}-niveau: ${x.toNext}% (80% nodig)` : 'Groep 8-niveau: eindniveau! 🏆'}${x.struggling ? ' · <b style="color:var(--warn)">extra hulp aan</b>' : ''}</div></div></a>`).join('')}</div>
-    <p class="small muted">Per onderdeel reken je op het niveau van een groep (groep 5 t/m 8). Heb je 8 van de 10 goed, dan ga je een groep omhoog. Gaat meer dan de helft fout, dan oefen je even een groep lager. Groep 8 = het eindniveau van de basisschool.</p>
+      <div class="small muted" style="margin-top:4px">${x.toNext != null ? t('Op weg naar {l}-niveau: {p}% (80% nodig)', { l: LEVELS()[LEVELIDX(x.levelName) + 1], p: x.toNext }) : t(STATE.gradeWord === 'graad' ? 'Graad 7-niveau: eindniveau! 🏆' : 'Groep 8-niveau: eindniveau! 🏆')}${x.struggling ? ` · <b style="color:var(--warn)">${t('extra hulp aan')}</b>` : ''}</div></div></a>`).join('')}</div>
+    <p class="small muted">${t(STATE.gradeWord === 'graad' ? 'Per onderdeel reken je op het niveau van een graad (graad 4 t/m 7). Heb je 8 van de 10 goed, dan ga je een graad omhoog. Gaat meer dan de helft fout, dan oefen je even een graad lager. Graad 7 = het eindniveau van de laerskool.' : 'Per onderdeel reken je op het niveau van een groep (groep 5 t/m 8). Heb je 8 van de 10 goed, dan ga je een groep omhoog. Gaat meer dan de helft fout, dan oefen je even een groep lager. Groep 8 = het eindniveau van de basisschool.')}</p>
   </div>`;
 }
-const LEVELIDX = (n) => LEVEL.indexOf(n);
+const LEVELIDX = (n) => LEVELS().indexOf(n);
 const trend = (t) => (t == null || t === 0 ? '' : t > 0 ? `<span class="trend-up">▲${t}</span>` : `<span class="trend-down">▼${-t}</span>`);
 
 async function renderCategory(cat) {
-  if (!STATE) STATE = await api('/api/state');
+  if (!STATE) await loadState();
   const x = STATE.skills.find((k) => k.cat === cat);
   if (!x) { location.hash = '#/voortgang'; return; }
   $app.innerHTML = `<div class="stack">
-    <a href="#/voortgang" class="small">‹ Voortgang</a>
-    <div class="card stack"><div class="row"><span class="big-emoji">${x.icon}</span><div><h2>${esc(x.label)}</h2><p class="muted small">${x.domain} · niveau ${x.levelName}</p></div></div>
+    <a href="#/voortgang" class="small">‹ ${t('Voortgang')}</a>
+    <div class="card stack"><div class="row"><span class="big-emoji">${x.icon}</span><div><h2>${esc(x.label)}</h2><p class="muted small">${x.domain} · ${t('niveau')} ${x.levelName}</p></div></div>
     <div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div>
-    <p class="small muted">${x.correct} van de ${x.attempts} sommen goed${x.trend ? ` · deze week ${x.trend > 0 ? '+' : ''}${x.trend}` : ''}</p></div>
-    <div class="card flat"><b>Zo doe je het</b>${tipHTML(cat)}</div>
-    ${(STATE.mnemonics?.[cat] || []).length ? `<div class="card flat"><b>🧠 Onthoud-trucs</b>${STATE.mnemonics[cat].map((m) => `<div class="trick"><b>${esc(m.kort)}</b>${m.soort === 'ezelsbrug' ? ' <span class="chip coin">ezelsbruggetje</span>' : ''}<div class="small muted">${esc(m.uitleg)}</div></div>`).join('')}</div>` : ''}
-    <button class="btn block" data-start="practice" data-cat="${cat}">Oefen dit (20 sommen, zonder centen)</button>
-    ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 Korte les van ${esc(STATE.teacher)}</button>` : ''}
+    <p class="small muted">${t('{a} van de {n} sommen goed', { a: x.correct, n: x.attempts })}${x.trend ? ` · ${t('deze week')} ${x.trend > 0 ? '+' : ''}${x.trend}` : ''}</p></div>
+    <div class="card flat"><b>${t('Zo doe je het')}</b>${tipHTML(cat)}</div>
+    ${(STATE.mnemonics?.[cat] || []).length ? `<div class="card flat"><b>🧠 ${t('Onthoud-trucs')}</b>${STATE.mnemonics[cat].map((m) => `<div class="trick"><b>${esc(m.kort)}</b>${m.soort === 'ezelsbrug' ? ` <span class="chip coin">${t('ezelsbruggetje')}</span>` : ''}<div class="small muted">${esc(m.uitleg)}</div></div>`).join('')}</div>` : ''}
+    <button class="btn block" data-start="practice" data-cat="${cat}">${t('Oefen dit (20 sommen, zonder centen)')}</button>
+    ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 ${t('Korte les van {m}', { m: esc(STATE.teacher) })}</button>` : ''}
   </div>`;
   bindStart();
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(cat)));
@@ -674,43 +754,43 @@ async function renderCategory(cat) {
 // SPAARPOT
 // =====================================================================
 async function renderPiggy() {
-  STATE = await api('/api/state');
+  await loadState();
   const s = STATE;
   const max = Math.max(50, ...s.history.map((h) => h.points));
   $app.innerHTML = `<div class="stack">
-    <h1>Spaarpot</h1>
+    <h1>${t('Spaarpot')}</h1>
     <div class="card coin pig"><div class="big-emoji">🐷</div><div class="amount">${euro(s.wallet.balance)}</div>
-      <p class="muted small">Verdiend: ${euro(s.wallet.earned)} · Uitbetaald: ${euro(s.wallet.paid)}</p></div>
-    <div class="card stack"><div class="row between"><h3>🎯 Mijn spaardoel</h3>${s.goal ? '<button class="btn ghost" data-goal>Wijzig</button>' : ''}</div>
+      <p class="muted small">${t('Verdiend: {a} · Uitbetaald: {b}', { a: euro(s.wallet.earned), b: euro(s.wallet.paid) })}</p></div>
+    <div class="card stack"><div class="row between"><h3>🎯 ${t('Mijn spaardoel')}</h3>${s.goal ? `<button class="btn ghost" data-goal>${t('Wijzig')}</button>` : ''}</div>
       ${s.goal ? `<div><b style="font-size:20px">${esc(s.goal.name)}</b> <span class="muted">· ${euro(s.goal.cents)}</span></div>
         <div class="goal-bar"><i style="width:${Math.min(100, (s.wallet.balance / s.goal.cents) * 100)}%"></i></div>
-        <p class="small">${s.goal.reached ? '<b>Gehaald! 🥳</b> Laat het aan papa of mama zien.' : `Nog <b>${euro(s.goal.left)}</b> te gaan.`}</p>`
-      : `<p class="muted">Waar wil jij voor sparen? Een game, iets voor je fiets, een uitje? Kies een doel en zie je spaarpot vollopen.</p><button class="btn block" data-goal>Kies een spaardoel</button>`}</div>
-    <div class="card stack"><h3>Zo verdien je centen</h3>
-      <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>Starttoets: tot ${s.points.intake} cent</span></div>
-      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>Elke schooldag: tot ${s.points.daily} cent (${cents(s.points.daily / s.points.dailyCount)} per goede som)</span></div>
-      <div class="row"><span class="chip">🪜</span><span>Met tussenstappen: de eerste ${s.points.freeGuided} keer per onderdeel gewoon centen, daarna de helft.</span></div>
-      <div class="row"><span class="chip coin">🪙🪙</span><span>Kies je daarna "helemaal zelf" en is het goed? ${s.points.soloBonus} keer dubbel!</span></div>
-      ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>Weekbonus: alle 5 dagtaken van een week af = ${s.week.bonus} cent extra.</span></div>` : ''}
-      <p class="small muted">Alleen goede antwoorden leveren centen op. 100 cent = € 1.</p></div>
-    ${s.history.length ? `<div class="card"><h3>Verdiend per dag</h3><div class="hist">${s.history.map((h) => `<div><span>${h.points}</span><i style="height:${(h.points / max) * 80 + 4}px"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div></div>` : ''}
-    <a href="#/ouder" class="small muted" style="text-align:center;display:block;margin-top:8px">Voor ouders 🔒</a>
+        <p class="small">${s.goal.reached ? t('<b>Gehaald! 🥳</b> Laat het aan papa of mama zien.') : t('Nog <b>{b}</b> te gaan.', { b: euro(s.goal.left) })}</p>`
+      : `<p class="muted">${t('Waar wil jij voor sparen? Een game, iets voor je fiets, een uitje? Kies een doel en zie je spaarpot vollopen.')}</p><button class="btn block" data-goal>${t('Kies een spaardoel')}</button>`}</div>
+    <div class="card stack"><h3>${t('Zo verdien je centen')}</h3>
+      <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>${t('Starttoets: tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
+      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>${t('Elke schooldag: tot {n} {c} ({p} per goede som)', { n: s.points.daily, c: CENT(), p: cents(s.points.daily / s.points.dailyCount) })}</span></div>
+      <div class="row"><span class="chip">🪜</span><span>${t('Met tussenstappen: de eerste {n} keer per onderdeel gewoon centen, daarna de helft.', { n: s.points.freeGuided })}</span></div>
+      <div class="row"><span class="chip coin">🪙🪙</span><span>${t('Kies je daarna "helemaal zelf" en is het goed? {n} keer dubbel!', { n: s.points.soloBonus })}</span></div>
+      ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>${t('Weekbonus: alle 5 dagtaken van een week af = {n} {c} extra.', { n: s.week.bonus, c: CENT() })}</span></div>` : ''}
+      <p class="small muted">${ZAR() ? t('Alleen goede antwoorden leveren centen op. 100 sent = R1.') : t('Alleen goede antwoorden leveren centen op. 100 cent = € 1.')}</p></div>
+    ${s.history.length ? `<div class="card"><h3>${t('Verdiend per dag')}</h3><div class="hist">${s.history.map((h) => `<div><span>${h.points}</span><i style="height:${(h.points / max) * 80 + 4}px"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div></div>` : ''}
+    <a href="#/ouder" class="small muted" style="text-align:center;display:block;margin-top:8px">${t('Voor ouders 🔒')}</a>
   </div>`;
   $app.querySelectorAll('[data-goal]').forEach((b) => (b.onclick = editGoal));
 }
 function editGoal() {
   const g = STATE.goal;
-  sheet(`<div class="row between"><h2>🎯 Spaardoel</h2><button class="btn ghost" data-close>Sluit</button></div>
+  sheet(`<div class="row between"><h2>🎯 ${t('Spaardoel')}</h2><button class="btn ghost" data-close>${t('Sluit')}</button></div>
     <form class="stack" data-goalform>
-      <label class="field"><span style="font-weight:800">Waar spaar je voor?</span><input name="name" maxlength="40" placeholder="bijv. nieuwe game" value="${esc(g?.name || '')}" required></label>
-      <label class="field"><span style="font-weight:800">Hoeveel kost het? (in euro)</span><input name="euros" inputmode="decimal" placeholder="bijv. 15" value="${g ? String(g.cents / 100).replace('.', ',') : ''}" required></label>
-      <p class="small muted">Met alle dagtaken goed verdien je ongeveer € 2,50 per week (plus weekbonus).</p>
-      <button class="btn block">Opslaan</button>
-      ${g ? '<button type="button" class="btn ghost block" data-cleargoal>Doel weghalen</button>' : ''}
+      <label class="field"><span style="font-weight:800">${t('Waar spaar je voor?')}</span><input name="name" maxlength="40" placeholder="${t('bijv. nieuwe game')}" value="${esc(g?.name || '')}" required></label>
+      <label class="field"><span style="font-weight:800">${ZAR() ? t('Hoeveel kost het? (in rand)') : t('Hoeveel kost het? (in euro)')}</span><input name="euros" inputmode="decimal" placeholder="${t('bijv. 15')}" value="${g ? String(g.cents / 100).replace('.', ',') : ''}" required></label>
+      <p class="small muted">${t('Met alle dagtaken goed verdien je ongeveer {b} per week (plus weekbonus).', { b: euro(250) })}</p>
+      <button class="btn block">${t('Opslaan')}</button>
+      ${g ? `<button type="button" class="btn ghost block" data-cleargoal>${t('Doel weghalen')}</button>` : ''}
     </form>`, (bg, close) => {
     bg.querySelector('[data-goalform]').onsubmit = async (e) => {
       e.preventDefault();
-      try { await api('/api/goal', { name: e.target.name.value, euros: e.target.euros.value }); close(); toast('Spaardoel opgeslagen 🎯'); renderPiggy(); }
+      try { await api('/api/goal', { name: e.target.name.value, euros: e.target.euros.value }); close(); toast(t('Spaardoel opgeslagen 🎯')); renderPiggy(); }
       catch (err) { toast(err.message); }
     };
     bg.querySelector('[data-cleargoal]')?.addEventListener('click', async () => { await api('/api/goal', { clear: true }); close(); renderPiggy(); });
@@ -725,7 +805,7 @@ let S = null; // sessie-toestand in de browser
 
 async function openSession(id) {
   $app.classList.add('full');
-  STATE ||= await api('/api/state');
+  if (!STATE) await loadState(); else setLang(STATE.kid?.lang);
   const data = SESSION_CACHE?.id === Number(id) ? SESSION_CACHE : await api(`/api/session/${id}`);
   SESSION_CACHE = null;
   if (data.status === 'stopped') { location.hash = '#/'; return; }
@@ -738,7 +818,7 @@ async function openSession(id) {
   if (data.answered === 0 && !store.get(key)) {
     store.set(key, '1');
     if (data.coach) showPlan(data.coach, stuck);
-    else if (stuck.length) showCoach(stuck[0], 'Hier gaan we vandaag extra mee oefenen. Lees dit even rustig door.');
+    else if (stuck.length) showCoach(stuck[0], t('Hier gaan we vandaag extra mee oefenen. Lees dit even rustig door.'));
   }
 }
 
@@ -768,20 +848,20 @@ function renderExample() {
   const shown = ex.steps.slice(0, S.exStep);
   const all = S.exStep >= ex.steps.length;
   $app.innerHTML = `
-    <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
+    <div class="s-top"><button class="x" data-quit aria-label="${t('Stoppen')}">✕</button>
       <div class="progress"><i style="width:${(cur.index / data.total) * 100}%"></i></div>
       <span class="small" style="font-weight:900">${cur.index + 1}/${data.total}</span></div>
     <div class="card q-card">
-      <div class="row between"><span class="chip">👀 Eerst een voorbeeld · ${esc(meta?.label || '')}</span>${speakBtn(ex.text)}</div>
-      <p class="small muted" style="margin-top:8px">Kijk mee hoe ${esc(STATE?.teacher || 'de meester')} deze som oplost. Daarna doen we er samen eentje.</p>
+      <div class="row between"><span class="chip">👀 ${t('Eerst een voorbeeld')} · ${esc(meta?.label || '')}</span>${speakBtn(ex.text)}</div>
+      <p class="small muted" style="margin-top:8px">${t('Kijk mee hoe {m} deze som oplost. Daarna doen we er samen eentje.', { m: esc(STATE?.teacher || 'de meester') })}</p>
       <div class="q-text">${esc(ex.text)}</div>
       ${ex.visual ? `<div class="visual">${renderVisual(ex.visual)}</div>` : ''}
       ${ex.options ? `<div class="row" style="flex-wrap:wrap;margin-top:8px">${ex.options.map((o) => `<span class="chip">${esc(o)}</span>`).join('')}</div>` : ''}
       <ol class="steps ex-steps">${shown.map((st) => `<li>${esc(st)}</li>`).join('')}</ol>
-      ${all ? `<div class="feedback ok" style="margin-top:10px"><div class="title">Antwoord: ${esc(ex.display)}</div></div>
+      ${all ? `<div class="feedback ok" style="margin-top:10px"><div class="title">${t('Antwoord:')} ${esc(ex.display)}</div></div>
         ${cur.mnemonic ? `<div class="trick" style="margin-top:10px"><b>🧠 ${esc(cur.mnemonic.kort)}</b><div class="small muted">${esc(cur.mnemonic.uitleg)}</div></div>` : ''}` : ''}
     </div>
-    <div style="margin-top:12px">${all ? '<button class="btn good block" data-exdone>Nu samen 👉</button>' : `<button class="btn block" data-exnext>${S.exStep ? 'Volgende stap ▸' : 'Laat de eerste stap zien ▸'}</button>`}</div>`;
+    <div style="margin-top:12px">${all ? `<button class="btn good block" data-exdone>${t('Nu samen 👉')}</button>` : `<button class="btn block" data-exnext>${S.exStep ? t('Volgende stap ▸') : t('Laat de eerste stap zien ▸')}</button>`}</div>`;
   $app.querySelector('[data-quit]').onclick = () => (location.hash = '#/');
   bindSpeak($app);
   $app.querySelector('[data-exnext]')?.addEventListener('click', () => { S.exStep++; renderExample(); });
@@ -794,17 +874,17 @@ function renderQuestion() {
   if (S.klad?.index !== cur.index) kladReset(cur.index);
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.warmup ? '<span class="chip">⚡ Opwarmer</span>' : q.retry ? '<span class="chip good">💪 Herkansing</span>' : q.booster ? '<span class="chip good">😎 Even een makkie</span>' : q.review ? `<span class="chip">🔁 Herhaling · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVEL[q.level]}</span>`;
+  const label = q.warmup ? `<span class="chip">⚡ ${t('Opwarmer')}</span>` : q.retry ? `<span class="chip good">💪 ${t('Herkansing')}</span>` : q.booster ? `<span class="chip good">😎 ${t('Even een makkie')}</span>` : q.review ? `<span class="chip">🔁 ${t('Herhaling')} · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)} · ${LEVELS()[q.level]}</span>`;
   $app.innerHTML = `
-    <div class="s-top"><button class="x" data-quit aria-label="Stoppen">✕</button>
+    <div class="s-top"><button class="x" data-quit aria-label="${t('Stoppen')}">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>
       <span class="small" style="font-weight:900">${cur.index + 1}/${data.total}</span></div>
     <div class="row between" style="margin:-4px 2px 10px">
-      ${data.maxPoints ? `<span class="chip coin">🪙 ${cents(data.points)}</span>` : '<span class="chip">oefenen</span>'}
-      ${data.streak >= 2 ? `<span class="chip streak-chip">🔥 ${data.streak} op rij</span>` : '<span></span>'}
+      ${data.maxPoints ? `<span class="chip coin">🪙 ${cents(data.points)}</span>` : `<span class="chip">${t('oefenen')}</span>`}
+      ${data.streak >= 2 ? `<span class="chip streak-chip">🔥 ${t('{n} op rij', { n: data.streak })}</span>` : '<span></span>'}
     </div>
     <div class="card q-card">
-      <div class="row between">${label}${speakBtn(q.text + (q.options ? '. Kies uit: ' + q.options.join(', ') : ''))}</div>
+      <div class="row between">${label}${speakBtn(q.text + (q.options ? '. ' + t('Kies uit:') + ' ' + q.options.join(', ') : ''))}</div>
       <div class="q-text ${q.text.length > 90 ? 'long' : ''}">${esc(q.text)}</div>
       ${q.visual ? `<div class="visual">${renderVisual(q.visual)}</div>` : ''}
       <div id="guide"></div>
@@ -819,7 +899,7 @@ function renderQuestion() {
   bindKlad();
   if (cur.adapt?.readAloud && S.spokenIdx !== cur.index) { S.spokenIdx = cur.index; try { window.speechSynthesis?.cancel(); } catch {} setTimeout(() => speak(q.text), 300); }
   $app.querySelector('[data-quit]').onclick = async () => {
-    if (await ask('<div class="big-emoji">🚪</div><h2 style="margin:8px 0">Even stoppen?</h2><p class="muted">Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵</p>', 'Ja, stoppen', 'Nee, ik ga door')) location.hash = '#/';
+    if (await ask(`<div class="big-emoji">🚪</div><h2 style="margin:8px 0">${t('Even stoppen?')}</h2><p class="muted">${t('Geen probleem! Je kunt later verder waar je was. De sommen lopen niet weg (ze hebben geen benen). 🦵')}</p>`, t('Ja, stoppen'), t('Nee, ik ga door'))) location.hash = '#/';
   };
   if (cur.offer.mode === 'choose' && !cur.chose && !cur.guided) return drawChoice();
   drawAnswer();
@@ -832,14 +912,14 @@ function drawChoice() {
   const meta = (STATE?.skills || []).find((x) => x.cat === c.question.cat);
   const money = S.data.maxPoints > 0;
   const transition = o.transition ? `<div class="card flat stack" style="margin-top:14px">
-      <div class="row"><span class="big-emoji" style="font-size:34px">🎓</span><div><b>Je hebt al 5 keer ${esc(meta?.label || '')} met tussenstappen goed gedaan!</b><p class="small muted">Nu moet je het zelf kunnen. Dit zijn de stappen die je steeds doet:</p></div></div>
-      <ol class="steps">${(c.plan || []).map((a) => `<li>${esc(a.replace(/= \?$/, '').replace(/\?$/, ''))}</li>`).join('')}<li>${esc('En dan het eindantwoord.')}</li></ol>
-      <p class="small muted">Doe die stappen in je hoofd of op je kladpapier.</p></div>` : '';
+      <div class="row"><span class="big-emoji" style="font-size:34px">🎓</span><div><b>${t('Je hebt al 5 keer {o} met tussenstappen goed gedaan!', { o: esc(meta?.label || '') })}</b><p class="small muted">${t('Nu moet je het zelf kunnen. Dit zijn de stappen die je steeds doet:')}</p></div></div>
+      <ol class="steps">${(c.plan || []).map((a) => `<li>${esc(a.replace(/= \?$/, '').replace(/\?$/, ''))}</li>`).join('')}<li>${esc(t('En dan het eindantwoord.'))}</li></ol>
+      <p class="small muted">${t('Doe die stappen in je hoofd of op je kladpapier.')}</p></div>` : '';
   $app.querySelector('#answer-area').innerHTML = `${transition}
     <div class="stack" style="margin-top:14px">
-      <p style="font-weight:800">Hoe wil je deze som doen?</p>
-      <button class="choice-big good" data-ch="solo"><span>💪 Helemaal zelf</span><small>${money ? (o.bonusLeft > 0 ? `🪙🪙 dubbele centen (nog ${o.bonusLeft}×)` : '🪙 gewone centen') : 'laat zien dat je het kunt'}</small></button>
-      <button class="choice-big" data-ch="guided"><span>🪜 Met tussenstappen</span><small>${money ? '🪙 halve centen' : 'samen stap voor stap'}</small></button>
+      <p style="font-weight:800">${t('Hoe wil je deze som doen?')}</p>
+      <button class="choice-big good" data-ch="solo"><span>💪 ${t('Helemaal zelf')}</span><small>${money ? (o.bonusLeft > 0 ? `🪙🪙 ${t('dubbele centen (nog {n}×)', { n: o.bonusLeft })}` : `🪙 ${t('gewone centen')}`) : t('laat zien dat je het kunt')}</small></button>
+      <button class="choice-big" data-ch="guided"><span>🪜 ${t('Met tussenstappen')}</span><small>${money ? `🪙 ${t('halve centen')}` : t('samen stap voor stap')}</small></button>
     </div>`;
   $app.querySelector('#controls').innerHTML = '';
   $app.querySelectorAll('[data-ch]').forEach((b) => (b.onclick = async () => {
@@ -857,28 +937,28 @@ function keysFor(type) {
   return [['1', '2', '3', '⌫'], ['4', '5', '6', extra[0]], ['7', '8', '9', extra[1]]];
 }
 function keypad(type, goLabel, goEnabled) {
-  return `<div class="keypad">${keysFor(type).flat().map((k) => `<button class="key ${/[0-9]/.test(k) ? '' : 'fn'}" data-k="${k}" ${k === '␣' ? 'style="font-size:15px"' : ''}>${k === '␣' ? 'spatie' : k === 'C' ? 'wis' : k}</button>`).join('')}
+  return `<div class="keypad">${keysFor(type).flat().map((k) => `<button class="key ${/[0-9]/.test(k) ? '' : 'fn'}" data-k="${k}" ${k === '␣' ? 'style="font-size:15px"' : ''}>${k === '␣' ? t('spatie') : k === 'C' ? t('wis') : k}</button>`).join('')}
     <button class="key wide" data-k="0">0</button><button class="key go wide" data-go ${goEnabled ? '' : 'disabled'}>${goLabel}</button></div>`;
 }
-function answerBox(value, unit, money, active = true, ph = 'jouw antwoord') {
-  return `<div class="answer-box ${active ? 'active' : ''}">${money ? '<span class="unit">€</span>' : ''}${value ? esc(value) : `<span class="ph">${ph}</span>`}${active ? '<span class="caret"></span>' : ''}${unit && !money ? `<span class="unit">${esc(unit)}</span>` : ''}</div>`;
+function answerBox(value, unit, money, active = true, ph = t('jouw antwoord')) {
+  return `<div class="answer-box ${active ? 'active' : ''}">${money ? `<span class="unit">${ZAR() ? 'R' : '€'}</span>` : ''}${value ? esc(value) : `<span class="ph">${ph}</span>`}${active ? '<span class="caret"></span>' : ''}${unit && !money ? `<span class="unit">${esc(unit)}</span>` : ''}</div>`;
 }
 
 function drawGuide() {
   const c = S.cur;
   const box = $app.querySelector('#guide');
   if (!c.guided) { box.innerHTML = ''; return; }
-  const done = (c.guideDone || []).map((d, i) => `<div class="g-step ${d.ok ? 'ok' : 'shown'}"><span class="n">${d.ok ? '✓' : '💡'}</span><div><div>${esc(d.ask.replace(/\?\s*$/, ''))}</div><b>${esc(d.display)}</b>${d.ok ? '' : ' <span class="small muted">(zo moest het)</span>'}</div></div>`).join('');
-  const intro = S.autoIntro ? `<div class="hint" style="background:var(--primary-soft)">🤝 We doen deze samen, stap voor stap. ${S.data.maxPoints ? 'Je krijgt gewoon je centen als het goed is!' : ''}</div>` : '';
+  const done = (c.guideDone || []).map((d, i) => `<div class="g-step ${d.ok ? 'ok' : 'shown'}"><span class="n">${d.ok ? '✓' : '💡'}</span><div><div>${esc(d.ask.replace(/\?\s*$/, ''))}</div><b>${esc(d.display)}</b>${d.ok ? '' : ` <span class="small muted">${t('(zo moest het)')}</span>`}</div></div>`).join('');
+  const intro = S.autoIntro ? `<div class="hint" style="background:var(--primary-soft)">🤝 ${t('We doen deze samen, stap voor stap.')} ${S.data.maxPoints ? t('Je krijgt gewoon je centen als het goed is!') : ''}</div>` : '';
   let current = '';
   if (c.guideStep) {
     const st = c.guideStep;
     const msg = S.stepMsg ? `<div class="step-msg ${S.stepMsg.kind}">${esc(S.stepMsg.text)}</div>` : '';
     current = `<div class="g-step now"><span class="n">${(c.guideDone || []).length + 1}</span><div style="flex:1"><div style="font-weight:800">${esc(st.ask)}</div>
       ${st.type === 'choice' ? `<div class="choices">${st.options.map((o, i) => `<button class="choice small ${S.stepChoice === i ? 'sel' : ''}" data-sc="${i}">${esc(o)}</button>`).join('')}</div>`
-        : answerBox(S.stepInput, st.unit, st.money, true, 'tussenstap')}${msg}</div></div>`;
+        : answerBox(S.stepInput, st.unit, st.money, true, t('tussenstap'))}${msg}</div></div>`;
   } else if (c.guideFinal) {
-    current = `<div class="g-step now final"><span class="n">🏁</span><div><div style="font-weight:800">Nu jij: ${esc(c.guideFinal)}</div><div class="small muted">${c.question.type === 'choice' ? 'Kies hieronder het goede antwoord.' : 'Vul hieronder het eindantwoord in.'}</div></div></div>`;
+    current = `<div class="g-step now final"><span class="n">🏁</span><div><div style="font-weight:800">${t('Nu jij:')} ${esc(c.guideFinal)}</div><div class="small muted">${c.question.type === 'choice' ? t('Kies hieronder het goede antwoord.') : t('Vul hieronder het eindantwoord in.')}</div></div></div>`;
   }
   box.innerHTML = `<div class="guide">${intro}${done}${current}</div>`;
   box.querySelectorAll('[data-sc]').forEach((b) => (b.onclick = () => { S.stepChoice = Number(b.dataset.sc); drawAnswer(); }));
@@ -895,10 +975,10 @@ function drawAnswer() {
     const st = c.guideStep;
     // bij een keuzevraag: laat de keuzes alvast zien (nog niet aanklikbaar)
     area.innerHTML = q.type === 'choice'
-      ? `<p class="small muted" style="margin-top:12px">Je kiest straks uit:</p><div class="row" style="flex-wrap:wrap">${q.options.map((o) => `<span class="chip" style="font-size:16px">${esc(o)}</span>`).join('')}</div>` : '';
+      ? `<p class="small muted" style="margin-top:12px">${t('Je kiest straks uit:')}</p><div class="row" style="flex-wrap:wrap">${q.options.map((o) => `<span class="chip" style="font-size:16px">${esc(o)}</span>`).join('')}</div>` : '';
     controls.innerHTML = st.type === 'choice'
-      ? `<button class="btn block" data-step ${S.stepChoice == null ? 'disabled' : ''} style="margin-top:12px">Controleer stap</button>`
-      : keypad(st.type, 'Controleer stap', !!S.stepInput);
+      ? `<button class="btn block" data-step ${S.stepChoice == null ? 'disabled' : ''} style="margin-top:12px">${t('Controleer stap')}</button>`
+      : keypad(st.type, t('Controleer stap'), !!S.stepInput);
     controls.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => keyPress(b.dataset.k)));
     (controls.querySelector('[data-step]') || controls.querySelector('[data-go]')).onclick = submitStep;
     return;
@@ -907,12 +987,12 @@ function drawAnswer() {
   if (q.type === 'choice') {
     area.innerHTML = `<div class="choices">${q.options.map((o, i) => `<button class="choice ${S.choice === i ? 'sel' : ''}" data-c="${i}">${esc(o)}</button>`).join('')}</div>`;
     area.querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => { S.choice = Number(b.dataset.c); drawAnswer(); }));
-    controls.innerHTML = `<div style="margin-top:12px"><button class="btn block" data-go ${S.choice == null ? 'disabled' : ''}>Controleer</button></div>${helpRow()}`;
+    controls.innerHTML = `<div style="margin-top:12px"><button class="btn block" data-go ${S.choice == null ? 'disabled' : ''}>${t('Controleer')}</button></div>${helpRow()}`;
   } else {
     area.innerHTML = `${answerBox(S.input, q.unit, q.money)}
-      ${q.type === 'fraction' ? '<p class="small muted" style="margin-top:6px;text-align:center">Breuk: 3/4 · Gemengd getal: 2 spatie 1/2</p>' : ''}
-      ${q.type === 'time' ? '<p class="small muted" style="margin-top:6px;text-align:center">Schrijf zo: 14:45</p>' : ''}`;
-    controls.innerHTML = keypad(q.type, 'Controleer', !!S.input) + helpRow();
+      ${q.type === 'fraction' ? `<p class="small muted" style="margin-top:6px;text-align:center">${t('Breuk: 3/4 · Gemengd getal: 2 spatie 1/2')}</p>` : ''}
+      ${q.type === 'time' ? `<p class="small muted" style="margin-top:6px;text-align:center">${t('Schrijf zo: 14:45')}</p>` : ''}`;
+    controls.innerHTML = keypad(q.type, t('Controleer'), !!S.input) + helpRow();
     controls.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => keyPress(b.dataset.k)));
   }
   controls.querySelector('[data-go]').onclick = submit;
@@ -925,12 +1005,12 @@ function helpRow() {
   const c = S.cur, q = c.question, o = c.offer;
   const btns = [];
   if (!c.guided && o.mode === 'optional' && q.guideCount) {
-    const cost = S.data.maxPoints ? (o.free ? '' : ' (½ centen)') : '';
-    btns.push(`<button class="btn ghost" data-guide>🪜 Samen stap voor stap${cost}</button>`);
+    const cost = S.data.maxPoints ? (o.free ? '' : ` ${t('(½ centen)')}`) : '';
+    btns.push(`<button class="btn ghost" data-guide>🪜 ${t('Samen stap voor stap')}${cost}</button>`);
   }
-  if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false || (c.hints || []).length >= (c.hintCount || 99) ? 'disabled' : ''}>💡 ${(c.hints || []).length ? 'Nog een hint' : 'Hint'}</button>`);
-  if (STATE?.ai && !q.noHelp) btns.push(`<button class="btn ghost" data-ask>🧑‍🏫 Vraag ${esc(STATE.teacher || 'de meester')}</button>`);
-  btns.push('<button class="btn ghost" data-dunno>🤷 Weet ik niet</button>');
+  if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false || (c.hints || []).length >= (c.hintCount || 99) ? 'disabled' : ''}>💡 ${(c.hints || []).length ? t('Nog een hint') : t('Hint')}</button>`);
+  if (STATE?.ai && !q.noHelp) btns.push(`<button class="btn ghost" data-ask>🧑‍🏫 ${t('Vraag {m}', { m: esc(STATE.teacher || 'de meester') })}</button>`);
+  btns.push(`<button class="btn ghost" data-dunno>🤷 ${t('Weet ik niet')}</button>`);
   return `<div class="help-row">${btns.join('')}</div>`;
 }
 function keyPress(k) {
@@ -985,14 +1065,14 @@ async function submitStep() {
     const r = await api(`/api/session/${S.data.id}/step`, { index: S.cur.index, answer });
     S.cur.guideDone = r.done;
     if (r.correct) { buzz(20); S.stepMsg = null; S.stepInput = ''; S.stepChoice = null; S.cur.guideStep = r.next; S.cur.guideFinal = r.final; if (r.note) toast(r.note); }
-    else if (r.revealed) { buzz([40, 30, 40]); S.stepMsg = null; S.stepInput = ''; S.stepChoice = null; S.cur.guideStep = r.next; S.cur.guideFinal = r.final; toast(`Geeft niks! Het was ${r.display}. We gaan verder.`); }
+    else if (r.revealed) { buzz([40, 30, 40]); S.stepMsg = null; S.stepInput = ''; S.stepChoice = null; S.cur.guideStep = r.next; S.cur.guideFinal = r.final; toast(t('Geeft niks! Het was {d}. We gaan verder.', { d: r.display })); }
     else {
-      buzz([40, 30, 40]); S.stepMsg = { kind: 'tip', text: `Nog niet. Tip: ${r.tip}` };
+      buzz([40, 30, 40]); S.stepMsg = { kind: 'tip', text: t('Nog niet. Tip: {x}', { x: r.tip }) };
       const tried = st.type === 'choice' ? st.options[answer] : answer;
       S.stepInput = ''; S.stepChoice = null;
       drawAnswer();
       // de leraar legt precies deze stap uit
-      if (STATE?.ai) { S.teacherOpen = true; talk(`Ik snap deze stap niet: ${st.ask}`, 'step', { stepGiven: tried }); }
+      if (STATE?.ai) { S.teacherOpen = true; talk(t('Ik snap deze stap niet: {s}', { s: st.ask }), 'step', { stepGiven: tried }); }
       return;
     }
     drawAnswer();
@@ -1012,17 +1092,17 @@ async function getHint() {
 // Gesprek met de leraar bij deze som (wordt per som op de server bewaard)
 function quickFor() {
   const answered = S.phase === 'feedback' || S.phase === 'done';
-  if (answered && S.last && !S.last.correct) return ['Ik snap het nog niet 🤔', 'Heb je een ezelsbruggetje?', 'Ik snap het! 👍'];
-  if (answered) return ['Waarom klopt dit?', 'Kan het ook sneller?'];
-  if (S.cur.guided && S.cur.guideStep) return ['Ik snap deze stap niet', 'Geef een voorbeeld'];
-  return ['Ik snap de vraag niet', 'Hoe begin ik?', 'Heb je een ezelsbruggetje?'];
+  if (answered && S.last && !S.last.correct) return [t('Ik snap het nog niet 🤔'), t('Heb je een ezelsbruggetje?'), t('Ik snap het! 👍')];
+  if (answered) return [t('Waarom klopt dit?'), t('Kan het ook sneller?')];
+  if (S.cur.guided && S.cur.guideStep) return [t('Ik snap deze stap niet'), t('Geef een voorbeeld')];
+  return [t('Ik snap de vraag niet'), t('Hoe begin ik?'), t('Heb je een ezelsbruggetje?')];
 }
 function drawTeacher(loading = false) {
   const area = $app.querySelector('#ai-area');
   if (!area) return;
   const chat = S.cur.chat || [];
   if (!chat.length && !loading && !S.teacherOpen) { area.innerHTML = ''; return; }
-  area.innerHTML = teacherHTML(chat, { loading, quick: quickFor(), intro: !chat.length && !loading ? 'Waar loop je op vast? Vertel maar, of kies hieronder.' : null });
+  area.innerHTML = teacherHTML(chat, { loading, quick: quickFor(), intro: !chat.length && !loading ? t('Waar loop je op vast? Vertel maar, of kies hieronder.') : null });
   bindTeacher(area, (msg) => talk(msg));
   area.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -1047,16 +1127,16 @@ function kladReset(index) { S.klad = { index, strokes: [], text: '', open: S.kla
 function kladHTML() {
   const k = S.klad;
   return `<details class="klad" id="klad"${k.open ? ' open' : ''}>
-    <summary><span>✏️ Kladblok</span><span class="small muted">${k.strokes.length || k.text ? 'je hebt al iets opgeschreven' : S.cur?.adapt?.showWork ? 'schrijf hier je tussenstappen, dan zien we samen waar het lastig wordt' : 'reken hier je tussenstappen uit'}</span></summary>
+    <summary><span>✏️ ${t('Kladblok')}</span><span class="small muted">${k.strokes.length || k.text ? t('je hebt al iets opgeschreven') : S.cur?.adapt?.showWork ? t('schrijf hier je tussenstappen, dan zien we samen waar het lastig wordt') : t('reken hier je tussenstappen uit')}</span></summary>
     <div class="klad-body">
-      <canvas id="klad-c" aria-label="Kladblok: schrijf met je vinger"></canvas>
-      <textarea id="klad-t" rows="3" placeholder="Typ je tussenstappen, bijvoorbeeld: 276 : 6 = 46"${k.typing ? '' : ' hidden'}>${esc(k.text)}</textarea>
+      <canvas id="klad-c" aria-label="${t('Kladblok: schrijf met je vinger')}"></canvas>
+      <textarea id="klad-t" rows="3" placeholder="${ZAR() ? t('Tik jou stappe, byvoorbeeld: 276 ÷ 6 = 46') : 'Typ je tussenstappen, bijvoorbeeld: 276 : 6 = 46'}"${k.typing ? '' : ' hidden'}>${esc(k.text)}</textarea>
       <div class="klad-tools">
-        <button class="btn ghost sm" data-kl="undo" aria-label="Laatste streep weg">↶ Terug</button>
-        <button class="btn ghost sm" data-kl="clear">🗑 Wissen</button>
-        <button class="btn ghost sm" data-kl="type">${k.typing ? '✏️ Tekenen' : '⌨️ Typen'}</button>
+        <button class="btn ghost sm" data-kl="undo" aria-label="${t('Laatste streep weg')}">↶ ${t('Terug')}</button>
+        <button class="btn ghost sm" data-kl="clear">🗑 ${t('Wissen')}</button>
+        <button class="btn ghost sm" data-kl="type">${k.typing ? `✏️ ${t('Tekenen')}` : `⌨️ ${t('Typen')}`}</button>
       </div>
-      ${STATE?.ai ? `<p class="small muted" style="margin-top:6px">🧑‍🏫 ${esc(STATE.teacher)} kijkt mee in je kladblok als je hulp vraagt of iets fout gaat.</p>` : ''}
+      ${STATE?.ai ? `<p class="small muted" style="margin-top:6px">🧑‍🏫 ${t('{m} kijkt mee in je kladblok als je hulp vraagt of iets fout gaat.', { m: esc(STATE.teacher) })}</p>` : ''}
     </div></details>`;
 }
 function kladColors() {
@@ -1105,7 +1185,7 @@ function bindKlad() {
     const k = b.dataset.kl;
     if (k === 'undo') { S.klad.strokes.pop(); kladDraw(); }
     if (k === 'clear') { S.klad.strokes = []; S.klad.text = ''; t.value = ''; kladDraw(); }
-    if (k === 'type') { S.klad.typing = !S.klad.typing; t.hidden = !S.klad.typing; b.textContent = S.klad.typing ? '✏️ Tekenen' : '⌨️ Typen'; if (S.klad.typing) t.focus(); }
+    if (k === 'type') { S.klad.typing = !S.klad.typing; t.hidden = !S.klad.typing; b.textContent = S.klad.typing ? `✏️ ${t('Tekenen')}` : `⌨️ ${t('Typen')}`; if (S.klad.typing) t.focus(); }
   }));
   if (box.open) requestAnimationFrame(kladDraw);
 }
@@ -1142,7 +1222,7 @@ async function submit() {
   // bij onderdelen waar we nog niet zien wáár het misgaat: één keer vriendelijk vragen om tussenstappen
   if (S.cur.adapt?.showWork && !kladPayload() && !(S.workAsked ||= {})[S.cur.index]) {
     S.workAsked[S.cur.index] = true;
-    const write = await ask(`<div class="big-emoji">✏️</div><h2 style="margin:8px 0">Eerst even je tussenstappen?</h2><p class="muted">Schrijf in het kladblok hoe je rekent. Dan kan ${esc(STATE?.teacher || 'Max')} precies zien waar het lastig wordt, en dat scheelt jou een hoop fouten.</p>`, 'Ja, even opschrijven', 'Nee, controleer maar');
+    const write = await ask(`<div class="big-emoji">✏️</div><h2 style="margin:8px 0">${t('Eerst even je tussenstappen?')}</h2><p class="muted">${t('Schrijf in het kladblok hoe je rekent. Dan kan {m} precies zien waar het lastig wordt, en dat scheelt jou een hoop fouten.', { m: esc(STATE?.teacher || 'Max') })}</p>`, t('Ja, even opschrijven'), t('Nee, controleer maar'));
     if (write) {
       const box = document.getElementById('klad');
       if (box) { box.open = true; S.klad.open = true; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); requestAnimationFrame(kladDraw); }
@@ -1174,39 +1254,40 @@ function showFeedback(r) {
   let title;
   if (r.correct) {
     buzz(30);
-    title = r.rewardKind === 'solo-double' ? pick(PRAISE.double) : r.retry ? pick(PRAISE.retry) : r.guided ? pick(PRAISE.guided) : pick(PRAISE.solo);
+    const P = praise();
+    title = r.rewardKind === 'solo-double' ? pick(P.double) : r.retry ? pick(P.retry) : r.guided ? pick(P.guided) : pick(P.solo);
     title = title.replace('{naam}', STATE?.name || 'Rekenaar');
-    if (r.streak >= 3 && r.streak % 3 === 0) title += ` 🔥 ${r.streak} op rij!`;
+    if (r.streak >= 3 && r.streak % 3 === 0) title += ` 🔥 ${t('{n} op rij!', { n: r.streak })}`;
     if (r.rewardKind === 'solo-double' || r.retry || (r.streak && r.streak % 5 === 0) || Math.random() < 0.15) confetti();
   } else {
     buzz([60, 40, 60]);
-    title = r.given === 'weet ik niet' ? pick(PRAISE.dunno) : pick(PRAISE.wrong);
+    title = r.dontKnow || r.given === 'weet ik niet' ? pick(praise().dunno) : pick(praise().wrong);
   }
   const rewardChip = S.data.maxPoints && r.correct
-    ? `<span class="chip coin">+${cents(r.cents)}${r.rewardKind === 'solo-double' ? ' · dubbel!' : r.rewardKind === 'guided-half' ? ' · half (met hulp)' : ''}</span>` : '';
+    ? `<span class="chip coin">+${cents(r.cents)}${r.rewardKind === 'solo-double' ? ` · ${t('dubbel!')}` : r.rewardKind === 'guided-half' ? ` · ${t('half (met hulp)')}` : ''}</span>` : '';
   const area = $app.querySelector('#answer-area');
-  area.innerHTML = `<div class="answer-box" style="border-color:${r.correct ? 'var(--good)' : 'var(--bad)'}">${esc(r.given)}${q.unit && !q.money && r.given !== 'weet ik niet' ? `<span class="unit">${esc(q.unit)}</span>` : ''}</div>`;
+  area.innerHTML = `<div class="answer-box" style="border-color:${r.correct ? 'var(--good)' : 'var(--bad)'}">${esc(r.given)}${q.unit && !q.money && !r.dontKnow && r.given !== 'weet ik niet' ? `<span class="unit">${esc(q.unit)}</span>` : ''}</div>`;
   $app.querySelector('#hints').innerHTML = '';
   const nextIsRetry = r.next?.question?.retry;
   // te snel en fout? (vaker, of een bekend patroon) → rustig vragen om eerst te schatten
-  const fast = !r.correct && r.given !== 'weet ik niet' && S.lastMs < 6000 && S.data.kind !== 'intake';
+  const fast = !r.correct && !r.dontKnow && r.given !== 'weet ik niet' && S.lastMs < 6000 && S.data.kind !== 'intake';
   if (fast) S.fastWrong = (S.fastWrong || 0) + 1;
   const slowDown = fast && (S.cur.adapt?.impulsive || S.fastWrong >= 2);
   const showSteps = !r.correct || r.hints;
   $app.querySelector('#fb').innerHTML = `<div class="feedback ${r.correct ? 'ok' : 'no'}">
     <div class="row between"><div class="title">${esc(title)}</div>${rewardChip}</div>
-    ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>Het goede antwoord is <b>${esc(r.display)}</b>.${r.note ? ' ' + esc(r.note) : ''}</p>`}
+    ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>${t('Het goede antwoord is <b>{d}</b>.', { d: esc(r.display) })}${r.note ? ' ' + esc(r.note) : ''}</p>`}
     ${r.misconception ? `<div class="mis"><b>🔎 ${esc(r.misconception.label)}</b><div>👉 ${esc(r.misconception.fix)}</div></div>` : ''}
-    ${!r.correct && r.review ? '<p class="small" style="margin-top:6px">🔁 Deze komt over een paar dagen nog eens terug. Dan lukt hij vast!</p>' : ''}
-    ${slowDown ? `<p class="small" style="margin-top:8px;font-weight:800">🐢 Dat ging supersnel! Bij de volgende: kijk eerst wat er ongeveer uit moet komen, en reken dan rustig. Snelheid levert geen extra centen op, goed wel. 😉</p>` : ''}
-    ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">Zo reken je het uit:</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
-      : `<details style="margin-top:8px"><summary class="small muted">Hoe reken je dit uit?</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
-    ${nextIsRetry ? '<p class="small" style="margin-top:10px;font-weight:800">👉 Hierna krijg je een herkansing: zo\'n soort som, samen stap voor stap.</p>' : ''}
+    ${!r.correct && r.review ? `<p class="small" style="margin-top:6px">🔁 ${t('Deze komt over een paar dagen nog eens terug. Dan lukt hij vast!')}</p>` : ''}
+    ${slowDown ? `<p class="small" style="margin-top:8px;font-weight:800">🐢 ${t('Dat ging supersnel! Bij de volgende: kijk eerst wat er ongeveer uit moet komen, en reken dan rustig. Snelheid levert geen extra centen op, goed wel. 😉')}</p>` : ''}
+    ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">${t('Zo reken je het uit:')}</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
+      : `<details style="margin-top:8px"><summary class="small muted">${t('Hoe reken je dit uit?')}</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
+    ${nextIsRetry ? `<p class="small" style="margin-top:10px;font-weight:800">👉 ${t("Hierna krijg je een herkansing: zo'n soort som, samen stap voor stap.")}</p>` : ''}
   </div>`;
   $app.querySelector('#guide').innerHTML = '';
   $app.querySelector('#controls').innerHTML = `<div class="stack" style="margin-top:12px">
-    ${STATE?.ai && (r.correct || S.data.kind === 'intake') && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 ${r.correct ? 'Praat erover met' : 'Leg het me uit,'} ${esc(STATE.teacher)}</button>` : ''}
-    <button class="btn ${r.correct ? 'good' : ''} block" data-next>${r.done ? 'Bekijk je resultaat' : nextIsRetry ? 'Herkansing →' : 'Volgende →'}</button></div>`;
+    ${STATE?.ai && (r.correct || S.data.kind === 'intake') && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 ${r.correct ? t('Praat erover met {m}', { m: esc(STATE.teacher) }) : t('Leg het me uit, {m}', { m: esc(STATE.teacher) })}</button>` : ''}
+    <button class="btn ${r.correct ? 'good' : ''} block" data-next>${r.done ? t('Bekijk je resultaat') : nextIsRetry ? t('Herkansing →') : t('Volgende →')}</button></div>`;
   $app.querySelector('[data-next]').onclick = next;
   $app.querySelector('[data-ask2]')?.addEventListener('click', (e) => { e.target.remove(); if (r.correct) openTeacher(); else { S.teacherOpen = true; talk(null, 'start'); } });
   // fout? De leraar kijkt wat er misging en begint een gesprekje
@@ -1215,58 +1296,58 @@ function showFeedback(r) {
   if (r.teachback) drawTeachback(r);
   $app.querySelector('#fb').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   if (r.surprise) setTimeout(() => showSurprise(r.surprise), r.weekBonus ? 1800 : 600);
-  if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 Weekbonus! +${r.weekBonus} cent extra voor een hele week oefenen!`, 4500); }, 400);
+  if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 ${t('Weekbonus! +{n} {c} extra voor een hele week oefenen!', { n: r.weekBonus, c: CENT() })}`, 4500); }, 400);
 
   // momenten die er toe doen
   if (r.event === 'up') celebrateLevel(r);
-  else if (r.event === 'down') sheet(`<div style="text-align:center"><div class="big-emoji">🪜</div><h2 style="margin:8px 0">Even een stapje terug</h2>
-      <p>Bij <b>${esc(r.eventCat)}</b> oefenen we even op <b>${esc(r.eventLevel)}-niveau</b>. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠</p>
-      <p class="muted" style="margin-top:8px">Heb je daar 8 van de 10 goed? Dan ga je weer omhoog. Je krijgt de komende sommen extra hulp. 💪</p></div>
-      <button class="btn block" data-close>Oké, we gaan ervoor!</button>`);
-  else if (r.easy === 'on') toast('Even een tandje terug. Ook raceauto\'s gaan de pitstraat in. 🏎️', 3500);
-  else if (r.easy === 'off') toast('Je bent weer op dreef! Volle gas! 🚀', 3000);
-  for (const b of r.badges || []) setTimeout(() => toast(`${b.icon} Nieuwe badge: ${b.title}!`, 3500), 600);
+  else if (r.event === 'down') sheet(`<div style="text-align:center"><div class="big-emoji">🪜</div><h2 style="margin:8px 0">${t('Even een stapje terug')}</h2>
+      <p>${t('Bij <b>{o}</b> oefenen we even op <b>{l}-niveau</b>. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠', { o: esc(r.eventCat), l: esc(r.eventLevel) })}</p>
+      <p class="muted" style="margin-top:8px">${t('Heb je daar 8 van de 10 goed? Dan ga je weer omhoog. Je krijgt de komende sommen extra hulp. 💪')}</p></div>
+      <button class="btn block" data-close>${t('Oké, we gaan ervoor!')}</button>`);
+  else if (r.easy === 'on') toast(t("Even een tandje terug. Ook raceauto's gaan de pitstraat in. 🏎️"), 3500);
+  else if (r.easy === 'off') toast(t('Je bent weer op dreef! Volle gas! 🚀'), 3000);
+  for (const b of r.badges || []) setTimeout(() => toast(`${b.icon} ${t('Nieuwe badge: {b}!', { b: b.title })}`, 3500), 600);
 }
 // Teach-back: "Leg eens uit hoe je het deed" (uitleggen = beter onthouden)
 function drawTeachback() {
   const box = $app.querySelector('#ai-area');
   box.innerHTML = `<div class="teach">
-    <div style="font-weight:900">🗣️ Jij bent nu de juf of meester!</div>
-    <p class="small" style="margin:4px 0 8px">Leg in je eigen woorden uit hoe je deze som hebt uitgerekend. Wie het kan uitleggen, snapt het echt.</p>
-    <form class="stack" style="gap:8px"><textarea maxlength="600" rows="3" placeholder="Eerst deed ik ..., daarna ..."></textarea>
-    <div class="row"><button class="btn" style="flex:1">Stuur</button><button type="button" class="btn ghost" data-skip>Sla over</button></div></form></div>`;
+    <div style="font-weight:900">🗣️ ${t('Jij bent nu de juf of meester!')}</div>
+    <p class="small" style="margin:4px 0 8px">${t('Leg in je eigen woorden uit hoe je deze som hebt uitgerekend. Wie het kan uitleggen, snapt het echt.')}</p>
+    <form class="stack" style="gap:8px"><textarea maxlength="600" rows="3" placeholder="${t('Eerst deed ik ..., daarna ...')}"></textarea>
+    <div class="row"><button class="btn" style="flex:1">${t('Stuur')}</button><button type="button" class="btn ghost" data-skip>${t('Sla over')}</button></div></form></div>`;
   const form = box.querySelector('form');
   box.querySelector('[data-skip]').onclick = () => (box.innerHTML = '');
   form.onsubmit = async (e) => {
     e.preventDefault();
     const text = form.querySelector('textarea').value.trim();
-    if (text.length < 3) return toast('Schrijf eerst kort op hoe je het deed.');
-    form.innerHTML = `<div><span class="loader"></span> ${esc(STATE?.teacher || 'De meester')} leest je uitleg…</div>`;
+    if (text.length < 3) return toast(t('Schrijf eerst kort op hoe je het deed.'));
+    form.innerHTML = `<div><span class="loader"></span> ${t('{m} leest je uitleg…', { m: esc(STATE?.teacher || 'De meester') })}</div>`;
     try {
-      const t = await api(`/api/session/${S.data.id}/teachback`, { index: S.cur.index, text });
-      if (t.badge) { S.badges.push(t.badge); toast(`${t.badge.icon} Nieuwe badge: ${t.badge.title}!`, 3500); }
-      box.innerHTML = `<div class="teach"><div class="small muted">Jouw uitleg:</div><p style="margin-bottom:8px">"${esc(text)}"</p>
-        ${t.feedback ? `<div style="font-weight:900;color:var(--primary)">🧑‍🏫 ${esc(STATE?.teacher || '')}</div><div class="coach">${rich(t.feedback)}</div>`
-          : `<div style="font-weight:800">Top uitgelegd! Vergelijk het met deze stappen. Deed jij het ook zo?</div><ol class="steps">${t.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`}</div>`;
+      const tb = await api(`/api/session/${S.data.id}/teachback`, { index: S.cur.index, text });
+      if (tb.badge) { S.badges.push(tb.badge); toast(`${tb.badge.icon} ${t('Nieuwe badge: {b}!', { b: tb.badge.title })}`, 3500); }
+      box.innerHTML = `<div class="teach"><div class="small muted">${t('Jouw uitleg:')}</div><p style="margin-bottom:8px">"${esc(text)}"</p>
+        ${tb.feedback ? `<div style="font-weight:900;color:var(--primary)">🧑‍🏫 ${esc(STATE?.teacher || '')}</div><div class="coach">${rich(tb.feedback)}</div>`
+          : `<div style="font-weight:800">${t('Top uitgelegd! Vergelijk het met deze stappen. Deed jij het ook zo?')}</div><ol class="steps">${tb.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>`}</div>`;
     } catch (err) { box.innerHTML = `<div class="teach">${esc(err.message)}</div>`; }
   };
 }
 
 function showSurprise(reward) {
   confetti(); setTimeout(confetti, 700);
-  sheet(`<div style="text-align:center"><div class="big-emoji gift">🎁</div><h2 style="margin:8px 0">Verrassing!</h2>
-    <p>Omdat je deze week zo goed je best doet, krijg je:</p>
+  sheet(`<div style="text-align:center"><div class="big-emoji gift">🎁</div><h2 style="margin:8px 0">${t('Verrassing!')}</h2>
+    <p>${t('Omdat je deze week zo goed je best doet, krijg je:')}</p>
     <div class="surprise">${esc(reward)}</div>
-    <p class="muted small" style="margin-top:8px">Laat dit scherm aan papa of mama zien! 📱</p></div>
-    <button class="btn good block" data-close>Yes!! 🙌</button>`);
+    <p class="muted small" style="margin-top:8px">${t('Laat dit scherm aan papa of mama zien! 📱')}</p></div>
+    <button class="btn good block" data-close>${t('Yes!! 🙌')}</button>`);
 }
 
 function celebrateLevel(r) {
   confetti();
-  sheet(`<div style="text-align:center"><div class="big-emoji">⬆️</div><h2 style="margin:8px 0">Niveau omhoog!</h2>
-    <p>Bij <b>${esc(r.eventCat)}</b> reken je nu op <b>${esc(r.eventLevel)}-niveau</b>.</p>
-    <p class="muted" style="margin-top:8px">Je hersenen moeten nieuwe kleren kopen, de oude passen niet meer. 🧠👕</p></div>
-    <button class="btn good block" data-close>Yes!</button>`);
+  sheet(`<div style="text-align:center"><div class="big-emoji">⬆️</div><h2 style="margin:8px 0">${t('Niveau omhoog!')}</h2>
+    <p>${t('Bij <b>{o}</b> reken je nu op <b>{l}-niveau</b>.', { o: esc(r.eventCat), l: esc(r.eventLevel) })}</p>
+    <p class="muted" style="margin-top:8px">${t('Je hersenen moeten nieuwe kleren kopen, de oude passen niet meer. 🧠👕')}</p></div>
+    <button class="btn good block" data-close>${t('Yes!')}</button>`);
 }
 
 function next() {
@@ -1281,31 +1362,31 @@ function next() {
 
 async function renderSummary(sum) {
   const pct = sum.total ? sum.correct / sum.total : 0;
-  const msg = pct >= 0.9 ? 'Super gedaan! 🏆' : pct >= 0.7 ? 'Goed bezig! 💪' : pct >= 0.5 ? 'Netjes doorgezet! 👍' : 'Knap dat je hem hebt afgemaakt! 🧗';
+  const msg = pct >= 0.9 ? t('Super gedaan! 🏆') : pct >= 0.7 ? t('Goed bezig! 💪') : pct >= 0.5 ? t('Netjes doorgezet! 👍') : t('Knap dat je hem hebt afgemaakt! 🧗');
   if (pct >= 0.7) confetti();
-  STATE = await api('/api/state');
+  await loadState();
   const highlights = [
-    sum.bestStreak >= 3 ? `🔥 Langste reeks: <b>${sum.bestStreak} op rij</b>` : '',
-    sum.retryOk ? `🦸 <b>${sum.retryOk}×</b> een herkansing goed` : '',
-    sum.guidedOk ? `🪜 <b>${sum.guidedOk}×</b> goed met tussenstappen` : '',
-    sum.record ? '📈 <b>Nieuw record!</b>' : '',
+    sum.bestStreak >= 3 ? `🔥 ${t('Langste reeks: <b>{n} op rij</b>', { n: sum.bestStreak })}` : '',
+    sum.retryOk ? `🦸 ${t('<b>{n}×</b> een herkansing goed', { n: sum.retryOk })}` : '',
+    sum.guidedOk ? `🪜 ${t('<b>{n}×</b> goed met tussenstappen', { n: sum.guidedOk })}` : '',
+    sum.record ? `📈 <b>${t('Nieuw record!')}</b>` : '',
   ].filter(Boolean);
   const badges = S?.badges || [];
   $app.innerHTML = `<div class="stack">
     <div class="card done-hero"><div class="big-emoji">${pct >= 0.7 ? '🎉' : '⭐'}</div>
-      <div class="score">${sum.correct}/${sum.total}</div><p class="muted">sommen goed</p>
+      <div class="score">${sum.correct}/${sum.total}</div><p class="muted">${t('sommen goed')}</p>
       <h2 style="margin:10px 0">${msg}</h2>
-      ${sum.maxPoints ? `<div class="coin-pop">🪙 +${sum.points} cent</div>` : '<span class="chip">Oefenronde — zonder centen</span>'}
+      ${sum.maxPoints ? `<div class="coin-pop">🪙 +${sum.points} ${CENT()}</div>` : `<span class="chip">${t('Oefenronde — zonder centen')}</span>`}
     </div>
-    ${STATE.ai ? `<div class="card" id="reflect"><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${esc(STATE.teacher)} schrijft je een berichtje…</div></div></div>` : ''}
+    ${STATE.ai ? `<div class="card" id="reflect"><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${t('{m} schrijft je een berichtje…', { m: esc(STATE.teacher) })}</div></div></div>` : ''}
     ${highlights.length ? `<div class="card stack">${highlights.map((h) => `<div>${h}</div>`).join('')}</div>` : ''}
-    ${badges.length ? `<div class="card"><h3>Nieuwe badges</h3><div class="badges">${badges.map((b) => `<div class="badge on"><span>${b.icon}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>` : ''}
-    ${sum.kind === 'intake' ? `<div class="card"><h3>Jouw uitslag</h3><p class="small muted" style="margin:4px 0 8px">Van sterk naar "hier word je beter in". Vanaf nu krijg je elke schooldag ${STATE.points.dailyCount} sommen, op jouw niveau.</p>
+    ${badges.length ? `<div class="card"><h3>${t('Nieuwe badges')}</h3><div class="badges">${badges.map((b) => `<div class="badge on"><span>${b.icon}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>` : ''}
+    ${sum.kind === 'intake' ? `<div class="card"><h3>${t('Jouw uitslag')}</h3><p class="small muted" style="margin:4px 0 8px">${t('Van sterk naar "hier word je beter in". Vanaf nu krijg je elke schooldag {n} sommen, op jouw niveau.', { n: STATE.points.dailyCount })}</p>
       ${STATE.skills.map((x, i) => `<div class="mini-skill"><span class="rank">${i + 1}</span><div><div style="font-weight:800">${x.icon} ${esc(x.label)}</div><div class="bar s${sc(x.score)}"><i style="width:${Math.max(4, x.score)}%"></i></div></div><span class="small muted">${x.levelName}</span></div>`).join('')}</div>`
-    : sum.perCat ? `<div class="card"><h3>Per onderdeel</h3>${sum.perCat.map((p) => `<div class="mini-skill"><span class="ico">${p.icon}</span><div style="font-weight:800">${esc(p.label)}</div><span class="chip ${p.ok === p.n ? 'good' : p.ok === 0 ? 'bad' : ''}">${p.ok}/${p.n}</span></div>`).join('')}</div>` : ''}
-    <div class="card coin row between"><div class="row"><span class="big-emoji" style="font-size:30px">🐷</span><b>Spaarpot</b></div><span class="money" style="font-size:22px">${euro(STATE.wallet.balance)}</span></div>
+    : sum.perCat ? `<div class="card"><h3>${t('Per onderdeel')}</h3>${sum.perCat.map((p) => `<div class="mini-skill"><span class="ico">${p.icon}</span><div style="font-weight:800">${esc(p.label)}</div><span class="chip ${p.ok === p.n ? 'good' : p.ok === 0 ? 'bad' : ''}">${p.ok}/${p.n}</span></div>`).join('')}</div>` : ''}
+    <div class="card coin row between"><div class="row"><span class="big-emoji" style="font-size:30px">🐷</span><b>${t('Spaarpot')}</b></div><span class="money" style="font-size:22px">${euro(STATE.wallet.balance)}</span></div>
     ${mopCard()}
-    <a class="btn block" href="#/">Klaar</a>
+    <a class="btn block" href="#/">${t('Klaar')}</a>
   </div>`;
   $tabs.hidden = true;
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
@@ -1313,7 +1394,7 @@ async function renderSummary(sum) {
     api(`/api/session/${S.data.id}/reflect`, {}).then((r) => {
       const box = $app.querySelector('#reflect');
       if (!box) return;
-      if (r.text) box.innerHTML = `<div class="small muted" style="margin-bottom:6px">Berichtje van ${esc(STATE.teacher)}</div><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(r.text)}</div></div>`;
+      if (r.text) box.innerHTML = `<div class="small muted" style="margin-bottom:6px">${t('Berichtje van {m}', { m: esc(STATE.teacher) })}</div><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(r.text)}</div></div>`;
       else box.remove();
     }).catch(() => $app.querySelector('#reflect')?.remove());
   }
@@ -1376,7 +1457,7 @@ function renderVisual(v) {
       const eaten = i < v.eaten;
       paths += `<path d="M${cx},${cy} L${cx + r * Math.cos(a)},${cy + r * Math.sin(a)} A${r},${r} 0 0 1 ${cx + r * Math.cos(a2)},${cy + r * Math.sin(a2)} Z" fill="${eaten ? 'transparent' : '#f5b100'}" stroke="${eaten ? 'var(--muted)' : '#c27c00'}" stroke-width="3" ${eaten ? 'stroke-dasharray="6 5"' : ''}/>`;
     }
-    return `<svg viewBox="0 0 340 180" role="img" aria-label="pizza">${paths}<text x="200" y="80" font-size="15" font-weight="800" fill="${ink}">🍕 = over</text><text x="200" y="108" font-size="15" font-weight="800" fill="${ink}">- - = opgegeten</text></svg>`;
+    return `<svg viewBox="0 0 340 180" role="img" aria-label="pizza">${paths}<text x="200" y="80" font-size="15" font-weight="800" fill="${ink}">🍕 = ${t('over')}</text><text x="200" y="108" font-size="15" font-weight="800" fill="${ink}">- - = ${t('opgegeten')}</text></svg>`;
   }
   if (v.kind === 'grid') {
     const s = Math.min(36, 300 / v.w), W = v.w * s + 4, H = v.h * s + 4;
@@ -1402,8 +1483,8 @@ function renderVisual(v) {
         <polyline points="${ax},${ty + th - 10} ${ax + 10},${ty + th - 10} ${ax + 10},${ty + th}" fill="none" stroke="${ink}" opacity=".7"/>
         <line x1="${rx}" y1="${ty}" x2="${rx}" y2="${ty + th}" stroke="${ink}" stroke-width="2"/>
         <line x1="${rx - 5}" y1="${ty}" x2="${rx + 5}" y2="${ty}" stroke="${ink}" stroke-width="2"/><line x1="${rx - 5}" y1="${ty + th}" x2="${rx + 5}" y2="${ty + th}" stroke="${ink}" stroke-width="2"/>
-        ${lab(rx + 10, ty + th / 2 - 4, 'hoogte', 'start')}${lab(rx + 10, ty + th / 2 + 14, `${v.h} ${v.unit}`, 'start')}
-        ${lab(tx + tw / 2, ty + th + 22, `basis ${v.w} ${v.unit}`)}</svg>`;
+        ${lab(rx + 10, ty + th / 2 - 4, t('hoogte'), 'start')}${lab(rx + 10, ty + th / 2 + 14, `${v.h} ${v.unit}`, 'start')}
+        ${lab(tx + tw / 2, ty + th + 22, `${t('basis')} ${v.w} ${v.unit}`)}</svg>`;
     }
     const a = v.a * k, b = v.b * k;
     return `<svg viewBox="0 0 ${W} ${H}"><polygon points="${x0},${y0} ${x0 + w - a},${y0} ${x0 + w - a},${y0 + b} ${x0 + w},${y0 + b} ${x0 + w},${y0 + h} ${x0},${y0 + h}" ${style}/>
@@ -1419,9 +1500,11 @@ function renderVisual(v) {
 async function renderParent() {
   let data;
   try { data = await api('/api/parent/overview'); } catch (e) {
-    if (e.status === 401) return pinScreen('Pincode voor ouders', async (pin) => { await api('/api/parent/login', { pin }); renderParent(); });
+    if (e.status === 401) return pinScreen(t('Pincode voor ouders'), async (pin) => { await api('/api/parent/login', { pin }); renderParent(); });
     throw e;
   }
+  setLang(data.lang);
+  if (!STATE) STATE = { currency: data.country === 'ZA' ? 'ZAR' : 'EUR', kid: { lang: data.lang } };
   const accBy = Object.fromEntries(data.acc.map((a) => [a.cat, a]));
   const spark = (cat) => {
     const pts = data.snaps.filter((s) => s.cat === cat).map((s) => s.score);
@@ -1429,100 +1512,115 @@ async function renderParent() {
     const W = 90, H = 26;
     return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline fill="none" stroke="var(--primary)" stroke-width="2" points="${pts.map((p, i) => `${(i / (pts.length - 1)) * (W - 4) + 2},${H - 2 - (p / 100) * (H - 4)}`).join(' ')}"/></svg>`;
   };
-  const kindNl = { intake: 'Starttoets', daily: 'Dagtaak', practice: 'Oefenen' };
+  const kindNl = { intake: t('Starttoets'), daily: t('Dagtaak'), practice: t('Oefenen') };
   $app.innerHTML = `<div class="stack">
-    <div class="row between"><a href="#/spaarpot" class="small">‹ Terug</a><button class="btn ghost" data-logout>Uitloggen</button></div>
-    <div class="row between"><h1>Ouderoverzicht</h1><a href="#/overzicht" class="small">👨‍🏫 Alle kinderen</a></div>
-    <div class="card coin stack"><div class="row between"><div><div class="small muted">Spaarpot van ${esc(data.name)}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">verdiend ${euro(data.wallet.earned)}<br>uitbetaald ${euro(data.wallet.paid)}<br>🔥 ${data.streak} dagen op rij</div></div>
-      <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="Bedrag in €, bijv. 2,50" name="amt"></div><button class="btn">Uitbetalen</button></form></div>
+    <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a><button class="btn ghost" data-logout>${t('Uitloggen')}</button></div>
+    <div class="row between"><h1>${t('Ouderoverzicht')}</h1><a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a></div>
+    <div class="card coin stack"><div class="row between"><div><div class="small muted">${t('Spaarpot van {n}', { n: esc(data.name) })}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">${t('verdiend')} ${euro(data.wallet.earned)}<br>${t('uitbetaald')} ${euro(data.wallet.paid)}<br>🔥 ${t('{n} dagen op rij', { n: data.streak })}</div></div>
+      <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="${ZAR() ? t('Bedrag in rand, bv. 2,50') : 'Bedrag in €, bijv. 2,50'}" name="amt"></div><button class="btn">${t('Uitbetalen')}</button></form></div>
 
-    <div class="card stack"><div class="row between"><h2>🧑‍🏫 ${esc(data.teacher)} (AI-leraar)</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : '<span class="chip bad">AI uit</span>'}</div>
-      ${data.ai ? '' : '<p class="small">Zet <code>OPENAI_API_KEY</code> in de instellingen (.env of Railway) om de AI-leraar aan te zetten.</p>'}
-      <h3>Leerlingprofiel</h3>
+    <div class="card stack"><div class="row between"><h2>🧑‍🏫 ${esc(data.teacher)} (${t('AI-leraar')})</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : `<span class="chip bad">${t('AI uit')}</span>`}</div>
+      ${data.ai ? '' : `<p class="small">${t('Zet <code>OPENAI_API_KEY</code> in de instellingen (.env of Railway) om de AI-leraar aan te zetten.')}</p>`}
+      <h3>${t('Leerlingprofiel')}</h3>
       <div id="profile">${profileHTML(data.profile)}</div>
-      <button class="btn ghost block" data-profile ${data.ai ? '' : 'disabled'}>Profiel nu bijwerken</button>
-      <h3 style="margin-top:6px">Wat ${esc(data.teacher)} onthoudt</h3>
-      ${data.memory?.length ? `<ul class="small" style="margin:0 0 0 18px;padding:0">${data.memory.map((m) => `<li><span class="muted">${esc(m.d.slice(8))}-${esc(m.d.slice(5, 7))}</span> ${esc(m.n)}</li>`).join('')}</ul>` : '<p class="small muted">Nog niets. Na elke sessie en les schrijft hij korte notities.</p>'}
+      <button class="btn ghost block" data-profile ${data.ai ? '' : 'disabled'}>${t('Profiel nu bijwerken')}</button>
+      <h3 style="margin-top:6px">${t('Wat {m} onthoudt', { m: esc(data.teacher) })}</h3>
+      ${data.memory?.length ? `<ul class="small" style="margin:0 0 0 18px;padding:0">${data.memory.map((m) => `<li><span class="muted">${esc(m.d.slice(8))}-${esc(m.d.slice(5, 7))}</span> ${esc(m.n)}</li>`).join('')}</ul>` : `<p class="small muted">${t('Nog niets. Na elke sessie en les schrijft hij korte notities.')}</p>`}
     </div>
-    <div class="card stack"><div class="row between"><h2>AI-advies voor jou</h2></div>
-      <p class="small muted">Samenvatting van waar ${esc(data.name)} staat, en wat je thuis kunt doen.</p>
+    <div class="card stack"><div class="row between"><h2>${t('AI-advies voor jou')}</h2></div>
+      <p class="small muted">${t('Samenvatting van waar {n} staat, en wat je thuis kunt doen.', { n: esc(data.name) })}</p>
       <div id="advice"></div>
-      <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>Maak advies</button></div>
+      <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>${t('Maak advies')}</button></div>
 
-    <div class="card"><h2>Onderdelen</h2><p class="small muted" style="margin:4px 0 6px">Niveau (opstap/basis/1F/1S) · score · laatste 14 dagen goed, waarvan met tussenstappen · trend</p>
-      <table class="list"><tr><th>Onderdeel</th><th>Score</th><th>14 d</th><th></th></tr>
-      ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ' <span class="chip bad">extra hulp</span>' : ''}<div class="small muted">${x.levelName} · ${x.guidedWins}/5 leerfase${x.soloBonus ? ` · ${x.soloBonus}× zelf-bonus` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
-        <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${accBy[x.cat].guided} met stappen · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
+    <div class="card"><h2>${t('Onderdelen')}</h2><p class="small muted" style="margin:4px 0 6px">${t('Niveau · score · laatste 14 dagen goed, waarvan met tussenstappen · trend')}</p>
+      <table class="list"><tr><th>${t('Onderdeel')}</th><th>${t('Score')}</th><th>14 d</th><th></th></tr>
+      ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ` <span class="chip bad">${t('extra hulp')}</span>` : ''}<div class="small muted">${x.levelName} · ${t('{n}/5 leerfase', { n: x.guidedWins })}${x.soloBonus ? ` · ${t('{n}× zelf-bonus', { n: x.soloBonus })}` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
+        <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${t('{n} met stappen', { n: accBy[x.cat].guided })} · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
 
-    <div class="card stack"><h2>🎁 Wekelijkse verrassing</h2>
-      <p class="small muted">Eén keer per week, op een willekeurige dag, krijgt ${esc(data.name)} een verrassing als de dagtaak goed ging. Een bedrag met "euro" gaat automatisch in de spaarpot.</p>
+    <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
+      <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed ging. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
       <form class="stack" data-surprise style="gap:8px">
-        <label class="row"><input type="checkbox" name="enabled" ${data.surprise.cfg.enabled ? 'checked' : ''}> <span>Aan</span></label>
-        <label class="field"><span class="small" style="font-weight:800">Verrassingen (één per regel)</span><textarea name="rewards" rows="4">${esc(data.surprise.cfg.rewards.join('\n'))}</textarea></label>
-        <label class="field"><span class="small" style="font-weight:800">Minimaal goed in de dagtaak</span><select name="min">${[0.5, 0.6, 0.7, 0.8, 0.9].map((m) => `<option value="${m}" ${Math.abs(m - data.surprise.cfg.min) < 0.01 ? 'selected' : ''}>${m * 100}%</option>`).join('')}</select></label>
-        <button class="btn ghost">Opslaan</button>
+        <label class="row"><input type="checkbox" name="enabled" ${data.surprise.cfg.enabled ? 'checked' : ''}> <span>${t('Aan')}</span></label>
+        <label class="field"><span class="small" style="font-weight:800">${t('Verrassingen (één per regel)')}</span><textarea name="rewards" rows="4">${esc(data.surprise.cfg.rewards.join('\n'))}</textarea></label>
+        <label class="field"><span class="small" style="font-weight:800">${t('Minimaal goed in de dagtaak')}</span><select name="min">${[0.5, 0.6, 0.7, 0.8, 0.9].map((m) => `<option value="${m}" ${Math.abs(m - data.surprise.cfg.min) < 0.01 ? 'selected' : ''}>${m * 100}%</option>`).join('')}</select></label>
+        <button class="btn ghost">${t('Opslaan')}</button>
       </form>
-      ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">Gegeven</button>`}</td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen verrassingen gegeven.</p>'}
+      ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen verrassingen gegeven.')}</p>`}
     </div>
 
-    <div class="card stack"><h2>🔧 Hoe leert ${esc(data.name)}? <span class="small muted">(onder de motorkap)</span></h2>
+    <div class="card stack"><h2>🔧 ${t('Hoe leert {n}?', { n: esc(data.name) })} <span class="small muted">${t('(onder de motorkap)')}</span></h2>
       ${signalsHTML(data.signals, data.teacher)}</div>
 
-    <div class="card stack"><h2>🔎 Denkfouten & herhaling</h2>
-      <p class="small">🔁 Foutenschrift: <b>${data.reviews?.open || 0}</b> sommen staan klaar om te herhalen, <b>${data.reviews?.done || 0}</b> zijn inmiddels geleerd.</p>
-      ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : '<p class="small muted">Nog geen bekende denkfouten gezien (laatste 30 dagen).</p>'}
-      ${data.scratchNotes?.length ? `<p style="font-weight:900;margin-top:6px">✏️ Wat ${esc(STATE?.teacher || 'de leraar')} in het kladblok zag</p>
+    <div class="card stack"><h2>🔎 ${t('Denkfouten & herhaling')}</h2>
+      <p class="small">🔁 ${t('Foutenschrift: <b>{a}</b> sommen staan klaar om te herhalen, <b>{b}</b> zijn inmiddels geleerd.', { a: data.reviews?.open || 0, b: data.reviews?.done || 0 })}</p>
+      ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen bekende denkfouten gezien (laatste 30 dagen).')}</p>`}
+      ${data.scratchNotes?.length ? `<p style="font-weight:900;margin-top:6px">✏️ ${t('Wat {m} in het kladblok zag', { m: esc(data.teacher) })}</p>
         <table class="list">${data.scratchNotes.map((n) => `<tr><td><div class="small">${esc(n.text)} → <b>${esc(n.given)}</b> ${n.correct ? '✅' : '❌'}</div><div>${esc(n.scratch_note)}</div></td></tr>`).join('')}</table>` : ''}
     </div>
 
-    <div class="card"><h2>Badges</h2><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
+    <div class="card"><h2>${t('Badges')}</h2><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
 
-    <div class="card"><h2>Recente fouten</h2>${data.recentWrong.length ? `<table class="list"><tr><th>Som</th><th>Gaf</th><th>Goed</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : '<p class="muted">Nog geen fouten.</p>'}</div>
+    <div class="card"><h2>${t('Recente fouten')}</h2>${data.recentWrong.length ? `<table class="list"><tr><th>${t('Som')}</th><th>${t('Gaf')}</th><th>${t('Goed')}</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : `<p class="muted">${t('Nog geen fouten.')}</p>`}</div>
 
-    <div class="card"><h2>Sessies</h2><table class="list"><tr><th>Dag</th><th>Soort</th><th>Goed</th><th>Cent</th><th>Tijd</th></tr>
-      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ' <span class="chip">bezig</span>' : ''}</td><td>${s.correct}/${s.total}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div>
+    <div class="card"><h2>${t('Sessies')}</h2><table class="list"><tr><th>${t('Dag')}</th><th>${t('Soort')}</th><th>${t('Goed')}</th><th>${CENT()}</th><th>${t('Tijd')}</th></tr>
+      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ` <span class="chip">${t('bezig')}</span>` : ''}</td><td>${s.correct}/${s.total}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div>
 
-    <div class="card"><h2>Spaarpot-historie</h2><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString('nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div>
+    <div class="card"><h2>${t('Spaarpot-historie')}</h2><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div>
 
-    <div class="card stack"><h2>Instellingen</h2>
-      <form class="row" data-name><div class="field" style="flex:1"><input name="name" value="${esc(data.name)}" maxlength="30"></div><button class="btn ghost">Naam opslaan</button></form>
-      <button class="btn ghost block" data-otherkid>👤 Ander kind bekijken</button>
-      <button class="btn ghost block" data-reset="intake">Starttoets opnieuw laten doen</button>
-      <button class="btn ghost block" data-reset="all" style="color:var(--bad)">Alles wissen (ook spaarpot)</button>
-      <button class="btn ghost block" data-delkid style="color:var(--bad)">Profiel van ${esc(data.name)} helemaal verwijderen</button></div>
+    <div class="card stack"><h2>${t('Instellingen')}</h2>
+      <form class="row" data-name><div class="field" style="flex:1"><input name="name" value="${esc(data.name)}" maxlength="30"></div><button class="btn ghost">${t('Naam opslaan')}</button></form>
+      <form class="stack" data-kidprofile style="gap:8px">
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <label class="field" style="flex:1"><span class="small" style="font-weight:800">${t('Land')}</span><select name="country">${[['NL', '🇳🇱 Nederland'], ['ZA', '🇿🇦 Suid-Afrika']].map(([v, n]) => `<option value="${v}" ${data.country === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+          <label class="field" style="flex:1"><span class="small" style="font-weight:800">${t('Taal')}</span><select name="lang">${[['nl', 'Nederlands'], ['af', 'Afrikaans']].map(([v, n]) => `<option value="${v}" ${data.lang === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+          <label class="field" style="flex:1"><span class="small" style="font-weight:800">${data.country === 'ZA' ? t('Graad') : t('Groep')}</span><input name="grade" inputmode="numeric" value="${data.grade ?? ''}"></label>
+          <label class="field" style="flex:1"><span class="small" style="font-weight:800">${t('Leeftijd')}</span><input name="age" inputmode="numeric" value="${data.age ?? ''}"></label>
+        </div>
+        <p class="small muted">${t('Let op: een andere taal betekent ook een ander curriculum (Nederlands = Nederlandse basisschool, Afrikaans = Suid-Afrikaanse KABV). Doe daarna de starttoets opnieuw.')}</p>
+        <button class="btn ghost">${t('Profiel opslaan')}</button></form>
+      <button class="btn ghost block" data-otherkid>👤 ${t('Ander kind bekijken')}</button>
+      <button class="btn ghost block" data-reset="intake">${t('Starttoets opnieuw laten doen')}</button>
+      <button class="btn ghost block" data-reset="all" style="color:var(--bad)">${t('Alles wissen (ook spaarpot)')}</button>
+      <button class="btn ghost block" data-delkid style="color:var(--bad)">${t('Profiel van {n} helemaal verwijderen', { n: esc(data.name) })}</button></div>
   </div>`;
 
   $app.querySelector('[data-profile]').onclick = async (e) => {
-    e.target.disabled = true; e.target.textContent = 'Bezig…';
-    try { const r = await api('/api/parent/profile', {}); $app.querySelector('#profile').innerHTML = profileHTML(r.profile); toast('Profiel bijgewerkt ✓'); }
+    e.target.disabled = true; e.target.textContent = t('Bezig…');
+    try { const r = await api('/api/parent/profile', {}); $app.querySelector('#profile').innerHTML = profileHTML(r.profile); toast(t('Profiel bijgewerkt ✓')); }
     catch (err) { toast(err.message); }
-    e.target.disabled = false; e.target.textContent = 'Profiel nu bijwerken';
+    e.target.disabled = false; e.target.textContent = t('Profiel nu bijwerken');
   };
   $app.querySelector('[data-otherkid]').onclick = () => switchKid();
   $app.querySelector('[data-surprise]').onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
     await api('/api/parent/surprise', { enabled: f.enabled.checked, rewards: f.rewards.value.split('\n'), min: Number(f.min.value) });
-    toast('Opgeslagen ✓');
+    toast(t('Opgeslagen ✓'));
+  };
+  $app.querySelector('[data-kidprofile]').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await api('/api/parent/kidprofile', { country: f.country.value, lang: f.lang.value, grade: f.grade.value, age: f.age.value }); STATE = null; toast(t('Opgeslagen ✓')); renderParent(); }
+    catch (err) { toast(err.message); }
   };
   $app.querySelectorAll('[data-delivered]').forEach((b) => (b.onclick = async () => { await api('/api/parent/surprise/delivered', { index: Number(b.dataset.delivered) }); renderParent(); }));
   $app.querySelector('[data-delkid]').onclick = async () => {
-    if (!(await ask(`<h2 style="margin-bottom:8px">Profiel van ${esc(data.name)} verwijderen?</h2><p>Alles van dit kind gaat weg: niveaus, spaarpot, badges en wat ${esc(data.teacher)} onthoudt. Dit kan niet ongedaan worden.</p>`, 'Ja, verwijderen', 'Annuleren', true))) return;
+    if (!(await ask(`<h2 style="margin-bottom:8px">${t('Profiel van {n} verwijderen?', { n: esc(data.name) })}</h2><p>${t('Alles van dit kind gaat weg: niveaus, spaarpot, badges en wat {m} onthoudt. Dit kan niet ongedaan worden.', { m: esc(data.teacher) })}</p>`, t('Ja, verwijderen'), t('Annuleren'), true))) return;
     await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
-    toast('Profiel verwijderd'); switchKid();
+    toast(t('Profiel verwijderd')); switchKid();
   };
   $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
   $app.querySelector('[data-payout]').onsubmit = async (e) => {
     e.preventDefault();
     const amt = Math.round(parseFloat(e.target.amt.value.replace(',', '.')) * 100);
-    if (!(amt > 0)) return toast('Vul een bedrag in');
-    if (!(await ask(`<h2>${euro(amt)} uitbetalen?</h2>`, 'Ja, uitbetalen', 'Annuleren'))) return;
-    try { await api('/api/parent/payout', { cents: amt }); toast('Uitbetaald ✓'); renderParent(); } catch (err) { toast(err.message); }
+    if (!(amt > 0)) return toast(t('Vul een bedrag in'));
+    if (!(await ask(`<h2>${t('{b} uitbetalen?', { b: euro(amt) })}</h2>`, t('Ja, uitbetalen'), t('Annuleren')))) return;
+    try { await api('/api/parent/payout', { cents: amt }); toast(t('Uitbetaald ✓')); renderParent(); } catch (err) { toast(err.message); }
   };
   $app.querySelector('[data-advice]').onclick = async (e) => {
     const box = $app.querySelector('#advice');
     e.target.disabled = true;
-    box.innerHTML = '<div class="ai-box"><span class="loader"></span> Advies maken…</div>';
+    box.innerHTML = `<div class="ai-box"><span class="loader"></span> ${t('Advies maken…')}</div>`;
     try {
       const r = await api('/api/parent/advice', {});
       box.innerHTML = `<div class="ai-box">${r.text ? rich(r.text) : esc(r.reason)}</div>`;
@@ -1533,47 +1631,47 @@ async function renderParent() {
     e.preventDefault();
     await api('/api/parent/settings', { name: e.target.name.value.trim() });
     STATE = null;
-    toast('Opgeslagen ✓');
+    toast(t('Opgeslagen ✓'));
   };
   $app.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = async () => {
     const what = b.dataset.reset;
-    const ok = await ask(`<h2 style="margin-bottom:8px">Zeker weten?</h2><p>${what === 'all' ? 'Alles wordt gewist, ook de spaarpot en badges. Dit kan niet ongedaan worden.' : 'De starttoets en alle niveaus worden opnieuw bepaald. De spaarpot blijft.'}</p>`, what === 'all' ? 'Ja, alles wissen' : 'Ja, opnieuw', 'Annuleren', true);
+    const ok = await ask(`<h2 style="margin-bottom:8px">${t('Zeker weten?')}</h2><p>${what === 'all' ? t('Alles wordt gewist, ook de spaarpot en badges. Dit kan niet ongedaan worden.') : t('De starttoets en alle niveaus worden opnieuw bepaald. De spaarpot blijft.')}</p>`, what === 'all' ? t('Ja, alles wissen') : t('Ja, opnieuw'), t('Annuleren'), true);
     if (!ok) return;
     await api('/api/parent/reset', { what, confirm: 'RESET' });
-    toast('Gedaan ✓'); renderParent();
+    toast(t('Gedaan ✓')); renderParent();
   }));
 }
 
 // "Hoe leert hij?" — signalen onder de motorkap. Alleen in het ouder-/leerkrachtscherm, nooit voor het kind.
 function signalsHTML(sig, teacher = 'Max') {
-  if (!sig?.signals?.length) return '<p class="small muted">Nog geen gegevens.</p>';
-  const CH = { 'let op': '<span class="chip bad">let op</span>', ok: '<span class="chip good">ok</span>', onbekend: '<span class="chip">nog te weinig data</span>', info: '<span class="chip">info</span>' };
+  if (!sig?.signals?.length) return `<p class="small muted">${t('Nog geen gegevens.')}</p>`;
+  const CH = { 'let op': `<span class="chip bad">${t('let op')}</span>`, ok: '<span class="chip good">ok</span>', onbekend: `<span class="chip">${t('nog te weinig data')}</span>`, info: '<span class="chip">info</span>' };
   const order = { 'let op': 0, info: 1, ok: 2, onbekend: 3 };
   const list = [...sig.signals].sort((a, b) => order[a.status] - order[b.status]);
   return `<div class="stack" style="gap:8px">${list.map((s) => `<div class="card flat" style="padding:10px 12px;${s.status === 'onbekend' ? 'opacity:.6' : ''}">
       <div class="row between"><b>${esc(s.title)}</b>${CH[s.status] || ''}</div>
       ${s.status !== 'onbekend' && s.status !== 'ok' ? `<p class="small" style="margin-top:4px">${esc(s.text)}</p>` : ''}
       ${s.evidence ? `<p class="small muted" style="margin-top:4px">🔍 ${esc(s.evidence)}</p>` : ''}
-      ${s.action && s.status === 'let op' ? `<p class="small" style="margin-top:4px">⚙️ <b>Wat de app en ${esc(teacher)} doen:</b> ${esc(s.action)}</p>` : ''}</div>`).join('')}
-    <p class="small muted">Gebaseerd op ${sig.n} sommen (laatste 30 dagen). Bewust geen "leerstijl"-labels zoals visueel of auditief: onderzoek laat zien dat lesgeven naar zo'n stijl niet beter werkt. Wél: wat aantoonbaar helpt, per onderwerp. Het kind ziet dit niet.</p></div>`;
+      ${s.action && s.status === 'let op' ? `<p class="small" style="margin-top:4px">⚙️ <b>${t('Wat de app en {m} doen:', { m: esc(teacher) })}</b> ${esc(s.action)}</p>` : ''}</div>`).join('')}
+    <p class="small muted">${t('Gebaseerd op {n} sommen (laatste 30 dagen). Bewust geen "leerstijl"-labels zoals visueel of auditief: onderzoek laat zien dat lesgeven naar zo\'n stijl niet beter werkt. Wél: wat aantoonbaar helpt, per onderwerp. Het kind ziet dit niet.', { n: sig.n })}</p></div>`;
 }
 
 function profileHTML(p) {
-  if (!p) return '<p class="small muted">Nog leeg. Na een paar sessies analyseert de AI-leraar automatisch welke denkfouten er gemaakt worden en wat helpt.</p>';
-  const ST = { nieuw: '🆕 nieuw', 'mee bezig': '🔧 mee bezig', 'gaat beter': '📈 gaat beter', opgelost: '✅ opgelost' };
+  if (!p) return `<p class="small muted">${t('Nog leeg. Na een paar sessies analyseert de AI-leraar automatisch welke denkfouten er gemaakt worden en wat helpt.')}</p>`;
+  const ST = { nieuw: `🆕 ${t('nieuw')}`, 'mee bezig': `🔧 ${t('mee bezig')}`, 'gaat beter': `📈 ${t('gaat beter')}`, opgelost: `✅ ${t('opgelost')}` };
   return `${p.samenvatting ? `<p>${esc(p.samenvatting)}</p>` : ''}
-    ${p.sterk?.length ? `<p class="small" style="margin-top:8px"><b>💪 Sterk:</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
+    ${p.sterk?.length ? `<p class="small" style="margin-top:8px"><b>💪 ${t('Sterk:')}</b> ${p.sterk.map(esc).join(' · ')}</p>` : ''}
     ${(p.zwakke_punten || []).map((z) => `<div class="card flat" style="padding:12px;margin-top:8px;${z.status === 'opgelost' ? 'opacity:.65' : ''}">
       <div class="row between"><b>${esc(z.onderdeel)}</b><span class="chip ${z.prioriteit === 'hoog' && z.status !== 'opgelost' ? 'bad' : ''}">${esc(ST[z.status] || z.status || '')}</span></div>
       <p class="small" style="margin-top:4px">${esc(z.punt)}</p>
       ${z.bewijs ? `<p class="small muted" style="margin-top:4px">🔍 ${esc(z.bewijs)}</p>` : ''}
-      ${z.wat_helpt ? `<p class="small" style="margin-top:4px"><b>Helpt:</b> ${esc(z.wat_helpt)}</p>` : ''}</div>`).join('')}
-    ${p.leerstijl ? `<p class="small" style="margin-top:8px"><b>Leerstijl:</b> ${esc(p.leerstijl)}</p>` : ''}
+      ${z.wat_helpt ? `<p class="small" style="margin-top:4px"><b>${t('Helpt:')}</b> ${esc(z.wat_helpt)}</p>` : ''}</div>`).join('')}
+    ${p.leerstijl ? `<p class="small" style="margin-top:8px"><b>${t('Leerstijl:')}</b> ${esc(p.leerstijl)}</p>` : ''}
     ${(p.onderdelen || []).map((o) => `<div class="card flat" style="padding:12px;margin-top:8px"><div class="row between"><b>${esc(o.onderdeel)}</b><span class="chip ${o.prioriteit === 'hoog' ? 'bad' : ''}">${esc(o.prioriteit || '')}</span></div>
       ${(o.denkfouten || []).length ? `<ul class="small" style="margin:6px 0 0 18px;padding:0">${o.denkfouten.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
       ${o.wat_helpt ? `<p class="small" style="margin-top:6px"><b>Helpt:</b> ${esc(o.wat_helpt)}</p>` : ''}</div>`).join('')}
-    ${p.aanpak_tips?.length ? `<p class="small" style="margin-top:8px"><b>Aanpak:</b> ${p.aanpak_tips.map(esc).join(' · ')}</p>` : ''}
-    ${p.updated_at ? `<p class="small muted" style="margin-top:6px">Bijgewerkt: ${new Date(p.updated_at).toLocaleString('nl-NL')}</p>` : ''}`;
+    ${p.aanpak_tips?.length ? `<p class="small" style="margin-top:8px"><b>${t('Aanpak:')}</b> ${p.aanpak_tips.map(esc).join(' · ')}</p>` : ''}
+    ${p.updated_at ? `<p class="small muted" style="margin-top:6px">${t('Bijgewerkt:')} ${new Date(p.updated_at).toLocaleString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</p>` : ''}`;
 }
 
 // ---------- start ----------

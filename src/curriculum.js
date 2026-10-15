@@ -11,7 +11,7 @@ const PACKS = {
   nl: {
     id: 'nl', lang: 'nl',
     LEVEL_NAMES: NLgen.LEVEL_NAMES, CATEGORIES: NLgen.CATEGORIES, CAT_IDS: NLgen.CAT_IDS, catById: NLgen.catById,
-    startLevel: NLgen.startLevelForGroep, gradeLabel: (g) => `groep ${g}`, gradeRange: [4, 8],
+    startLevel: NLgen.startLevelForGroep, gradeLabel: (g) => `groep ${g}`, gradeRange: [3, 8], gradeWord: 'groep',
     generate: NLgen.generate, generateLike: NLgen.generateLike, hintsFor: NLgen.hintsFor,
     detectMisconception: NLmis.detectMisconception,
     MNEMONICS: NLmne.MNEMONICS, mnemonicsFor: NLmne.mnemonicsFor, mnemonicText: NLmne.mnemonicText,

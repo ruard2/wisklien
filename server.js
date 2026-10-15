@@ -9,7 +9,8 @@ import {
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { aiEnabled, aiProvider, aiModel, TEACHER, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
+import { aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, isSchoolDay, weekdayNL, setTestClock } from './src/util.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
@@ -64,7 +65,7 @@ function withKid(req, res, next) {
 }
 const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
 const parent = (req, res, next) => (hasRole(req, 'parent') ? withKid(req, res, next) : res.status(401).json({ error: 'parent-login' }));
-const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e); res.status(500).json({ error: 'Er ging iets mis op de server.' }); });
+const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e); res.status(500).json({ error: ts('Er ging iets mis op de server.') }); });
 
 // ---------- AI-limiet per dag (kostenbewaking) ----------
 // per kind per dag (kostenbewaking)
@@ -101,11 +102,10 @@ function nextSchoolDay(d) {
   while ([0, 6].includes(dowOf(x))) x = addDays(x, 1);
   return x;
 }
-const DAGNAAM = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+
 
 // ---------- wekelijkse verrassing (één per week, willekeurige dag, alleen als het goed ging) ----------
-const DEFAULT_REWARDS = ['🍬 Een extra snoepje', '🎮 Een half uur extra gametijd', '💶 1 euro extra', '🎁 Een klein cadeautje'];
-async function surpriseCfg() { return { enabled: true, rewards: DEFAULT_REWARDS, min: 0.7, ...(await getSetting('surprise_cfg', {})) }; }
+async function surpriseCfg() { return { enabled: true, rewards: defaultRewards(), min: 0.7, ...(await getSetting('surprise_cfg', {})) }; }
 async function maybeSurprise(s) {
   const cfg = await surpriseCfg();
   if (!cfg.enabled || !cfg.rewards?.length || s.kind !== 'daily') return null;
@@ -115,8 +115,9 @@ async function maybeSurprise(s) {
   if (!pick) { pick = { day: days[Math.floor(Math.random() * days.length)], given: false }; await setSetting(key, pick); }
   if (pick.given || s.day < pick.day || s.correct / s.total < cfg.min) return null;
   const reward = cfg.rewards[Math.floor(Math.random() * cfg.rewards.length)];
-  const euro = reward.match(/(\d+(?:[.,]\d+)?)\s*euro/i);
-  if (euro) await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [Math.round(Number(euro[1].replace(',', '.')) * 100), `Verrassing: ${reward}`]);
+  // een geldbedrag ("1 euro", "R10", "10 rand") gaat meteen in de spaarpot
+  const euro = reward.match(/(\d+(?:[.,]\d+)?)\s*(?:euro|rand)/i) || reward.match(/\bR\s?(\d+(?:[.,]\d+)?)/);
+  if (euro) await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [Math.round(Number(euro[1].replace(',', '.')) * 100), ts('Verrassing: {r}', { r: reward })]);
   await setSetting(key, { ...pick, given: true, reward });
   const list = await getSetting('surprises', []);
   list.push({ date: s.day, reward, delivered: !!euro });
@@ -224,7 +225,7 @@ function sessionTranscript(s) {
   return s.questions.map((x, k) => {
     const r = s.results[k];
     if (!r) return null;
-    const chat = (x.chat || []).map((m) => `   ${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text.slice(0, 220)}`).join('\n');
+    const chat = (x.chat || []).map((m) => `   ${m.role === 'teacher' ? teacherName() : 'kind'}: ${m.text.slice(0, 220)}`).join('\n');
     return `[${catById[x.cat].label}, ${LEVEL_NAMES[x.level]}] ${x.text} → "${r.given}" (${r.correct ? 'goed' : 'fout, goed: ' + x.display}${r.guided ? ', met tussenstappen' : ''})${chat ? '\n' + chat : ''}`;
   }).filter(Boolean).join('\n');
 }
@@ -316,19 +317,34 @@ async function loadSession(id, client = { query: q }) {
 // =====================================================================
 const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐙', '🦄', '🐯', '🐨', '🚀', '⚽', '🎮', '🦖'];
 app.get('/api/kids', wrap(async (req, res) => res.json({ kids: await listKids(), current: kidIdOf(req), avatars: AVATARS })));
+// Profielgegevens controleren. Taal bepaalt het curriculum: Nederlands → NL, Afrikaans → Suid-Afrika (KABV).
+function cleanProfile(b, partial = false) {
+  const lang = b.lang === 'af' ? 'af' : b.lang === 'nl' ? 'nl' : null;
+  const country = b.country === 'ZA' ? 'ZA' : b.country === 'NL' ? 'NL' : null;
+  const grade = b.grade == null || b.grade === '' ? null : Number(b.grade);
+  const age = b.age == null || b.age === '' ? null : Number(b.age);
+  const af = (lang || (country === 'ZA' ? 'af' : 'nl')) === 'af';
+  if (!partial && (!lang || !country)) return { error: af ? 'Kies jou land en taal.' : 'Kies je land en taal.' };
+  const [lo, hi] = af ? [3, 7] : [3, 8];
+  if ((!partial || grade != null) && !(Number.isInteger(grade) && grade >= lo && grade <= hi)) return { error: af ? `In watter graad is jy? (${lo} tot ${hi})` : `In welke groep zit je? (${lo} tot ${hi})` };
+  if ((!partial || age != null) && !(Number.isInteger(age) && age >= 6 && age <= 16)) return { error: af ? 'Hoe oud is jy?' : 'Hoe oud ben je?' };
+  return { lang: lang ?? undefined, country: country ?? undefined, grade: grade ?? undefined, age: age ?? undefined };
+}
 app.post('/api/kids', wrap(async (req, res) => {
   const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').slice(0, 30);
-  if (name.length < 2) return res.status(400).json({ error: 'Hoe heet je? (minstens 2 letters)' });
+  if (name.length < 2) return res.status(400).json({ error: ts('Hoe heet je? (minstens 2 letters)') });
   const kids = await listKids();
-  if (kids.length >= 12) return res.status(400).json({ error: 'Er zijn al heel veel profielen.' });
-  if (kids.some((k) => k.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: `Er is al een ${name}. Kies die hierboven!` });
-  const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length]);
+  if (kids.length >= 12) return res.status(400).json({ error: ts('Er zijn al heel veel profielen.') });
+  if (kids.some((k) => k.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: ts('Er is al een {n}. Kies die hierboven!', { n: name }) });
+  const p = cleanProfile(req.body);
+  if (p.error) return res.status(400).json({ error: p.error });
+  const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length], p);
   setKidCookie(res, kid.id);
   res.json({ kid });
 }));
 app.post('/api/kids/select', wrap(async (req, res) => {
   const kid = await getKid(req.body.id);
-  if (!kid) return res.status(404).json({ error: 'Dat profiel bestaat niet meer.' });
+  if (!kid) return res.status(404).json({ error: ts('Dat profiel bestaat niet meer.') });
   setKidCookie(res, kid.id);
   res.json({ kid });
 }));
@@ -336,7 +352,7 @@ app.post('/api/kids/leave', (req, res) => { setKidCookie(res, 0); res.json({ ok:
 
 app.post('/api/login', wrap(async (req, res) => {
   if (!APP_PIN || pinOk(req.body.pin, APP_PIN)) { setCookie(res, 'child', 180); return res.json({ ok: true }); }
-  res.status(401).json({ error: 'Verkeerde pincode' });
+  res.status(401).json({ error: ts('Verkeerde pincode') });
 }));
 
 app.get('/api/state', child, wrap(async (req, res) => {
@@ -351,10 +367,12 @@ app.get('/api/state', child, wrap(async (req, res) => {
   const badges = await getBadges();
   res.json({
     name: await getName(),
-    groep: await getSetting('groep', null),
-    kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar },
+    groep: req.kid.grade ?? await getSetting('groep', null),
+    kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar, lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null },
+    curriculum: pack().id, gradeWord: pack().gradeWord, levelNames: [...LEVEL_NAMES],
+    currency: req.kid.country === 'ZA' ? 'ZAR' : 'EUR',
     ai: aiEnabled(),
-    teacher: TEACHER,
+    teacher: teacherName(),
     intakeDone: intake?.status === 'done',
     intakeActive: intake?.status === 'active' ? intake.id : null,
     today: { date: today, weekday: weekdayNL(), schoolDay: isSchoolDay(), daily: daily ? { id: daily.id, status: daily.status, correct: daily.correct, total: daily.total, points: daily.points, answered: daily.results.length } : null },
@@ -367,7 +385,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
       if (isSchoolDay() && !todays) return null;
       const d = nextSchoolDay(today);
       const s = await one(`SELECT status, answered FROM (SELECT status, jsonb_array_length(results) AS answered FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1) x`, [d]);
-      return { day: d, name: DAGNAAM[dowOf(d)], status: s?.status || null, answered: s?.answered || 0 };
+      return { day: d, name: dayNames()[dowOf(d)], status: s?.status || null, answered: s?.answered || 0 };
     })(),
     mnemonics: MNEMONICS,
     goal: await goalInfo((await wallet()).balance),
@@ -390,7 +408,7 @@ async function askPlan(n) {
   const acc = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows.map((r) => [r.cat, r]));
   const view = (await skillsView()).list;
   const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '', calib: v.calib > 0 }));
-  return planSession({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), groep: await getSetting('groep', 8), rows, n });
+  return planSession({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), groep: (await getKid(currentKid()))?.grade ?? await getSetting('groep', 8), rows, n });
 }
 async function precomputePlan() {
   if (!aiEnabled() || !aiAllowed()) return;
@@ -457,24 +475,26 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
   const { skills, struggling } = await skillsView();
 
   if (kind === 'intake') {
-    if (intake?.status === 'done') return res.status(400).json({ error: 'De starttoets is al gedaan.' });
+    if (intake?.status === 'done') return res.status(400).json({ error: ts('De starttoets is al gedaan.') });
     if (intake) return res.json(sessionPayload(await loadSession(intake.id), skills));
-    const groep = Number(req.body.groep);
-    if (!(groep >= 4 && groep <= 8)) return res.status(400).json({ error: 'In welke groep zit je?' });
+    const groep = Number(req.body.groep) || req.kid.grade || Number(await getSetting('groep', 0));
+    const [lo, hi] = pack().gradeRange;
+    if (!(groep >= lo && groep <= hi)) return res.status(400).json({ error: pack().gradeWord === 'graad' ? 'In watter graad is jy?' : 'In welke groep zit je?' });
+    if (!req.kid.grade) await updateKidProfile(req.kid.id, { grade: groep });
     await setSetting('groep', groep);
     const plan = intakePlan();
     return res.json(sessionPayload(await createSession('intake', plan, plan.length, INTAKE_POINTS, skills, { startLevel: startLevelForGroep(groep) }), skills));
   }
-  if (intake?.status !== 'done') return res.status(400).json({ error: 'Doe eerst de starttoets.' });
+  if (intake?.status !== 'done') return res.status(400).json({ error: ts('Doe eerst de starttoets.') });
 
   if (kind === 'daily') {
     let day = today;
     if (req.body.ahead) {
       // vooruitwerken: de dagtaak van de volgende schooldag alvast doen (max. 1 dag vooruit)
       const todays = await one(`SELECT status FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [today]);
-      if (isSchoolDay() && todays?.status !== 'done') return res.status(400).json({ error: 'Maak eerst je dagtaak van vandaag af.' });
+      if (isSchoolDay() && todays?.status !== 'done') return res.status(400).json({ error: ts('Maak eerst je dagtaak van vandaag af.') });
       day = nextSchoolDay(today);
-    } else if (!isSchoolDay()) return res.status(400).json({ error: 'In het weekend is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!' });
+    } else if (!isSchoolDay()) return res.status(400).json({ error: ts('In het weekend is er geen dagtaak. Je kunt wel extra oefenen of vooruitwerken!') });
     const existing = await one(`SELECT * FROM sessions WHERE kind='daily' AND day=$1 ORDER BY id DESC LIMIT 1`, [day]);
     if (existing) return res.json(sessionPayload(existing, skills, { struggling }));
     const { plan, coach } = await makePlan(DAILY_COUNT, skills, struggling);
@@ -489,12 +509,12 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     const made = focus ? { plan: Array(PRACTICE_COUNT).fill(focus), coach: null } : await makePlan(PRACTICE_COUNT, skills, struggling);
     return res.json(sessionPayload(await createSession('practice', made.plan, PRACTICE_COUNT, 0, skills, made.coach ? { coach: made.coach } : {}), skills, { struggling }));
   }
-  res.status(400).json({ error: 'Onbekend soort sessie' });
+  res.status(400).json({ error: ts('Onbekend soort sessie') });
 }));
 
 app.get('/api/session/:id', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
-  if (!s) return res.status(404).json({ error: 'Niet gevonden' });
+  if (!s) return res.status(404).json({ error: ts('Niet gevonden') });
   res.json(sessionPayload(s, await getSkills()));
 }));
 
@@ -523,7 +543,7 @@ async function tx(fn) {
 app.post('/api/session/:id/hint', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const { s, qq } = await lockCurrent(c, req.params.id, req.body.index);
-    if (!qq || qq.noHelp) return { error: 'Geen hint mogelijk.' };
+    if (!qq || qq.noHelp) return { error: ts('Geen hint mogelijk.') };
     const all = hintsFor(qq), used = qq.hints || 0;
     if (used >= all.length) return { hint: null, more: false, hints: all.slice(0, used) };
     qq.hints = used + 1;
@@ -538,14 +558,14 @@ app.post('/api/session/:id/hint', child, wrap(async (req, res) => {
 app.post('/api/session/:id/guide', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const { s, qq } = await lockCurrent(c, req.params.id, req.body.index);
-    if (!qq || qq.noHelp || !qq.guide.length) return { error: 'Hier zijn geen tussenstappen.' };
+    if (!qq || qq.noHelp || !qq.guide.length) return { error: ts('Hier zijn geen tussenstappen.') };
     const skill = (await c.query('SELECT * FROM skills WHERE cat=$1', [qq.cat])).rows[0];
     const offer = helpOffer(qq, skill || {});
     if (offer.mode === 'choose' && skill && !skill.transition_seen) {
       await c.query('UPDATE skills SET transition_seen=true WHERE cat=$1', [qq.cat]);
     }
     if (req.body.choice === 'solo') {
-      if (offer.mode !== 'choose') return { error: 'Niets te kiezen.' };
+      if (offer.mode !== 'choose') return { error: ts('Niets te kiezen.') };
       qq.chose = 'solo';
     } else {
       if (qq.guided) return { step: qq.guideStep < qq.guide.length ? publicStep(qq.guide[qq.guideStep]) : null, done: qq.guideDone || [] };
@@ -563,11 +583,11 @@ app.post('/api/session/:id/guide', child, wrap(async (req, res) => {
 app.post('/api/session/:id/step', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const { s, qq } = await lockCurrent(c, req.params.id, req.body.index);
-    if (!qq || !qq.guided || qq.guideStep >= qq.guide.length) return { error: 'Geen stap open.' };
+    if (!qq || !qq.guided || qq.guideStep >= qq.guide.length) return { error: ts('Geen stap open.') };
     const step = qq.guide[qq.guideStep];
     const given = String(req.body.answer ?? '').slice(0, 30);
     const check = checkAnswer(step, given);
-    if (check.empty) return { error: 'Vul eerst iets in.' };
+    if (check.empty) return { error: ts('Vul eerst iets in.') };
     let result;
     const shown = step.type === 'choice' ? step.options[Number(given)] : given;
     if (!check.correct && !(qq.stepErrors ||= []).includes(step.ask)) qq.stepErrors.push(step.ask);
@@ -597,16 +617,16 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const s = (await c.query('SELECT * FROM sessions WHERE id=$1 FOR UPDATE', [req.params.id])).rows[0];
     const i = Number(req.body.index);
-    if (!s) return { status: 404, error: 'Niet gevonden' };
+    if (!s) return { status: 404, error: ts('Niet gevonden') };
     if (i < s.results.length) return { ...s.results[i], steps: s.questions[i].steps, dup: true };
-    if (s.status !== 'active' || i !== s.results.length) return { status: 400, error: 'Ongeldige som' };
+    if (s.status !== 'active' || i !== s.results.length) return { status: 400, error: ts('Ongeldige som') };
 
     const qq = s.questions[i];
     const dontKnow = !!req.body.dontKnow;
     const given = dontKnow ? '' : String(req.body.answer ?? '').slice(0, 40);
     const check = dontKnow ? { correct: false } : checkAnswer(qq, given);
-    if (check.empty) return { status: 400, error: 'Vul eerst een antwoord in.' };
-    const shownGiven = dontKnow ? 'weet ik niet' : qq.type === 'choice' ? qq.options[Number(given)] : given;
+    if (check.empty) return { status: 400, error: ts('Vul eerst een antwoord in.') };
+    const shownGiven = dontKnow ? ts('weet ik niet') : qq.type === 'choice' ? qq.options[Number(given)] : given;
     const scratch = cleanScratch(req.body.scratch);
     const helped = !!qq.guided || (qq.hints || 0) > 0;
 
@@ -683,7 +703,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       await c.query(`UPDATE sessions SET results=$2, correct=$3, status='done', points=$4, points_acc=$5, state=$6, finished_at=now() WHERE id=$1`,
         [s.id, JSON.stringify(s.results), s.correct, points, s.points_acc, JSON.stringify(s.state)]);
       if (points > 0) {
-        await c.query(`INSERT INTO ledger(cents, kind, note, session_id) VALUES ($1,'earn',$2,$3)`, [points, s.kind === 'intake' ? 'Starttoets' : `Dagtaak ${s.day}`, s.id]);
+        await c.query(`INSERT INTO ledger(cents, kind, note, session_id) VALUES ($1,'earn',$2,$3)`, [points, s.kind === 'intake' ? ts('Starttoets') : ts('Dagtaak {d}', { d: s.day }), s.id]);
       }
       if (s.kind === 'intake') {
         const per = {};
@@ -746,7 +766,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       const wk = await weekInfo(s.day);
       if (wk.count === 5 && !wk.given && WEEK_BONUS > 0) {
         await setSetting(`weekbonus:${wk.days[0].day}`, true);
-        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [WEEK_BONUS, `Weekbonus week van ${wk.days[0].day}`]);
+        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [WEEK_BONUS, ts('Weekbonus week van {d}', { d: wk.days[0].day })]);
         weekBonus = WEEK_BONUS;
         const b = await awardBadge('week'); if (b) newBadges.push(b);
       }
@@ -783,10 +803,10 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
   const i = Number(req.body.index);
   const qq = s?.questions[i];
-  if (!qq) return res.status(404).json({ error: 'Niet gevonden' });
-  if (s.kind === 'intake' && !s.results[i]) return res.json({ reply: null, reason: `Tijdens de starttoets helpt ${TEACHER} nog niet: we willen eerst zien wat jij al kunt. Daarna wel! 😉` });
-  if (!aiEnabled()) return res.json({ reply: null, reason: `${TEACHER} (AI) staat nog niet aan. Vraag papa of mama om een OpenAI-sleutel in te stellen.` });
-  if (!aiAllowed()) return res.json({ reply: null, reason: `${TEACHER} heeft vandaag al heel veel uitgelegd. Morgen weer!` });
+  if (!qq) return res.status(404).json({ error: ts('Niet gevonden') });
+  if (s.kind === 'intake' && !s.results[i]) return res.json({ reply: null, reason: ts('Tijdens de starttoets helpt {m} nog niet: we willen eerst zien wat jij al kunt. Daarna wel! 😉', { m: teacherName() }) });
+  if (!aiEnabled()) return res.json({ reply: null, reason: ts('{m} (AI) staat nog niet aan. Vraag papa of mama om een OpenAI-sleutel in te stellen.', { m: teacherName() }) });
+  if (!aiAllowed()) return res.json({ reply: null, reason: ts('{m} heeft vandaag al heel veel uitgelegd. Morgen weer!', { m: teacherName() }) });
 
   const r = s.results[i];
   const message = String(req.body.message || '').trim().slice(0, 400);
@@ -810,22 +830,22 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   if (replyText) qq.chat.push({ role: 'teacher', text: replyText, phase });
   qq.chat = qq.chat.slice(-24);
   await q('UPDATE sessions SET questions = jsonb_set(questions, $2, $3::jsonb) WHERE id=$1', [s.id, `{${i},chat}`, JSON.stringify(qq.chat)]);
-  res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : `${TEACHER} kon nu even niet antwoorden. Probeer het zo nog eens.` });
+  res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : ts('{m} kon nu even niet antwoorden. Probeer het zo nog eens.', { m: teacherName() }) });
 }));
 
 // Korte interactieve les van de leraar over een onderdeel (de app bewaart het gesprek)
 app.post('/api/lesson', child, wrap(async (req, res) => {
   const cat = req.body.cat;
-  if (!catById[cat]) return res.status(404).json({ error: 'Onbekend onderdeel' });
+  if (!catById[cat]) return res.status(404).json({ error: ts('Onbekend onderdeel') });
   if (!aiEnabled()) return res.json({ reply: null });
-  if (!aiAllowed()) return res.json({ reply: null, reason: `${TEACHER} heeft vandaag al heel veel uitgelegd. Morgen weer!` });
+  if (!aiAllowed()) return res.json({ reply: null, reason: ts('{m} heeft vandaag al heel veel uitgelegd. Morgen weer!', { m: teacherName() }) });
   const chat = (Array.isArray(req.body.chat) ? req.body.chat : []).slice(-14)
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
   const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
   const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, level: skill.level, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
   if (out?.ready && chat.length >= 2) {
-    const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? TEACHER : 'kind'}: ${m.text}`).join('\n');
+    const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? teacherName() : 'kind'}: ${m.text}`).join('\n');
     remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});
   }
   const { text: lessonText, form: lessonForm } = splitForm(out?.text || '');
@@ -836,7 +856,7 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
 // Persoonlijk berichtje van de leraar na een sessie (één keer per sessie, daarna bewaard)
 app.post('/api/session/:id/reflect', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
-  if (!s || s.status !== 'done') return res.status(400).json({ error: 'Sessie is nog niet klaar.' });
+  if (!s || s.status !== 'done') return res.status(400).json({ error: ts('Sessie is nog niet klaar.') });
   if (s.state?.reflection) return res.json({ text: s.state.reflection });
   if (!aiEnabled() || !aiAllowed()) return res.json({ text: null });
   const per = {};
@@ -856,8 +876,8 @@ app.post('/api/goal', child, wrap(async (req, res) => {
   if (req.body.clear) { await q(`DELETE FROM settings WHERE key='goal'`); return res.json({ goal: null }); }
   const name = String(req.body.name || '').trim().slice(0, 40);
   const euros = Number(String(req.body.euros || '').replace(',', '.'));
-  if (!name) return res.status(400).json({ error: 'Waar spaar je voor?' });
-  if (!(euros >= 1 && euros <= 500)) return res.status(400).json({ error: 'Kies een bedrag tussen € 1 en € 500.' });
+  if (!name) return res.status(400).json({ error: ts('Waar spaar je voor?') });
+  if (!(euros >= 1 && euros <= 500)) return res.status(400).json({ error: ts('Kies een bedrag tussen {a} en {b}.', { a: req.kid.country === 'ZA' ? 'R1' : '€ 1', b: req.kid.country === 'ZA' ? 'R500' : '€ 500' }) });
   await setSetting('goal', { name, cents: Math.round(euros * 100), since: todayNL() });
   res.json({ goal: await goalInfo((await wallet()).balance) });
 }));
@@ -867,9 +887,9 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
   const i = Number(req.body.index);
   const qq = s?.questions[i], r = s?.results[i];
-  if (!qq || !r) return res.status(404).json({ error: 'Niet gevonden' });
+  if (!qq || !r) return res.status(404).json({ error: ts('Niet gevonden') });
   const text = String(req.body.text || '').trim().slice(0, 600);
-  if (text.length < 3) return res.status(400).json({ error: 'Schrijf eerst kort op hoe je het deed.' });
+  if (text.length < 3) return res.status(400).json({ error: ts('Schrijf eerst kort op hoe je het deed.') });
   const b = await awardBadge('uitlegger');
   let feedback = null;
   if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: await teacherProfile(), memory: await memoryText() });
@@ -893,7 +913,8 @@ async function kidSummary(k) {
   const last = await one(`SELECT MAX(created_at) AS t FROM attempts`);
   const sessions7 = await one(`SELECT COUNT(*)::int n FROM sessions WHERE status='done' AND kind <> 'intake' AND created_at > now() - interval '7 days'`);
   return {
-    id: k.id, name: k.name, avatar: k.avatar, intakeDone: intake?.status === 'done', lastActive: last?.t || null,
+    id: k.id, name: k.name, avatar: k.avatar, lang: k.lang || 'nl', country: k.country || 'NL', teacher: teacherName(),
+    intakeDone: intake?.status === 'done', lastActive: last?.t || null,
     week: { n: week.n, pct: week.n ? Math.round((100 * week.ok) / week.n) : null }, sessions7: sessions7.n,
     streak: await streak(), wallet: await wallet(), stats: await profileStats(), profile: await getProfile(),
     memory: (await getMemory()).slice(-6).reverse(),
@@ -906,13 +927,21 @@ async function kidSummary(k) {
 app.get('/api/parent/all', parentOnly, wrap(async (req, res) => {
   const kids = [];
   for (const k of await listKids()) kids.push(await kidStore.run(kidContext(k), () => kidSummary(k)));
-  res.json({ teacher: TEACHER, ai: aiEnabled(), levels: LEVEL_NAMES, cats: CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })), kids });
+  res.json({ teacher: teacherName(), ai: aiEnabled(), levels: LEVEL_NAMES, cats: CATEGORIES.map((c) => ({ id: c.id, label: c.label, icon: c.icon })), kids });
+}));
+
+// Profiel aanpassen (land, taal, groep/graad, leeftijd). Een andere taal = een ander curriculum.
+app.post('/api/parent/kidprofile', parent, wrap(async (req, res) => {
+  const p = cleanProfile(req.body, true);
+  if (p.error) return res.status(400).json({ error: p.error });
+  await updateKidProfile(req.kid.id, p);
+  res.json({ ok: true });
 }));
 
 app.post('/api/parent/login', wrap(async (req, res) => {
   if (pinOk(req.body.pin, PARENT_PIN)) { setCookie(res, 'parent', 30); return res.json({ ok: true }); }
   await new Promise((r) => setTimeout(r, 800));
-  res.status(401).json({ error: 'Verkeerde pincode' });
+  res.status(401).json({ error: ts('Verkeerde pincode') });
 }));
 app.post('/api/parent/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0');
@@ -931,7 +960,8 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
       AVG(time_ms)::int avg_ms, SUM(hints)::int hints, SUM(CASE WHEN guided THEN 1 ELSE 0 END)::int guided
       FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
   res.json({
-    name: await getName(), ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: TEACHER, profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
+    name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
+    ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(),
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
@@ -945,17 +975,17 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
 app.post('/api/parent/payout', parent, wrap(async (req, res) => {
   const cents = Math.round(Number(req.body.cents));
   const w = await wallet();
-  if (!(cents > 0) || cents > w.balance) return res.status(400).json({ error: 'Ongeldig bedrag' });
+  if (!(cents > 0) || cents > w.balance) return res.status(400).json({ error: ts('Ongeldig bedrag') });
   await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'payout',$2)`, [-cents, String(req.body.note || 'Uitbetaald').slice(0, 80)]);
   res.json({ wallet: await wallet() });
 }));
 
 app.post('/api/parent/advice', parent, wrap(async (req, res) => {
-  if (!aiEnabled()) return res.json({ text: null, reason: 'Zet OPENAI_API_KEY in de instellingen (.env) om AI-advies te krijgen.' });
+  if (!aiEnabled()) return res.json({ text: null, reason: ts('Zet OPENAI_API_KEY in de instellingen (.env) om AI-advies te krijgen.') });
   const key = `advice:${todayNL()}`;
   const cached = !req.body.fresh && await one('SELECT content FROM ai_cache WHERE key=$1', [key]);
   if (cached) return res.json({ text: cached.content });
-  if (!aiAllowed()) return res.json({ text: null, reason: 'AI-limiet voor vandaag bereikt.' });
+  if (!aiAllowed()) return res.json({ text: null, reason: ts('AI-limiet voor vandaag bereikt.') });
   const { list } = await skillsView();
   const acc = (await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok, SUM(CASE WHEN guided THEN 1 ELSE 0 END)::int guided FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
   const accBy = Object.fromEntries(acc.map((a) => [a.cat, a]));
@@ -974,7 +1004,7 @@ app.post('/api/parent/advice', parent, wrap(async (req, res) => {
 }));
 
 app.post('/api/parent/profile', parent, wrap(async (req, res) => {
-  if (!aiEnabled()) return res.status(400).json({ error: 'AI staat niet aan.' });
+  if (!aiEnabled()) return res.status(400).json({ error: ts('AI staat niet aan.') });
   await refreshProfile();
   res.json({ profile: await getProfile() });
 }));
@@ -988,7 +1018,7 @@ app.post('/api/parent/settings', parent, wrap(async (req, res) => {
 app.post('/api/parent/surprise', parent, wrap(async (req, res) => {
   const rewards = (Array.isArray(req.body.rewards) ? req.body.rewards : []).map((r) => String(r).trim().slice(0, 60)).filter(Boolean).slice(0, 12);
   const min = Math.max(0.3, Math.min(1, Number(req.body.min) || 0.7));
-  await setSetting('surprise_cfg', { enabled: !!req.body.enabled, rewards: rewards.length ? rewards : DEFAULT_REWARDS, min });
+  await setSetting('surprise_cfg', { enabled: !!req.body.enabled, rewards: rewards.length ? rewards : defaultRewards(), min });
   res.json({ cfg: await surpriseCfg() });
 }));
 app.post('/api/parent/surprise/delivered', parent, wrap(async (req, res) => {
@@ -1000,14 +1030,14 @@ app.post('/api/parent/surprise/delivered', parent, wrap(async (req, res) => {
 }));
 
 app.post('/api/parent/delete-kid', parent, wrap(async (req, res) => {
-  if (req.body.confirm !== 'VERWIJDER') return res.status(400).json({ error: 'Bevestig het verwijderen.' });
+  if (req.body.confirm !== 'VERWIJDER') return res.status(400).json({ error: ts('Bevestig het verwijderen.') });
   await deleteKid(req.kid.id);
   setKidCookie(res, 0);
   res.json({ ok: true });
 }));
 
 app.post('/api/parent/reset', parent, wrap(async (req, res) => {
-  if (req.body.confirm !== 'RESET') return res.status(400).json({ error: 'Bevestig met RESET' });
+  if (req.body.confirm !== 'RESET') return res.status(400).json({ error: ts('Bevestig met RESET') });
   if (req.body.what === 'intake') {
     // starttoets opnieuw (bijv. na lange pauze); spaarpot en badges blijven staan
     await q(`DELETE FROM sessions WHERE kind='intake'`);

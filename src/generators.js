@@ -17,6 +17,7 @@ import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, h
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
+import { ts } from './i18n.js';
 
 export const LEVELS = [0, 1, 2, 3];
 // Niveaus als groep: groep 7 bevat de meeste 1F-stof (breuken, procenten, schaal),
@@ -1339,7 +1340,7 @@ export function generateLike(cat, level, shape, notText) {
 
 // ---------- antwoord controleren ----------
 function parseNumber(s) {
-  const t = String(s).replace(/[€\s  ]/g, '').replace('−', '-').replace(',', '.');
+  const t = String(s).replace(/^\s*R/i, '').replace(/[€\s  ]/g, '').replace('−', '-').replace(',', '.');
   if (!/^-?\d*\.?\d+$/.test(t)) return null;
   return Number(t);
 }
@@ -1373,7 +1374,7 @@ export function checkAnswer(q, input) {
       if (x != null && q.commonMultipleOf) {
         // tussenstap "gemeenschappelijke noemer": elk gemeenschappelijk veelvoud is goed
         const ok = x > 0 && Number.isInteger(x) && q.commonMultipleOf.every((d) => x % d === 0);
-        return { correct: ok, note: ok && x !== q.answer ? `Klopt! Wij rekenen verder met de kleinste: ${q.answer}.` : null };
+        return { correct: ok, note: ok && x !== q.answer ? ts('Klopt! Wij rekenen verder met de kleinste: {x}.', { x: q.answer }) : null };
       }
       return { correct: x != null && Math.abs(x - q.answer) < 1e-6 };
     }
@@ -1383,8 +1384,8 @@ export function checkAnswer(q, input) {
       const [n, d] = q.answer;
       if (f[0] * d !== n * f[1]) return { correct: false };
       const isSimplest = gcd(f[0], f[1]) === 1;
-      if (q.requireSimplest && !isSimplest) return { correct: false, note: `Bijna! Het kan nog verder vereenvoudigd worden tot ${fracStr(q.answer, false)}.` };
-      if (!isSimplest) return { correct: true, note: `Goed! Mooier opgeschreven is het ${fracStr(q.answer)}.` };
+      if (q.requireSimplest && !isSimplest) return { correct: false, note: ts('Bijna! Het kan nog verder vereenvoudigd worden tot {x}.', { x: fracStr(q.answer, false) }) };
+      if (!isSimplest) return { correct: true, note: ts('Goed! Mooier opgeschreven is het {x}.', { x: fracStr(q.answer) }) };
       return { correct: true };
     }
     case 'time': {

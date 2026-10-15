@@ -10,7 +10,16 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
-import { mnemonicText, didactiekText, ALGEMEEN } from './curriculum.js';
+import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum.js';
+import { isAF, teacherName } from './i18n.js';
+
+// Schoolcontext per curriculum (Nederland of Suid-Afrika)
+const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
+const ONDERWIJS = () => (isAF() ? 'Suid-Afrikaanse laerskool-onderwijs (KABV, Intermediêre en Senior Fase)' : 'Nederlands basisonderwijs');
+// Taal van alle antwoorden: Afrikaans voor Suid-Afrikaanse kinderen
+const TAALREGEL = () => (isAF() ? `
+
+TAAL (heel belangrijk): Antwoord ALTIJD in eenvoudig, correct Afrikaans zoals in Suid-Afrika gepraat wordt — nooit Nederlands. Gebruik de Suid-Afrikaanse schoolwoorden (KABV): somme, gewone breuke, teller, noemer, desimale breuke, tiendes, honderdstes, persentasie, plekwaarde (ene, tiene, honderde, duisende), kolomme, langdeling, oordra, getallesin, getallelyn, verdubbel en halveer, afronding, skatting, omtrek, area, volume. Geld in rand en sent (R12,50). Deel met ÷. Getallen in een rij met ; ertussen. Spreek een leraar aan als "Meneer".` : '');
 import { kidStore } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
@@ -40,7 +49,7 @@ function mapStrings(v, f) {
   return v;
 }
 
-export const TEACHER = process.env.TEACHER_NAME || 'Meester Max';
+export const TEACHER = process.env.TEACHER_NAME || 'Meester Max'; // (oud; gebruik teacherName())
 const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
 const anthropic = !openai && process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
 // AI_MOCK=1: nep-leraar om de schermen te testen zonder API-sleutel (alleen voor ontwikkeling)
@@ -83,6 +92,7 @@ function withImage(messages, image, provider) {
 }
 
 async function complete(system, messages, opts = {}) {
+  system = system + TAALREGEL();
   const p = privacy();
   let res;
   if (!p) res = await completeRaw(system, messages, opts);
@@ -162,11 +172,11 @@ export function splitForm(text) {
 }
 
 // ---------- de leraar ----------
-const LERAAR = (name, profile, memory = '', today = '') => `Je bent ${TEACHER}, de persoonlijke rekenleraar van ${name}. ${name} zit op een Nederlandse basisschool (meestal groep 7 of 8), loopt achter met rekenen en is géén rekenwonder. Je bent geduldig, warm, eerlijk en een tikje grappig. Je praat met ${name} zoals een hele goede bijlesjuf of -meester: echt een gesprek, geen standaardteksten.
+const LERAAR = (name, profile, memory = '', today = '') => `Je bent ${teacherName()}, de persoonlijke rekenleraar van ${name}. ${name} ${SCHOOL()}, loopt achter met rekenen en is géén rekenwonder. Je bent geduldig, warm, eerlijk en een tikje grappig. Je praat met ${name} zoals een hele goede bijlesjuf of -meester: echt een gesprek, geen standaardteksten.
 
 HOE JE LESGEEFT
 - Kleine stapjes. Eén ding tegelijk. Stel per bericht maximaal één vraag en wacht op het antwoord.
-- Volg ALTIJD de DIDACTIEKKAART die je bij de som of les krijgt: dat is hoe Nederlandse scholen het aanleren, en de app (hints, tussenstappen, voorbeelden) gebruikt precies dezelfde aanpak en woorden. Verzin geen andere methode, ook geen "handig trucje" dat het kind niet kent. Zo hoort het kind overal hetzelfde verhaal.
+- Volg ALTIJD de DIDACTIEKKAART die je bij de som of les krijgt: dat is hoe scholen ${isAF() ? 'in Suid-Afrika (KABV)' : 'in Nederland'} het aanleren, en de app (hints, tussenstappen, voorbeelden) gebruikt precies dezelfde aanpak en woorden. Verzin geen andere methode, ook geen "handig trucje" dat het kind niet kent. Zo hoort het kind overal hetzelfde verhaal.
 - Handelingsmodel: begin bij betekenis (geld, meten, een echte situatie), dan een model (plaatje: getallenlijn, strook, positieschema, verhoudingstabel), dan de kale som. Snapt ${name} het niet: ga één niveau concreter (kale som → plaatje → geld/echte situatie), en koppel daarna terug naar de som ("en dat is dus precies wat er in de som staat").
 - Schatten: ${ALGEMEEN.schatten} Begin een uitleg NOOIT met "schat eerst" (behalve als de kaart het zo zegt). Gebruik je het woord "schatten", zet er dan ALTIJD meteen de uitleg bij: "schatten (= met ronde getallen ongeveer uitrekenen)". Kies bij schatten getallen die duidelijk naar één kant afronden (niet 1,5 of 2,5). Verder alleen als controle aan het eind: "Klopt het ongeveer?"
 - Verhaaltjessom: ${ALGEMEEN.drieslag}
@@ -206,7 +216,7 @@ EZELSBRUGGETJES
 
 STIJL
 - Kort en to the point: meestal 2 tot 5 korte zinnen (max. ± 80 woorden). Geen lappen tekst.
-- Nederlandse notatie: 2,5 (komma), × voor keer, : voor delen.
+- ${isAF() ? 'Suid-Afrikaanse notasie: 2,5 (komma), × vir maal, ÷ vir deel, geld als R12,50.' : 'Nederlandse notatie: 2,5 (komma), × voor keer, : voor delen.'}
 - Gewone tekst; **vet** mag voor het belangrijkste. Geen koppen, geen markdown-tabellen (gebruik de plaatjes hieronder) en NOOIT LaTeX of wiskunde-code zoals haakjes met een backslash, frac-code of dollartekens: schrijf gewoon 1/2 + 1/4.
 
 PLAATJES (zoals de juf op het bord tekent; gebruik ze bij uitleg, niet bij elk bericht)
@@ -286,7 +296,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
 // Kladblok bekijken: hoe rekende het kind, en waar ging het mis? Kort, voor het profiel en het geheugen.
 export async function analyzeScratch({ name, question, given, correct, scratch }) {
   if (!scratch || (!scratch.image && !scratch.text)) return null;
-  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je bekijkt het kladblaadje van een kind en beschrijft kort en concreet hoe het rekende.', [{
+  const data = await complete(`Je bent een ervaren remedial teacher rekenen (${ONDERWIJS()}). Je bekijkt het kladblaadje van een kind en beschrijft kort en concreet hoe het rekende.`, [{
     role: 'user',
     content: `${describeQuestion(question)}\nJuiste antwoord: ${question.display}\nAntwoord van ${name}: "${given}" (${correct ? 'goed' : 'FOUT'})\n${scratch.text ? `Getypt op het kladblok: "${scratch.text}"\n` : ''}${scratch.image ? 'De afbeelding is het kladblaadje (met de vinger getekend).\n' : ''}
 Geef JSON: {"leesbaar": true/false, "aanpak": "welke aanpak/stappen ${name} gebruikte, max 15 woorden", "fout": "waar het precies misging, max 15 woorden, of null als het goed ging", "denkfout": "kort label van de denkfout, of null"}
@@ -336,8 +346,8 @@ export async function planSession({ name, profile, memory, groep, rows, n }) {
   const table = rows.map((r) => `${r.cat} | ${r.label} | nu: ${r.levelName} | score ${r.score}/100 | laatste 14 dagen: ${r.recent || 'nog niet geoefend'} | trend ${r.trend ?? '-'}${r.struggling ? ' | LOOPT VAST' : ''}${r.calib ? ' | NIVEAU NOG ONZEKER' : ''}`).join('\n');
   return complete(LERAAR(name, profile, memory), [{
     role: 'user',
-    content: `Maak het lesplan voor de oefensessie van vandaag (${n} sommen). ${name} zit in groep ${groep || 8}.
-Niveaus: 0 = groep 5, 1 = groep 6, 2 = groep 7, 3 = groep 8 (eindniveau). Elk onderdeel heeft een eigen niveau.
+    content: `Maak het lesplan voor de oefensessie van vandaag (${n} sommen). ${name} zit in ${isAF() ? 'graad' : 'groep'} ${groep || (isAF() ? 7 : 8)}.
+Niveaus: ${[...LEVEL_NAMES].map((l, i) => `${i} = ${l}`).join(', ')} (het laatste is het eindniveau). Elk onderdeel heeft een eigen niveau.
 
 Onderdelen (cat-id | naam | huidig niveau | score | resultaten | trend):
 ${table}
@@ -366,7 +376,7 @@ export async function reflect({ name, profile, memory, summary }) {
 // Het leerlingprofiel: blijft bestaan over alle sessies heen. Zwakke punten krijgen bewijs en een status,
 // zodat oude problemen niet vergeten worden en je ziet wat er opgelost is.
 export async function updateProfile({ name, oldProfile, attempts, stats = [], misconceptions = [], memory = '', signals = '' }) {
-  const data = await complete('Je bent een ervaren remedial teacher rekenen (Nederlands basisonderwijs). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien. Gebruik de naam of "het kind", nooit hij of zij.', [{
+  const data = await complete(`Je bent een ervaren remedial teacher rekenen (${ONDERWIJS()}). Je houdt een leerlingdossier bij van een kind dat achterloopt met rekenen. Je bent precies en eerlijk: je noemt alleen wat de data laat zien. Gebruik de naam of "het kind", nooit hij of zij.`, [{
     role: 'user',
     content: `HUIDIG PROFIEL (kan leeg zijn):
 ${oldProfile || '(leeg)'}
@@ -402,7 +412,7 @@ Geef JSON:
 }
 // Na een sessie of les: korte notities voor het geheugen van de leraar.
 export async function remember({ name, transcript }) {
-  const data = await complete(`Je bent ${TEACHER}, de rekenleraar van ${name} (basisschool, loopt achter met rekenen). Je maakt korte notities voor jezelf, zodat je de volgende keer kunt voortbouwen.`, [{
+  const data = await complete(`Je bent ${teacherName()}, de rekenleraar van ${name} (${isAF() ? 'laerskool' : 'basisschool'}, loopt achter met rekenen). Je maakt korte notities voor jezelf, zodat je de volgende keer kunt voortbouwen.`, [{
     role: 'user',
     content: `Dit gebeurde zojuist:\n${transcript}\n\nSchrijf 1 tot 4 korte notities (elk max. 20 woorden) die je de volgende keer helpen. Denk aan: wat ${name} nu wél snapt, waar ${name} precies vastliep, welke uitleg of welk voorbeeld werkte, wat ${name} over zichzelf vertelde (interesses, gevoel), en hoe ${name} het liefst uitleg krijgt (kort of uitgebreid, met welk soort voorbeelden). Alleen dingen die je echt zag. Geef JSON: {"notities": ["..."]}`,
   }], { json: true, maxTokens: 500 });
@@ -435,7 +445,9 @@ export async function teachBack({ name, profile, memory, question, explanation }
 
 // Advies voor de ouder.
 export async function parentAdvice({ name, summary, profile }) {
-  return complete('Je bent een ervaren remedial teacher rekenen in het Nederlandse basisonderwijs. Je adviseert een ouder van een kind (meestal groep 7/8) dat achterloopt met rekenen. Je kent de referentieniveaus 1F en 1S, de doorstroomtoets, en methodes als Pluspunt en Wereld in getallen. Schrijf helder, concreet en praktisch. Geen tabellen; korte kopjes met ** mogen. Je weet niet of het kind een jongen of meisje is: gebruik de naam of "het kind", nooit hij of zij.', [{
+  return complete(isAF()
+    ? 'Je bent een ervaren remedial teacher wiskunde in het Suid-Afrikaanse laerskoolonderwijs. Je adviseert een ouder van een kind (meestal graad 6/7) dat achterloopt met wiskunde. Je kent het KABV-kurrikulum (Intermediêre en Senior Fase), de DBE-werkboeke en de jaarlikse toetse. Schrijf helder, concreet en praktisch. Geen tabellen; korte kopjes met ** mogen. Je weet niet of het kind een jongen of meisje is: gebruik de naam of "die kind", nooit hy of sy.'
+    : 'Je bent een ervaren remedial teacher rekenen in het Nederlandse basisonderwijs. Je adviseert een ouder van een kind (meestal groep 7/8) dat achterloopt met rekenen. Je kent de referentieniveaus 1F en 1S, de doorstroomtoets, en methodes als Pluspunt en Wereld in getallen. Schrijf helder, concreet en praktisch. Geen tabellen; korte kopjes met ** mogen. Je weet niet of het kind een jongen of meisje is: gebruik de naam of "het kind", nooit hij of zij.', [{
     role: 'user',
     content: `Oefengegevens van ${name}:\n${summary}\n\nLeerlingprofiel (door de AI-leraar bijgehouden):\n${profile || '(nog leeg)'}\n\nGeef (max 300 woorden):\n1. Eerlijke samenvatting: waar staat ${name}.\n2. De belangrijkste denkfouten en waar die vandaan komen.\n3. 3 concrete dingen die de ouder thuis kan doen (5-10 min, dagelijks leven).\n4. Wat de ouder met de leerkracht kan bespreken.`,
   }], { maxTokens: 1200 });

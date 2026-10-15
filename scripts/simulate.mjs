@@ -205,7 +205,7 @@ async function play(kind, extra = {}) {
 const t0 = Date.now();
 await api('/api/parent/login', { pin: process.env.PARENT_PIN || '1234' });
 for (const k of (await api('/api/kids')).kids.filter((k) => k.name === NAME)) { await api('/api/kids/select', { id: k.id }); await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' }); }
-KID = (await api('/api/kids', { name: NAME, avatar: '🐼' })).kid.id;
+KID = (await api('/api/kids', { name: NAME, avatar: '🐼', lang: process.env.SIM_LANG || 'nl', country: process.env.SIM_LANG === 'af' ? 'ZA' : 'NL', grade: PERSONA.groep, age: 11 })).kid.id;
 console.log(`Leerling ${NAME} (kid_${KID}), groep ${PERSONA.groep}`);
 await api('/api/parent/surprise', { enabled: true, min: 0.6, rewards: ['🍬 Extra snoepje', '🎮 Half uur gametime', '💶 1 euro extra', '🎁 Cadeautje'] }).catch((e) => stats.errors.push('surprise cfg ' + e.message));
 await api('/api/goal', { name: 'Voetbalschoenen', euros: 25 }).catch((e) => stats.errors.push('goal ' + e.message));

@@ -57,7 +57,7 @@ await api('/api/parent/login', { pin: process.env.PARENT_PIN || '1234' });
 for (const k of (await api('/api/kids')).kids.filter((k) => k.name === 'E2E')) { await api('/api/kids/select', { id: k.id }); await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' }); }
 await api('/api/kids/leave', {});
 await api('/api/state').then(() => assert(false, 'zonder profiel geen toegang'), (e) => assert(/401/.test(e.message), 'zonder profiel: eerst "wie ben jij?"'));
-const kid = (await api('/api/kids', { name: 'E2E' })).kid;
+const kid = (await api('/api/kids', { name: 'E2E', lang: 'nl', country: 'NL', grade: 8, age: 11 })).kid;
 SCHEMA = `kid_${kid.id}`;
 assert((await api('/api/state')).name === 'E2E', 'profiel aangemaakt en gekozen');
 
@@ -197,7 +197,7 @@ console.log('  badges:', st.badges.filter((b) => b.earned).map((b) => b.icon + b
 }
 
 // profielen zijn gescheiden: een tweede kind ziet niets van E2E
-const other = (await api('/api/kids', { name: 'E2E-twee' })).kid;
+const other = (await api('/api/kids', { name: 'E2E-twee', lang: 'nl', country: 'NL', grade: 7, age: 10 })).kid;
 const st2 = await api('/api/state');
 assert(st2.name === 'E2E-twee' && !st2.intakeDone && st2.wallet.balance === 0 && !st2.badges.some((b) => b.earned), 'tweede profiel begint helemaal leeg (gescheiden)');
 await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
