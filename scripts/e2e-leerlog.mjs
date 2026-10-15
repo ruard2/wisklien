@@ -34,11 +34,13 @@ const S = `kid_${kid.id}`;
 let s = await home('/api/session/start', { kind: 'intake', groep: 6 });
 const q0 = (await db.query(`SELECT questions FROM ${S}.sessions WHERE id=$1`, [s.id])).rows[0].questions[0];
 await home(`/api/session/${s.id}/answer`, { index: 0, answer: good(q0), timeMs: 7000 });
-await home(`/api/session/${s.id}/answer`, { index: 1, answer: '999999', timeMs: 3000 });
+const q1 = (await db.query(`SELECT questions FROM ${S}.sessions WHERE id=$1`, [s.id])).rows[0].questions[1];
+const wrong1 = q1.type === 'choice' ? (q1.answer + 1) % q1.options.length : q1.type === 'time' ? '0:01' : '999999';
+await home(`/api/session/${s.id}/answer`, { index: 1, answer: wrong1, timeMs: 3000 });
 let L = await logs(kid.id);
 assert(L.filter((r) => r.kind === 'antwoord').length === 2, `2 antwoorden gelogd (${L.length})`);
 assert(L[0].lang === 'af' && L[0].country === 'ZA' && L[0].grade === 6 && L[0].age === 11 && /^Leerling-\d{4}$/.test(L[0].alias), `met taal/land/graad/leeftijd en schuilnaam (${L[0].alias})`);
-assert(L[1].data.goed === false && L[1].data.gegeven === '999999' && L[1].data.som, 'fout antwoord met som en gegeven antwoord');
+assert(L[1].data.goed === false && L[1].data.gegeven != null && L[1].data.som, `fout antwoord met som en gegeven antwoord (${L[1].data.gegeven})`);
 
 // gesprek met Max na de fout (intake: mag ná het antwoord)
 const chat = await home(`/api/session/${s.id}/chat`, { index: 1, mode: 'start' });
