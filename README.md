@@ -163,6 +163,23 @@ signalen. Wat anders is, is de methode en de inhoud:
   - `node scripts/e2e-za.mjs`: end-to-end met een Afrikaans kind;
   - `LES_LANG=af node scripts/lessen-check.mjs breuke:2`: lessen van Max.
 
+## Leerlog: leren van echt gebruik
+Elke interactie komt in één tabel `public.leerlog`, met taal, land, groep/graad en leeftijd, maar zonder echte naam: alleen een schuilnaam, ook in getypte tekst. Gelogd worden:
+- antwoorden;
+- gesprekken en lessen met Max;
+- uitleg van het kind (teach-back);
+- reflecties;
+- 👍/👎 met reden onder elke uitleg van Max;
+- feedback van ouders.
+
+Ouders kunnen het uitzetten, bij het aanmaken of in het ouderscherm ("Help de app verbeteren").
+- Bekijken: Railway → Postgres → Data → `leerlog`.
+- Analyseren: zet `LEERLOG_DATABASE_URL` (Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`) in de lokale `.env`, en dan:
+  - `node scripts/leerlog.mjs overzicht 7`: samenvatting per kind, onderdeel, denkfout, duimpjes en ouderfeedback;
+  - `node scripts/leerlog.mjs gesprekken 10 af`: laatste gesprekken leesbaar;
+  - `node scripts/leerlog.mjs duimpjes 30`: alle 👎 met de uitleg erbij;
+  - `node scripts/leerlog.mjs export 30 bestand.jsonl`: alles als JSONL.
+
 ## Profielen
 Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.
 

@@ -480,6 +480,9 @@ async function renderWho() {
         <p class="small muted">${tr('Beschermt het ouderscherm: beloning, uitbetalen en instellingen. Minstens 4 tekens. Leeg laten mag (dan geldt de pincode van de beheerder).', 'Beskerm die ouerskerm: beloning, uitbetaal en instellings. Minstens 4 tekens. Leeg laat mag (dan geld die PIN-kode van die beheerder).')}</p>
         <input type="password" name="pw" autocomplete="new-password" placeholder="${tr('wachtwoord', 'wagwoord')}">
         <input type="password" name="pw2" autocomplete="new-password" placeholder="${tr('nog een keer', 'nog ’n keer')}"></div>
+      <div class="card stack"><h3>📊 ${tr('Help de app verbeteren', 'Help om die app te verbeter')}</h3>
+        <p class="small muted">${tr('Antwoorden en gesprekken met de AI-leraar worden zonder naam bewaard (met een schuilnaam), zodat we de uitleg kunnen verbeteren. Later uit te zetten in het ouderscherm.', 'Antwoorde en gesprekke met die KI-onderwyser word sonder naam gestoor (met ’n skuilnaam), sodat ons die verduidelikings kan verbeter. Later af te skakel in die ouerskerm.')}</p>
+        <label class="row"><input type="checkbox" name="research" ${prof.research === false ? '' : 'checked'}> <span>${tr('Meehelpen (aanbevolen)', 'Help (aanbeveel)')}</span></label></div>
       <p class="small" style="color:var(--bad);min-height:18px;text-align:center">${esc(err)}</p>
       <button class="btn block">${tr('Opslaan en beginnen 🚀', 'Stoor en begin 🚀')}</button>
       <button type="button" class="btn ghost block" data-skip>${tr('Overslaan (standaard gebruiken)', 'Slaan oor (gebruik die standaard)')}</button>
@@ -497,12 +500,12 @@ async function renderWho() {
       e.preventDefault();
       let r;
       try { r = get(); } catch (er) { return parentSetup(er.message); }
-      prof.setup = r; prof.surpriseOn = f.surprise.checked; prof.rewards = f.rewards.value.split('\n').map((x) => x.trim()).filter(Boolean);
+      prof.setup = r; prof.surpriseOn = f.surprise.checked; prof.research = f.research.checked; prof.rewards = f.rewards.value.split('\n').map((x) => x.trim()).filter(Boolean);
       if (f.pw.value && f.pw.value.length < 4) return parentSetup(tr('Het wachtwoord moet minstens 4 tekens hebben.', 'Die wagwoord moet minstens 4 tekens hê.'));
       if (f.pw.value !== f.pw2.value) return parentSetup(tr('De twee wachtwoorden zijn niet hetzelfde.', 'Die twee wagwoorde is nie dieselfde nie.'));
-      create({ ...r, password: f.pw.value || undefined, surprise: { enabled: f.surprise.checked, rewards: prof.rewards } });
+      create({ ...r, password: f.pw.value || undefined, surprise: { enabled: f.surprise.checked, rewards: prof.rewards }, research: f.research.checked });
     };
-    f.querySelector('[data-skip]').onclick = () => create(null);
+    f.querySelector('[data-skip]').onclick = () => create(f.research.checked ? null : { research: false });
     f.querySelector('[data-back]').onclick = () => { draw('', true); const ff = $app.querySelector('[data-new]'); if (ff) ff.name.value = prof.name || ''; };
   };
   draw();
@@ -748,8 +751,9 @@ async function showCoach(cat, intro = '') {
         quick: Lz.ready ? [] : [t('Ik snap het nog niet 🤔'), t('Geef nog een voorbeeld'), t('Kan het makkelijker?')],
         placeholder: t('Typ je antwoord of vraag…'),
         intro: Lz.chat.length ? null : t('Even een korte les, dan gaan we oefenen!'),
+        feedback: true,
       });
-      bindTeacher(box, (msg) => send(msg));
+      bindTeacher(box, (msg) => send(msg), { ctx: () => ({ kind: 'lesson', cat }), chat: Lz.chat, redraw: draw });
       box.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ block: 'nearest' });
       if (Lz.ready || Lz.chat.length >= 2) {
         end.innerHTML = inSession ? `<button class="btn ${Lz.ready ? 'good' : 'ghost'} block" data-close>${Lz.ready ? t('Ik ben er klaar voor! 🚀') : t('Verder met de sommen')}</button>`
@@ -786,11 +790,22 @@ function showPlan(coach, stuck = []) {
   });
 }
 
+// ---------- feedback op een uitleg (helpt de AI-leraar verbeteren) ----------
+const FB = new Map(); // per uitleg: { done } of { ask } (blijft staan na hertekenen)
+const FB_REASONS = () => [t('Snap ik niet'), t('Te lang'), t('Klopt niet'), t('Te makkelijk')];
+function fbHTML(i, text) {
+  const f = FB.get(text);
+  if (f?.done) return `<div class="fb small muted">${t('Bedankt! 🙏')}</div>`;
+  if (f?.ask) return `<div class="fb"><span class="small muted">${t('Wat was er mis?')}</span> ${FB_REASONS().map((r) => `<button type="button" class="chip" data-fbr="${i}" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>`;
+  return `<div class="fb"><button type="button" class="fb-b" data-fbv="up" data-fbi="${i}" title="${t('Dit hielp')}">👍</button><button type="button" class="fb-b" data-fbv="down" data-fbi="${i}" title="${t('Dit hielp niet')}">👎</button></div>`;
+}
+const sendFb = (ctx, message, vote, reason) => api('/api/feedback', { vote, reason, message, ctx }).catch(() => {});
+
 // ---------- chatpaneel van de leraar ----------
-function teacherHTML(chat, { loading = false, quick = [], placeholder = t('Typ je vraag of antwoord…'), intro = null } = {}) {
+function teacherHTML(chat, { loading = false, quick = [], placeholder = t('Typ je vraag of antwoord…'), intro = null, feedback = false } = {}) {
   const name = esc(STATE?.teacher || 'Meester Max');
-  const msgs = chat.map((m) => m.role === 'teacher'
-    ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')} ${speakBtn(m.text, true)}</div></div>`
+  const msgs = chat.map((m, i) => m.role === 'teacher'
+    ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(m.text).replace(/\n/g, '<br>')} ${speakBtn(m.text, true)}${feedback && m.text ? fbHTML(i, m.text) : ''}</div></div>`
     : `<div class="t-msg k"><div class="t-bub">${esc(m.text)}</div></div>`).join('');
   const thinking = pick(L(['denkt even na…', 'krabt achter zijn oor…', 'zet zijn denkpet op… 🧢', 'pakt zijn krijtje…'], ['dink gou…', 'krap agter sy oor…', 'sit sy dinkpet op… 🧢', 'tel sy krytjie op…']));
   return `<div class="teacher">
@@ -801,8 +816,25 @@ function teacherHTML(chat, { loading = false, quick = [], placeholder = t('Typ j
     <form class="chat-in"><input maxlength="300" placeholder="${esc(placeholder)}" enterkeyhint="send" ${loading ? 'disabled' : ''}><button class="btn ghost" ${loading ? 'disabled' : ''}>${t('Stuur')}</button></form>
   </div>`;
 }
-function bindTeacher(box, send) {
+function bindTeacher(box, send, fb = null) {
   bindSpeak(box);
+  // fb = { ctx, chat, redraw }: duimpjes koppelen
+  if (fb) {
+    box.querySelectorAll('[data-fbv]').forEach((b) => (b.onclick = () => {
+      const m = fb.chat[Number(b.dataset.fbi)];
+      if (!m) return;
+      sendFb(fb.ctx(), m.text, b.dataset.fbv);
+      FB.set(m.text, b.dataset.fbv === 'up' ? { done: true } : { ask: true });
+      fb.redraw();
+    }));
+    box.querySelectorAll('[data-fbr]').forEach((b) => (b.onclick = () => {
+      const m = fb.chat[Number(b.dataset.fbr)];
+      if (!m) return;
+      sendFb(fb.ctx(), m.text, null, b.dataset.r);
+      FB.set(m.text, { done: true });
+      fb.redraw();
+    }));
+  }
   box.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => send(b.dataset.q)));
   const form = box.querySelector('form');
   if (form) form.onsubmit = (e) => { e.preventDefault(); const v = form.querySelector('input').value.trim(); if (v) send(v); };
@@ -1205,8 +1237,8 @@ function drawTeacher(loading = false) {
   if (!area) return;
   const chat = S.cur.chat || [];
   if (!chat.length && !loading && !S.teacherOpen) { area.innerHTML = ''; return; }
-  area.innerHTML = teacherHTML(chat, { loading, quick: quickFor(), intro: !chat.length && !loading ? t('Waar loop je op vast? Vertel maar, of kies hieronder.') : null });
-  bindTeacher(area, (msg) => talk(msg));
+  area.innerHTML = teacherHTML(chat, { loading, quick: quickFor(), intro: !chat.length && !loading ? t('Waar loop je op vast? Vertel maar, of kies hieronder.') : null, feedback: true });
+  bindTeacher(area, (msg) => talk(msg), { ctx: () => ({ kind: 'chat', cat: S.cur?.question?.cat || S.cur?.cat, session: S.data?.id, question: S.cur?.question?.text }), chat, redraw: () => drawTeacher() });
   area.querySelector('.t-msgs')?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function openTeacher() { S.teacherOpen = true; drawTeacher(); }
@@ -1651,6 +1683,12 @@ async function renderParent() {
       <button class="btn ghost block">${t('Wachtwoord opslaan')}</button>
       ${data.hasPassword ? `<button type="button" class="btn ghost block" data-pwclear>${t('Eigen wachtwoord weghalen')}</button>` : ''}</form>
 
+    <form class="card stack" data-research><h2>📊 ${t('Help de app verbeteren')}</h2>
+      <p class="small muted">${t('Antwoorden en gesprekken met {m} worden zonder naam (met een schuilnaam) bewaard, zodat de makers de uitleg kunnen verbeteren. Je kunt dit uitzetten.', { m: esc(data.teacher) })}</p>
+      <label class="row"><input type="checkbox" name="on" ${data.research ? 'checked' : ''}> <span>${t('Meehelpen (aanbevolen)')}</span></label>
+      <label class="field"><span class="small" style="font-weight:800">${t('Feedback voor de makers: wat valt op, wat gaat mis, wat kan beter?')}</span><textarea name="text" rows="3" maxlength="3000"></textarea></label>
+      <button class="btn ghost block">${t('Versturen')}</button></form>
+
     <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
       <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed ging. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
       <form class="stack" data-surprise style="gap:8px">
@@ -1722,6 +1760,15 @@ async function renderParent() {
       if (!(await ask(`<div class="big-emoji">🔓</div><h2>${t('Eigen wachtwoord weghalen?')}</h2><p class="muted">${t('Daarna opent het ouderscherm weer met de pincode van de beheerder.')}</p>`, t('Weghalen'), t('Annuleren')))) return;
       await api('/api/parent/password', { password: '' }); toast(t('Weggehaald')); renderParent();
     });
+  }
+  {
+    const r = $app.querySelector('[data-research]');
+    r.on.onchange = async () => { await api('/api/parent/research', { on: r.on.checked }).catch((er) => toast(er.message)); toast(t('Opgeslagen ✓')); };
+    r.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!r.text.value.trim()) return;
+      try { await api('/api/parent/feedback', { text: r.text.value }); r.text.value = ''; toast(t('Bedankt voor je feedback! 🙏')); } catch (er) { toast(er.message); }
+    };
   }
   $app.querySelector('[data-surprise]').onsubmit = async (e) => {
     e.preventDefault();

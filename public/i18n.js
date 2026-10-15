@@ -19,6 +19,21 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  // feedback en meehelpen
+  "Snap ik niet": "Verstaan nie",
+  "Te lang": "Te lank",
+  "Klopt niet": "Klop nie",
+  "Te makkelijk": "Te maklik",
+  "Bedankt! 🙏": "Dankie! 🙏",
+  "Wat was er mis?": "Wat was verkeerd?",
+  "Dit hielp": "Dit het gehelp",
+  "Dit hielp niet": "Dit het nie gehelp nie",
+  "Help de app verbeteren": "Help om die app te verbeter",
+  "Antwoorden en gesprekken met {m} worden zonder naam (met een schuilnaam) bewaard, zodat de makers de uitleg kunnen verbeteren. Je kunt dit uitzetten.": "Antwoorde en gesprekke met {m} word sonder naam (met ’n skuilnaam) gestoor, sodat die makers die verduidelikings kan verbeter. Jy kan dit afskakel.",
+  "Meehelpen (aanbevolen)": "Help (aanbeveel)",
+  "Feedback voor de makers: wat valt op, wat gaat mis, wat kan beter?": "Terugvoer vir die makers: wat val op, wat gaan verkeerd, wat kan beter?",
+  "Versturen": "Stuur",
+  "Bedankt voor je feedback! 🙏": "Dankie vir jou terugvoer! 🙏",
   // beloning, weekplan en ouderwachtwoord
   "Vrij!": "Vry!",
   "Geen dagtaak vandaag. {d} weer {n} sommen voor {p} {c}.": "Geen dagtaak vandag nie. {d} weer {n} somme vir {p} {c}.",

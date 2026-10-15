@@ -12,6 +12,7 @@ import {
 import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
 import { aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock } from './src/util.js';
+import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
@@ -380,8 +381,9 @@ app.post('/api/kids', wrap(async (req, res) => {
   }
   const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length], p);
   if (pw) await setKidPassword(kid.id, hashPw(pw));
-  if (rcfg || surprise) await kidStore.run(kidContext(kid), async () => {
+  if (rcfg || surprise || setup?.research === false) await kidStore.run(kidContext(kid), async () => {
     if (rcfg) await setSetting('reward_cfg', rcfg);
+    if (setup && setup.research === false) await setSetting('research', false);
     if (surprise) await setSetting('surprise_cfg', surprise);
   });
   setKidCookie(res, kid.id);
@@ -728,6 +730,9 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception, scratch_text, nsteps, word, step_errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null, scratch?.text || null,
         (qq.guide?.length || 0) + 1, isWordProblem(qq.text), JSON.stringify(qq.stepErrors || [])]);
+    logEvent('antwoord', { som: qq.text, gegeven: shownGiven, goed: check.correct, juist: qq.display, tijd_s: Math.round((Number(req.body.timeMs) || 0) / 1000),
+      hints: qq.hints || 0, tussenstappen: !!qq.guided, stapfouten: qq.stepErrors || [], denkfout: misconception?.label || null, kladblok: scratch?.text || null,
+      sessie: s.kind, herkansing: !!qq.retry, herhaling: !!qq.review, weetniet: !!dontKnow }, { cat: qq.cat, level: qq.level, session: s.id });
     // uitleg die Max eerder gaf over dit onderdeel: hielp het? (de eerstvolgende som telt)
     await c.query(`UPDATE explanations SET outcome=$2 WHERE cat=$1 AND outcome IS NULL AND created_at > now() - interval '3 days'`, [qq.cat, check.correct]);
 
@@ -875,6 +880,8 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   const { text: replyText, form } = splitForm(reply);
   if (form) await q(`INSERT INTO explanations(cat, form, session_id, idx) VALUES ($1,$2,$3,$4)`, [qq.cat, form, s.id, i]);
   if (replyText) qq.chat.push({ role: 'teacher', text: replyText, phase });
+  logEvent('gesprek', { som: qq.text, juist: qq.display, gegeven: given ?? null, fase: phase, stap: step?.ask || null, kind: message || (mode === 'start' ? '(opent gesprek na fout)' : mode === 'step' ? '(vast bij tussenstap)' : ''),
+    max: replyText || null, vorm: form || null, denkfout: qq.misconception?.label || null, beurt: qq.chat.length }, { cat: qq.cat, level: qq.level, session: s.id });
   qq.chat = qq.chat.slice(-24);
   await q('UPDATE sessions SET questions = jsonb_set(questions, $2, $3::jsonb) WHERE id=$1', [s.id, `{${i},chat}`, JSON.stringify(qq.chat)]);
   res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : ts('{m} kon nu even niet antwoorden. Probeer het zo nog eens.', { m: teacherName() }) });
@@ -897,6 +904,8 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
   }
   const { text: lessonText, form: lessonForm } = splitForm(out?.text || '');
   if (lessonForm) await q(`INSERT INTO explanations(cat, form) VALUES ($1,$2)`, [cat, lessonForm]);
+  logEvent('les', { kind: [...chat].reverse().find((m) => m.role === 'kid')?.text || '(start les)', max: lessonText || null, vorm: lessonForm || null, klaar: !!out?.ready, beurt: chat.length + 1 },
+    { cat, level: skill.level });
   res.json({ reply: lessonText || null, ready: !!out?.ready });
 }));
 
@@ -915,7 +924,21 @@ ${wrong.length ? `Fouten: ${wrong.map((o) => `${o.x.text} → "${o.r.given}" (go
 Herkansingen goed: ${s.results.filter((r) => r.retry && r.correct).length}. Met tussenstappen goed: ${s.results.filter((r) => r.guided && r.correct).length}.`;
   const text = await reflect({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), summary });
   if (text) await q(`UPDATE sessions SET state = state || $2::jsonb WHERE id=$1`, [s.id, JSON.stringify({ reflection: text })]);
+  if (text) logEvent('reflectie', { sessie: s.kind, goed: s.correct, totaal: s.total, max: text }, { session: s.id });
   res.json({ text });
+}));
+
+// Feedback van het kind op een uitleg van Max (👍/👎 + waarom), voor het verbeteren van de AI
+app.post('/api/feedback', child, wrap(async (req, res) => {
+  const vote = req.body.vote === 'up' ? 'up' : req.body.vote === 'down' ? 'down' : null;
+  const reason = String(req.body.reason || '').slice(0, 80) || null;
+  const msg = String(req.body.message || '').slice(0, 1500);
+  const ctx = req.body.ctx || {};
+  const cat = catById[ctx.cat] ? ctx.cat : null;
+  if (!vote && !reason) return res.status(400).json({ error: 'leeg' });
+  await logEvent('feedback', { over: ctx.kind === 'lesson' ? 'les' : 'gesprek', stem: vote, waarom: reason, bericht_max: msg, som: String(ctx.question || '').slice(0, 300) || null },
+    { cat, session: Number(ctx.session) || null });
+  res.json({ ok: true });
 }));
 
 // Spaardoel kiezen of wissen (door het kind zelf)
@@ -940,6 +963,7 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
   const b = await awardBadge('uitlegger');
   let feedback = null;
   if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: await teacherProfile(), memory: await memoryText() });
+  logEvent('uitleg', { som: qq.text, goed: r.correct, kind: text, max: feedback }, { cat: qq.cat, level: qq.level, session: s.id });
   res.json({ feedback, steps: qq.steps, badge: b });
 }));
 
@@ -996,6 +1020,17 @@ app.post('/api/parent/login', wrap(async (req, res) => {
   await new Promise((r) => setTimeout(r, 800));
   res.status(401).json({ error: ts('Verkeerd wachtwoord') });
 }));
+// Ouder: feedback voor de makers, en meedoen aan het verbeteren aan/uit
+app.post('/api/parent/feedback', parent, wrap(async (req, res) => {
+  const text = String(req.body.text || '').trim().slice(0, 3000);
+  if (text.length < 3) return res.status(400).json({ error: ts('Vul eerst iets in.') });
+  await logEvent('ouder_feedback', { tekst: text });
+  res.json({ ok: true });
+}));
+app.post('/api/parent/research', parent, wrap(async (req, res) => {
+  await setSetting('research', !!req.body.on);
+  res.json({ ok: true, research: !!req.body.on });
+}));
 // Beloning en weekplan wijzigen (achter het ouderwachtwoord)
 app.post('/api/parent/rewards', parent, wrap(async (req, res) => {
   const r = cleanRewards(req.body, await rewardCfg());
@@ -1035,7 +1070,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
   res.json({
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
-    wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
+    wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS, research: (await getSetting('research', true)) !== false,
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
@@ -1134,4 +1169,5 @@ app.use(express.static('public', {
 app.get('*', (req, res) => res.sendFile('index.html', { root: 'public' }));
 
 await migrate();
+await migrateLeerlog();
 app.listen(PORT, () => console.log(`Rekenapp draait op http://localhost:${PORT}`));
