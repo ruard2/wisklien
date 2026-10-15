@@ -69,7 +69,7 @@ if (mode === 'gesprekken') {
     console.log(`\n--- ${f.alias} (${f.lang}, ${f.country === 'ZA' ? 'graad' : 'groep'} ${f.grade ?? '?'}) · ${f.cat || ''} · ${f.created_at.toISOString().slice(0, 16).replace('T', ' ')}`);
     if (f.data.som) console.log(`SOM: ${f.data.som}  (goed: ${f.data.juist ?? '?'}${f.data.gegeven != null ? `, kind gaf: ${f.data.gegeven}` : ''})`);
     for (const r of g) {
-      if (r.kind === 'feedback') { console.log(`   ${r.data.stem === 'up' ? '👍' : r.data.stem === 'down' ? '👎' : '💬'} ${r.data.waarom || ''}`); continue; }
+      if (r.kind === 'feedback') { console.log(`   ${r.data.stem === 'up' ? '👍' : r.data.stem === 'down' ? '👎' : '💬'} ${r.data.waarom || ''}${r.data.eigen_woorden ? ` "${r.data.eigen_woorden}"` : ''}`); continue; }
       if (r.data.kind) console.log(`KIND: ${cut(r.data.kind, 300)}`);
       if (r.data.max) console.log(`MAX:  ${cut(r.data.max, 600)}`);
     }
@@ -78,8 +78,8 @@ if (mode === 'gesprekken') {
 
 if (mode === 'duimpjes') {
   const days = Number(a1) || 30;
-  for (const r of await q(`SELECT * FROM public.leerlog WHERE kind='feedback' AND (data->>'stem'='down' OR data->>'waarom' IS NOT NULL) AND created_at > now() - interval '${days} days' ORDER BY id DESC LIMIT 60`)) {
-    console.log(`\n${r.data.stem === 'down' ? '👎' : '💬'} ${r.data.waarom || ''} · ${r.alias} (${r.lang}) · ${r.cat || ''} · ${r.data.over}`);
+  for (const r of await q(`SELECT * FROM public.leerlog WHERE kind='feedback' AND (data->>'stem'='down' OR data->>'waarom' IS NOT NULL OR data->>'eigen_woorden' IS NOT NULL) AND created_at > now() - interval '${days} days' ORDER BY id DESC LIMIT 60`)) {
+    console.log(`\n${r.data.stem === 'down' ? '👎' : '💬'} ${r.data.waarom || ''}${r.data.eigen_woorden ? ` — kind: "${r.data.eigen_woorden}"` : ''} · ${r.alias} (${r.lang}) · ${r.cat || ''} · ${r.data.over}`);
     if (r.data.som) console.log(`  som: ${r.data.som}`);
     console.log(`  uitleg: ${cut(r.data.bericht_max, 500)}`);
   }

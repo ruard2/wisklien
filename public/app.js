@@ -832,7 +832,9 @@ const FB_REASONS = () => [t('Snap ik niet'), t('Te lang'), t('Klopt niet'), t('T
 function fbHTML(i, text) {
   const f = FB.get(text);
   if (f?.done) return `<div class="fb small muted">${t('Bedankt! 🙏')}</div>`;
-  if (f?.ask) return `<div class="fb"><span class="small muted">${t('Wat was er mis?')}</span> ${FB_REASONS().map((r) => `<button type="button" class="chip" data-fbr="${i}" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>`;
+  if (f?.ask) return `<div class="fb fb-ask" data-fbask="${i}"><span class="small muted">${t('Wat was er mis?')}</span>
+    <div class="fb">${FB_REASONS().map((r) => `<button type="button" class="chip ${f.sel?.has(r) ? 'sel' : ''}" data-fbr="${i}" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+    <div class="fb-own"><input maxlength="300" placeholder="${t('Vertel het in je eigen woorden…')}" value="${esc(f.text || '')}" enterkeyhint="send"><button type="button" class="btn ghost" data-fbsend="${i}">${t('Stuur')}</button></div></div>`;
   return `<div class="fb"><button type="button" class="fb-b" data-fbv="up" data-fbi="${i}" title="${t('Dit hielp')}">👍</button><button type="button" class="fb-b" data-fbv="down" data-fbi="${i}" title="${t('Dit hielp niet')}">👎</button></div>`;
 }
 const sendFb = (ctx, message, vote, reason) => api('/api/feedback', { vote, reason, message, ctx }).catch(() => {});
@@ -863,13 +865,31 @@ function bindTeacher(box, send, fb = null) {
       FB.set(m.text, b.dataset.fbv === 'up' ? { done: true } : { ask: true });
       fb.redraw();
     }));
+    // redenen aantikken (meer mag), en/of in eigen woorden vertellen; "Stuur" verstuurt alles
     box.querySelectorAll('[data-fbr]').forEach((b) => (b.onclick = () => {
       const m = fb.chat[Number(b.dataset.fbr)];
-      if (!m) return;
-      sendFb(fb.ctx(), m.text, null, b.dataset.r);
-      FB.set(m.text, { done: true });
-      fb.redraw();
+      const f = m && FB.get(m.text);
+      if (!f) return;
+      f.sel ||= new Set();
+      f.sel.has(b.dataset.r) ? f.sel.delete(b.dataset.r) : f.sel.add(b.dataset.r);
+      b.classList.toggle('sel', f.sel.has(b.dataset.r));
     }));
+    box.querySelectorAll('[data-fbask]').forEach((el) => {
+      const m = fb.chat[Number(el.dataset.fbask)];
+      const f = m && FB.get(m.text);
+      if (!f) return;
+      const input = el.querySelector('input');
+      input.oninput = () => { f.text = input.value; };
+      const go = () => {
+        const reason = [...(f.sel || [])].join(', '), text = input.value.trim();
+        if (!reason && !text) { input.focus(); return; }
+        api('/api/feedback', { reason, text, message: m.text, ctx: fb.ctx() }).catch(() => {});
+        FB.set(m.text, { done: true });
+        fb.redraw();
+      };
+      el.querySelector('[data-fbsend]').onclick = go;
+      input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    });
   }
   box.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => send(b.dataset.q)));
   const form = box.querySelector('form');

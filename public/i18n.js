@@ -19,6 +19,7 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  "Vertel het in je eigen woorden…": "Vertel dit in jou eie woorde…",
   "Dat duurt te lang. Probeer het nog eens.": "Dit neem te lank. Probeer weer.",
   "Geen verbinding. Controleer je internet en probeer het nog eens.": "Geen verbinding nie. Kyk na jou internet en probeer weer.",
   "Naar het begin": "Terug na die begin",

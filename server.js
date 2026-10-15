@@ -940,12 +940,13 @@ Herkansingen goed: ${s.results.filter((r) => r.retry && r.correct).length}. Met 
 // Feedback van het kind op een uitleg van Max (👍/👎 + waarom), voor het verbeteren van de AI
 app.post('/api/feedback', child, wrap(async (req, res) => {
   const vote = req.body.vote === 'up' ? 'up' : req.body.vote === 'down' ? 'down' : null;
-  const reason = String(req.body.reason || '').slice(0, 80) || null;
+  const reason = String(req.body.reason || '').slice(0, 120) || null;
+  const own = String(req.body.text || '').trim().slice(0, 400) || null; // in eigen woorden: wat was er mis?
   const msg = String(req.body.message || '').slice(0, 1500);
   const ctx = req.body.ctx || {};
   const cat = catById[ctx.cat] ? ctx.cat : null;
-  if (!vote && !reason) return res.status(400).json({ error: 'leeg' });
-  await logEvent('feedback', { over: ctx.kind === 'lesson' ? 'les' : 'gesprek', stem: vote, waarom: reason, bericht_max: msg, som: String(ctx.question || '').slice(0, 300) || null },
+  if (!vote && !reason && !own) return res.status(400).json({ error: 'leeg' });
+  await logEvent('feedback', { over: ctx.kind === 'lesson' ? 'les' : 'gesprek', stem: vote, waarom: reason, eigen_woorden: own, bericht_max: msg, som: String(ctx.question || '').slice(0, 300) || null },
     { cat, session: Number(ctx.session) || null });
   res.json({ ok: true });
 }));

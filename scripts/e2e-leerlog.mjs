@@ -53,9 +53,11 @@ console.log('  Max:', String(chat.reply || '').slice(0, 140));
 
 // duimpjes
 await home('/api/feedback', { vote: 'down', message: chat.reply, ctx: { kind: 'chat', cat: q0.cat, session: s.id, question: 'som' } });
-await home('/api/feedback', { reason: 'Te lank', message: chat.reply, ctx: { kind: 'chat', cat: q0.cat, session: s.id } });
+await home('/api/feedback', { reason: 'Te lank', text: 'Ek verstaan nie wat modus beteken nie, Zanelle', message: chat.reply, ctx: { kind: 'chat', cat: q0.cat, session: s.id } });
 L = await logs(kid.id);
-assert(L.filter((r) => r.kind === 'feedback').length === 2, '👎 en de reden gelogd');
+const fbs = L.filter((r) => r.kind === 'feedback');
+assert(fbs.length === 2 && fbs[1].data.eigen_woorden?.startsWith('Ek verstaan nie wat modus'), '👎, de reden én de uitleg in eigen woorden gelogd');
+assert(!JSON.stringify(fbs).includes('Zanelle'), 'ook in eigen woorden geen echte naam');
 
 // ouder
 await home('/api/parent/login', { password: 'toetswagwoord' });
