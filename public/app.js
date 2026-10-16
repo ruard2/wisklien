@@ -467,58 +467,95 @@ async function renderWho() {
   let avatar = avatars[kids.length % avatars.length];
   // nog geen taal bekend: dit scherm is tweetalig (Nederlands · Afrikaans)
   const prof = { country: 'NL', lang: 'nl', grade: '', age: '' };
-  const FLAG = { NL: '🇳🇱', ZA: '🇿🇦' };
   const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7] : [3, 4, 5, 6, 7, 8]);
   const af = () => prof.lang === 'af';
+  // Nieuw kind in stappen: 1 taal · 2 naam, groep en plaatje · 3 uitleg (geef aan je ouder) · 4 ouder vult in
+  let step = 1;
+  const dots = (n) => `<div class="wiz-dots">${[1, 2, 3, 4].map((k) => `<i class="${k === n ? 'on' : k < n ? 'past' : ''}"></i>`).join('')}</div>`;
   const draw = (err = '', showNew = !kids.length) => {
-    $app.innerHTML = `<div class="stack" style="margin-top:6vh">
-      <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij? <span class="muted" style="font-size:.7em">· Wie is jy?</span></h1>
-        <p class="muted">${kids.length ? 'Tik op je naam · Tik op jou naam' : 'Welkom! · Welkom!'}</p></div>
-      ${kids.length ? `<div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b>${k.country === 'ZA' ? '<small>🇿🇦</small>' : ''}</button>`).join('')}</div>` : ''}
-      ${showNew ? `<form class="card stack" data-new>
-          <h3>${af() ? 'Maak jou profiel' : 'Maak je profiel'}</h3>
-          <div><div style="font-weight:800;margin-bottom:6px">Land</div>
-            <div class="seg">${['NL', 'ZA'].map((c) => `<button type="button" class="${prof.country === c ? 'sel' : ''}" data-country="${c}">${FLAG[c]} ${c === 'NL' ? 'Nederland' : 'Suid-Afrika'}</button>`).join('')}</div></div>
-          <div><div style="font-weight:800;margin-bottom:6px">${af() ? 'Taal' : 'Taal'}</div>
-            <div class="seg">${[['nl', 'Nederlands'], ['af', 'Afrikaans']].map(([l, n]) => `<button type="button" class="${prof.lang === l ? 'sel' : ''}" data-lang="${l}">${n}</button>`).join('')}</div></div>
-          <label class="field"><span style="font-weight:800">${af() ? 'Jou naam' : 'Je naam'}</span><input name="name" maxlength="30" placeholder="${af() ? 'bv. Christo' : 'bijv. Christo'}" autocomplete="off" required></label>
-          <div class="row" style="gap:10px;align-items:flex-end">
-            <label class="field" style="flex:1"><span style="font-weight:800">${prof.country === 'ZA' ? 'Graad' : 'Groep'}</span>
-              <select name="grade" required><option value="">${af() ? 'Kies…' : 'Kies…'}</option>${gradeOpts().map((g) => `<option value="${g}" ${String(prof.grade) === String(g) ? 'selected' : ''}>${prof.country === 'ZA' ? 'Graad' : 'Groep'} ${g}</option>`).join('')}</select></label>
-            <label class="field" style="flex:1"><span style="font-weight:800">${af() ? 'Ouderdom' : 'Leeftijd'}</span>
-              <select name="age" required><option value="">${af() ? 'Kies…' : 'Kies…'}</option>${[7, 8, 9, 10, 11, 12, 13, 14, 15].map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} ${af() ? 'jaar' : 'jaar'}</option>`).join('')}</select></label>
-          </div>
-          <div><div style="font-weight:800;margin-bottom:6px">${af() ? 'Kies ’n prentjie' : 'Kies een plaatje'}</div>
-          <div class="avatar-pick">${avatars.map((a) => `<button type="button" class="${a === avatar ? 'sel' : ''}" data-av="${a}">${a}</button>`).join('')}</div></div>
-          <p class="small" style="color:var(--bad);min-height:18px">${esc(err)}</p>
-          <button class="btn block">${af() ? 'Begin! 🚀' : 'Start! 🚀'}</button>
-        </form>` : '<button class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>'}
-      <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a>
-    </div>`;
-    $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
-    $app.querySelector('[data-shownew]')?.addEventListener('click', () => draw('', true));
-    // land/taal kiezen tekent het formulier opnieuw (graad/groep en taal van de labels passen zich aan); naam blijft staan
-    const keep = () => { const f = $app.querySelector('[data-new]'); if (f) { prof.name = f.name.value; prof.grade = f.grade.value; prof.age = f.age.value; } };
-    const redraw = () => { draw('', true); const f = $app.querySelector('[data-new]'); if (f && prof.name) f.name.value = prof.name; };
-    $app.querySelectorAll('[data-country]').forEach((b) => (b.onclick = () => { keep(); prof.country = b.dataset.country; prof.lang = prof.country === 'ZA' ? 'af' : 'nl'; if (!gradeOpts().includes(Number(prof.grade))) prof.grade = ''; redraw(); }));
-    $app.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => { keep(); prof.lang = b.dataset.lang; redraw(); }));
-    $app.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { avatar = b.dataset.av; $app.querySelectorAll('[data-av]').forEach((x) => x.classList.toggle('sel', x === b)); }));
-    const form = $app.querySelector('[data-new]');
-    if (form) {
-      form.querySelector('input').focus();
-      form.onsubmit = (e) => {
+    if (!showNew) {
+      $app.innerHTML = `<div class="stack" style="margin-top:6vh">
+        <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij? <span class="muted" style="font-size:.7em">· Wie is jy?</span></h1>
+          <p class="muted">Tik op je naam · Tik op jou naam</p></div>
+        <div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b>${k.country === 'ZA' ? '<small>🇿🇦</small>' : ''}</button>`).join('')}</div>
+        <button class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>
+        <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a></div>`;
+      $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
+      $app.querySelector('[data-shownew]').onclick = () => { step = 1; draw('', true); };
+      return;
+    }
+    const back = kids.length || step > 1 ? `<button type="button" class="btn ghost block" data-back>‹ Terug</button>` : '';
+    if (step === 1) {
+      // stap 1: in welke taal krijg je les? (dit scherm is nog tweetalig)
+      $app.innerHTML = `<div class="stack wiz" style="margin-top:5vh">${dots(1)}
+        <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Welkom! <span class="muted" style="font-size:.7em">· Welkom!</span></h1>
+          <p style="font-weight:800;margin-top:10px">In welke taal krijg je les op school?</p><p class="muted">In watter taal kry jy klas op skool?</p></div>
+        <button class="lang-card" data-lang="nl"><span class="flag"><svg viewBox="0 0 90 60" class="flag-svg" aria-hidden="true"><rect width="90" height="20" fill="#AE1C28"/><rect y="20" width="90" height="20" fill="#fff"/><rect y="40" width="90" height="20" fill="#21468B"/></svg></span><span><b>Nederlands</b><small>Ik krijg les in het Nederlands</small></span></button>
+        <button class="lang-card" data-lang="af"><span class="flag"><svg viewBox="0 0 900 600" class="flag-svg" aria-hidden="true"><rect width="900" height="300" fill="#E03C31"/><rect y="300" width="900" height="300" fill="#002395"/><path d="M0,0 L450,300 L900,300 M0,600 L450,300" stroke="#fff" stroke-width="200" fill="none"/><path d="M0,0 L450,300 L900,300 M0,600 L450,300" stroke="#007A4D" stroke-width="120" fill="none"/><path d="M0,90 L315,300 L0,510 Z" fill="#FFB612"/><path d="M0,150 L225,300 L0,450 Z" fill="#000"/></svg></span><span><b>Afrikaans</b><small>Ek kry klas in Afrikaans</small></span></button>
+        ${back}</div>`;
+      $app.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => {
+        prof.lang = b.dataset.lang; prof.country = prof.lang === 'af' ? 'ZA' : 'NL';
+        if (!gradeOpts().includes(Number(prof.grade))) prof.grade = '';
+        step = 2; draw('', true);
+      }));
+      $app.querySelector('[data-back]')?.addEventListener('click', () => draw('', false));
+      return;
+    }
+    if (step === 2) {
+      // stap 2: naam, groep/graad, leeftijd en een plaatje
+      const tr = (nl, a) => (af() ? a : nl), gw = prof.country === 'ZA' ? 'Graad' : 'Groep';
+      $app.innerHTML = `<form class="stack wiz" style="margin-top:4vh" data-new>${dots(2)}
+        <div style="text-align:center"><div class="big-emoji">${esc(avatar)}</div><h1 style="margin-top:6px">${tr('Wie ben jij?', 'Wie is jy?')}</h1></div>
+        <div class="card stack">
+          <label class="field"><span style="font-weight:800">${tr('Hoe heet je?', 'Wat is jou naam?')}</span><input name="name" maxlength="30" placeholder="${tr('bijv. Christo', 'bv. Christo')}" autocomplete="off" required value="${esc(prof.name || '')}"></label>
+          <div><div style="font-weight:800;margin-bottom:6px">${tr(`In welke groep zit je?`, `In watter graad is jy?`)}</div>
+            <div class="seg grade-pick">${gradeOpts().map((g) => `<button type="button" class="${String(prof.grade) === String(g) ? 'sel' : ''}" data-grade="${g}">${g}</button>`).join('')}</div></div>
+          <label class="field"><span style="font-weight:800">${tr('Hoe oud ben je?', 'Hoe oud is jy?')}</span>
+            <select name="age" required><option value="">${tr('Kies…', 'Kies…')}</option>${[7, 8, 9, 10, 11, 12, 13, 14, 15].map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} jaar</option>`).join('')}</select></label>
+          <div><div style="font-weight:800;margin-bottom:6px">${tr('Kies een plaatje', 'Kies ’n prentjie')}</div>
+            <div class="avatar-pick">${avatars.map((a) => `<button type="button" class="${a === avatar ? 'sel' : ''}" data-av="${a}">${a}</button>`).join('')}</div></div>
+        </div>
+        <p class="small" style="color:var(--bad);min-height:18px;text-align:center">${esc(err)}</p>
+        <button class="btn block">${tr('Verder', 'Volgende')} →</button>${back}</form>`;
+      const f = $app.querySelector('[data-new]');
+      const keep = () => { prof.name = f.name.value; prof.age = f.age.value; };
+      f.querySelectorAll('[data-grade]').forEach((b) => (b.onclick = () => { prof.grade = b.dataset.grade; f.querySelectorAll('[data-grade]').forEach((x) => x.classList.toggle('sel', x === b)); }));
+      f.querySelectorAll('[data-av]').forEach((b) => (b.onclick = () => { avatar = b.dataset.av; f.querySelectorAll('[data-av]').forEach((x) => x.classList.toggle('sel', x === b)); f.querySelector('.big-emoji').textContent = avatar; }));
+      f.querySelector('[data-back]').onclick = () => { keep(); step = 1; draw('', true); };
+      if (!prof.name) f.name.focus();
+      f.onsubmit = (e) => {
         e.preventDefault();
         keep();
-        if (String(prof.name || '').trim().length < 2) return draw(af() ? 'Wat is jou naam? (minstens 2 letters)' : 'Hoe heet je? (minstens 2 letters)', true);
-        parentSetup();
+        if (String(prof.name || '').trim().length < 2) return draw(tr('Hoe heet je? (minstens 2 letters)', 'Wat is jou naam? (minstens 2 letters)'), true);
+        if (!prof.grade) return draw(tr(`In welke ${gw.toLowerCase()} zit je?`, 'In watter graad is jy?'), true);
+        if (!prof.age) return draw(tr('Hoe oud ben je?', 'Hoe oud is jy?'), true);
+        step = 3; draw('', true);
       };
+      return;
     }
+    // stap 3: uitleg voor het kind — nu even je ouder erbij
+    const tr = (nl, a) => (af() ? a : nl);
+    $app.innerHTML = `<div class="stack wiz" style="margin-top:5vh">${dots(3)}
+      <div class="card stack" style="text-align:center;padding:24px 18px">
+        <div class="big-emoji">${esc(avatar)} ➡️ 👨‍👩‍👧</div>
+        <h1>${tr(`Top, ${esc(prof.name)}!`, `Baie goed, ${esc(prof.name)}!`)}</h1>
+        <p style="font-weight:800">${tr('Geef de telefoon of tablet nu even aan papa of mama.', 'Gee nou die foon of tablet vir pa of ma.')}</p>
+        <p class="muted">${tr('Zij vullen een paar dingen in: wat je verdient met oefenen, welke cadeautjes je kunt krijgen en een wachtwoord. Daarna ben jij weer aan de beurt!', 'Hulle vul ’n paar goed in: wat jy met oefen verdien, watter geskenkies jy kan kry en ’n wagwoord. Daarna is dit weer jou beurt!')}</p>
+        <div class="wiz-list">
+          <div>🪙 ${tr('Centjes voor elke dagtaak', 'Sente vir elke dagtaak')}</div>
+          <div>🎁 ${tr('Verrassingen en beloningen', 'Verrassings en belonings')}</div>
+          <div>🔒 ${tr('Een wachtwoord voor papa of mama', '’n Wagwoord vir pa of ma')}</div>
+        </div>
+      </div>
+      <button class="btn good block" data-parent>👨‍👩‍👧 ${tr('Ik ben de ouder, verder', 'Ek is die ouer, gaan voort')} →</button>${back}</div>`;
+    $app.querySelector('[data-parent]').onclick = () => parentSetup();
+    $app.querySelector('[data-back]').onclick = () => { step = 2; draw('', true); };
   };
   // Stap 2: voor de ouders (alles optioneel; later aan te passen in het ouderscherm, achter het wachtwoord)
   const parentSetup = (err = '') => {
     const za = prof.country === 'ZA', tr = (nl, a) => (af() ? a : nl);
     const cfg = { dailyCents: 50, intakeCents: 100, weekBonusCents: 25, dailyCount: 20, days: [1, 2, 3, 4, 5], ...(prof.setup || {}) };
-    $app.innerHTML = `<form class="stack" style="margin-top:3vh" data-setup>
+    $app.innerHTML = `<form class="stack wiz" style="margin-top:3vh" data-setup>${dots(4)}
       <div style="text-align:center"><div class="big-emoji">👨‍👩‍👧</div><h1 style="margin-top:6px">${tr('Voor papa of mama', 'Vir pa of ma')}</h1>
         <p class="muted">${tr(`Stel samen in hoe ${esc(prof.name)} beloond wordt. Alles is optioneel en later te veranderen in het ouderscherm (achter je wachtwoord).`, `Stel saam in hoe ${esc(prof.name)} beloon word. Alles is opsioneel en later te verander in die ouerskerm (agter jou wagwoord).`)}</p></div>
       <div class="card stack"><h3>🪙 ${tr('Beloning en weekplan', 'Beloning en weekplan')}</h3>${rewardFields(cfg, { tr, za, af: af() })}</div>
@@ -544,7 +581,7 @@ async function renderWho() {
       try {
         await api('/api/kids', { name: prof.name, avatar, country: prof.country, lang: prof.lang, grade: prof.grade, age: prof.age, setup });
         location.hash = '#/'; route();
-      } catch (er) { if (/naam|name|heet|groep|graad|oud|land/i.test(er.message)) draw(er.message, true); else parentSetup(er.message); }
+      } catch (er) { if (/naam|name|heet|groep|graad|oud|land/i.test(er.message)) { step = 2; draw(er.message, true); } else parentSetup(er.message); }
     };
     f.onsubmit = (e) => {
       e.preventDefault();
@@ -556,7 +593,7 @@ async function renderWho() {
       create({ ...r, password: f.pw.value || undefined, surprise: { enabled: f.surprise.checked, rewards: prof.rewards }, research: f.research.checked });
     };
     f.querySelector('[data-skip]').onclick = () => create(f.research.checked ? null : { research: false });
-    f.querySelector('[data-back]').onclick = () => { draw('', true); const ff = $app.querySelector('[data-new]'); if (ff) ff.name.value = prof.name || ''; };
+    f.querySelector('[data-back]').onclick = () => { step = 3; draw('', true); };
   };
   draw();
 }
