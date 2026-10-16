@@ -19,6 +19,31 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  // zelf oefenen met een eigen doel
+  "Er een kei in worden": "’n Bobaas daarin word",
+  "Een stapje beter worden": "’n Treetjie beter word",
+  "Zelf oefenen": "Self oefen",
+  "zo vaak je wilt": "so dikwels as jy wil",
+  "Ander onderwerp kiezen": "Kies ’n ander onderwerp",
+  "Kies een onderwerp": "Kies ’n onderwerp",
+  "Waar wil je mee oefenen?": "Waarmee wil jy oefen?",
+  "Wat wil je bereiken?": "Wat wil jy bereik?",
+  "Je doel nu: {d}": "Jou doel nou: {d}",
+  "Gewoon even oefenen": "Net gou oefen",
+  "10 sommen, zonder doel": "10 somme, sonder doel",
+  "oefen tot je een stapje verder bent": "oefen tot jy ’n treetjie verder is",
+  "dat kost even tijd: oefen zo vaak je wilt": "dit vat ’n rukkie: oefen so dikwels as jy wil",
+  "Haal je een doel? Dan heeft papa of mama een cadeau voor je: {g}": "Haal jy ’n doel? Dan het pa of ma ’n geskenk vir jou: {g}",
+  "Oefenen gaat in rondes van 10 sommen. Na elke ronde kun je doorgaan of stoppen.": "Oefen gaan in rondtes van 10 somme. Ná elke rondte kan jy aangaan of ophou.",
+  "Doel bereikt!": "Doel bereik!",
+  "Je bent een kei in <b>{o}</b>! Dat heb je helemaal zelf bereikt.": "Jy is ’n bobaas in <b>{o}</b>! Dit het jy heeltemal self bereik.",
+  "Je bent een stapje beter in <b>{o}</b>! Dat heb je helemaal zelf bereikt.": "Jy is ’n treetjie beter in <b>{o}</b>! Dit het jy heeltemal self bereik.",
+  "Vraag papa of mama om je cadeau: <b>{g}</b>": "Vra pa of ma vir jou geskenk: <b>{g}</b>",
+  "Oefenen met dit onderwerp": "Oefen met hierdie onderwerp",
+  "Nog 10 sommen {o}": "Nog 10 somme {o}",
+  "Eigen oefendoelen": "Eie oefendoele",
+  "Bezig met:": "Besig met:",
+  "Nog geen eigen doel gekozen.": "Nog geen eie doel gekies nie.",
   // vertrekbord
   "Vertrek": "Vertrek",
   "Naar": "Na",

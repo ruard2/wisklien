@@ -77,6 +77,7 @@ const AFS = {
   'Stappenmeester': 'Stappemeester', '10 sommen goed met tussenstappen.': '10 somme reg met tussenstappe.',
   'Weekbonus': 'Weekbonus', 'Alle vijf dagtaken van een week af.': 'Al vyf dagtake van ’n week klaar.',
   'Spaardoel gehaald': 'Spaardoel bereik', 'Genoeg gespaard voor je doel!': 'Genoeg gespaar vir jou doel!',
+  'Doel bereikt': 'Doel bereik', 'Je hebt je eigen oefendoel gehaald!': 'Jy het jou eie oefendoel gehaal!',
   'Uitlegger': 'Verduideliker', 'Je hebt uitgelegd hoe jij een som oplost.': 'Jy het verduidelik hoe jy ’n som oplos.',
   // antwoord-controle
   'Klopt! We rekenen verder met het kleinste getal: {x}.': 'Reg! Ons werk verder met die kleinste: {x}.',

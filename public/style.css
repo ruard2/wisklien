@@ -433,3 +433,13 @@ table.list th { color: var(--muted); font-weight: 800; }
 .clock-row { display: flex; gap: 10px; justify-content: center; }
 .clock-row > div { flex: 1; max-width: 190px; }
 .clock-row svg { width: 100%; height: auto; display: block; }
+/* zelf oefenen: voetstapjes naar het doel, onderwerpen kiezen */
+.goal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.goal-row:first-of-type { border-top: 0; }
+.steps-trail { display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 14px; }
+.steps-trail span { opacity: .25; filter: grayscale(1); }
+.steps-trail span.on, .steps-trail .flag { opacity: 1; filter: none; }
+.topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.topic { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; border-radius: 14px; border: 2px solid var(--line);
+  background: var(--card); color: var(--ink); font: inherit; font-weight: 800; font-size: 13px; text-align: center; cursor: pointer; }
+.topic span { font-size: 24px; }

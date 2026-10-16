@@ -588,14 +588,18 @@ function rewardFields(cfg, { tr, za, af, counts = [10, 15, 20, 25, 30] }) {
       <select name="count">${counts.map((n) => `<option value="${n}" ${n === cfg.dailyCount ? 'selected' : ''}>${n} ${tr('sommen', 'somme')} (± ${n} min)</option>`).join('')}</select></label>
     <div><div style="font-weight:800;margin-bottom:6px">${tr('Op welke dagen is er een dagtaak?', 'Op watter dae is daar ’n dagtaak?')}</div>
       <div class="seg days">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<button type="button" class="${cfg.days.includes(d) ? 'sel' : ''}" data-day="${d}">${WEEKDAYS[af ? 'af' : 'nl'][d]}</button>`).join('')}</div></div>
-    <p class="small" style="font-weight:800" data-perweek></p>`;
+    <p class="small" style="font-weight:800" data-perweek></p>
+    <label class="field"><span style="font-weight:800">${tr('Cadeau als je kind een eigen oefendoel haalt (optioneel)', 'Geskenk as jou kind ’n eie oefendoel haal (opsioneel)')}</span>
+      <input name="goalGift" maxlength="60" value="${esc(cfg.goalGift || '')}" placeholder="${tr('bijv. 🍦 een ijsje samen halen', 'bv. 🍦 saam ’n roomys gaan koop')}" autocomplete="off">
+      <span class="small muted">${tr('Kinderen kiezen zelf een onderwerp en doel. Oefenen levert geen geld op; het doel halen geeft eer, een feestje en dit cadeau.', 'Kinders kies self ’n onderwerp en doel. Oefen verdien nie geld nie; die doel haal gee eer, ’n partytjie en hierdie geskenk.')}</span></label>`;
 }
 // Koppelt de knoppen; geeft een functie terug die de ingevulde waarden ophaalt (of een foutmelding gooit).
 function bindRewardFields(root, cfg, { tr, za }) {
   const days = new Set(cfg.days);
   const sym = (c) => (za ? 'R' : '€ ') + money2(c);
   const read = () => ({ dailyCents: parseMoney(root.querySelector('[name=daily]').value), intakeCents: parseMoney(root.querySelector('[name=intake]').value),
-    weekBonusCents: parseMoney(root.querySelector('[name=week]').value), dailyCount: Number(root.querySelector('[name=count]').value), days: [...days] });
+    weekBonusCents: parseMoney(root.querySelector('[name=week]').value), dailyCount: Number(root.querySelector('[name=count]').value), days: [...days],
+    goalGift: root.querySelector('[name=goalGift]')?.value ?? '' });
   const upd = () => {
     const r = read(), el = root.querySelector('[data-perweek]');
     if (!el) return;
@@ -707,16 +711,66 @@ async function renderHome() {
     ${main}
     ${piggyCard(s)}
     ${s.intakeDone ? weekCard(s) : ''}
+    ${s.intakeDone ? goalsCard(s) : ''}
     ${coach}${badgesCard}${top}
     ${mopCard()}
   </div>`;
   bindStart();
+  bindGoals();
   loadKidNote($app.querySelector('[data-kidnote]'));
   $app.querySelector('[data-switch]').onclick = async () => { if (await ask(`<div class="big-emoji">👤</div><h2>${t('Ben jij niet {n}?', { n: esc(s.name) })}</h2><p class="muted">${t('Dan kies je je eigen naam.')}</p>`, t('Ander kind kiezen'), t('Ik ben het wel'))) switchKid(); };
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
 }
 const DAG = (dow) => WEEKDAYS[LANG === 'af' ? 'af' : 'nl'][dow];
+
+// ---------- zelf oefenen: kies een onderwerp en (als je wilt) een doel ----------
+// Doelen zonder groepen/graden: "een stapje beter" of "er een kei in worden". Het kind ziet voetstapjes.
+const steps = (g) => `<span class="steps-trail" title="${g.done}/${g.total}">${Array.from({ length: g.total }, (_, i) => `<span class="${i < g.done ? 'on' : ''}">👣</span>`).join('')}<span class="flag">${g.kind === 'kei' ? '🏆' : '⭐'}</span></span>`;
+const goalText = (g) => (g.kind === 'kei' ? t('Er een kei in worden') : t('Een stapje beter worden'));
+function goalsCard(s) {
+  const goals = s.goals || [];
+  return `<div class="card stack"><div class="row between"><h3>🎯 ${t('Zelf oefenen')}</h3><span class="small muted">${t('zo vaak je wilt')}</span></div>
+    ${goals.map((g) => `<div class="goal-row"><div><div style="font-weight:800">${g.icon} ${esc(g.label)}</div><div class="small muted">${goalText(g)}</div>${steps(g)}</div>
+      <button class="btn ghost" data-train="${g.cat}">${t('Verder')}</button></div>`).join('')}
+    <button class="btn ghost block" data-pick>${goals.length ? t('Ander onderwerp kiezen') : t('Kies een onderwerp')}</button></div>`;
+}
+function bindGoals(root = $app) {
+  root.querySelectorAll('[data-pick]').forEach((b) => (b.onclick = pickTopic));
+  root.querySelectorAll('[data-train]').forEach((b) => (b.onclick = () => startSession('practice', b.dataset.train, { fresh: true })));
+}
+function pickTopic() {
+  sheet(`<div class="row between"><h2>🎯 ${t('Waar wil je mee oefenen?')}</h2><button class="btn ghost" data-close>${t('Sluiten')}</button></div>
+    <div class="topic-grid">${(STATE.skills || []).map((x) => `<button class="topic" data-topic="${x.cat}"><span>${x.icon}</span>${esc(x.label)}</button>`).join('')}</div>`, (bg, close) => {
+    bg.querySelectorAll('[data-topic]').forEach((b) => (b.onclick = () => { close(); chooseGoal(b.dataset.topic); }));
+  });
+}
+function chooseGoal(cat) {
+  const x = (STATE.skills || []).find((k) => k.cat === cat);
+  const cur = (STATE.goals || []).find((g) => g.cat === cat);
+  const gift = STATE.goalGift;
+  sheet(`<div class="row between"><h2>${x?.icon || ''} ${esc(x?.label || '')}</h2><button class="btn ghost" data-close>${t('Sluiten')}</button></div>
+    <p style="font-weight:800">${t('Wat wil je bereiken?')}</p>
+    ${cur ? `<p class="small muted">${t('Je doel nu: {d}', { d: goalText(cur) })} ${steps(cur)}</p>` : ''}
+    <div class="stack">
+      <button class="choice-big" data-goal="oefen"><span>🌱 ${t('Gewoon even oefenen')}</span><small>${t('10 sommen, zonder doel')}</small></button>
+      <button class="choice-big good" data-goal="stap"><span>⭐ ${t('Een stapje beter worden')}</span><small>${t('oefen tot je een stapje verder bent')}</small></button>
+      <button class="choice-big" data-goal="kei"><span>🏆 ${t('Er een kei in worden')}</span><small>${t('dat kost even tijd: oefen zo vaak je wilt')}</small></button>
+    </div>
+    ${gift ? `<p class="small" style="margin-top:10px">🎁 ${t('Haal je een doel? Dan heeft papa of mama een cadeau voor je: {g}', { g: esc(gift) })}</p>` : ''}
+    <p class="small muted" style="margin-top:6px">${t('Oefenen gaat in rondes van 10 sommen. Na elke ronde kun je doorgaan of stoppen.')}</p>`, (bg, close) => {
+    bg.querySelectorAll('[data-goal]').forEach((b) => (b.onclick = () => { close(); startSession('practice', cat, { goal: b.dataset.goal, fresh: true }); }));
+  });
+}
+function celebrateGoal(g) {
+  confetti();
+  setTimeout(confetti, 700);
+  sheet(`<div style="text-align:center"><div class="big-emoji">🏅</div><h2 style="margin:8px 0">${t('Doel bereikt!')}</h2>
+    <p>${g.kind === 'kei' ? t('Je bent een kei in <b>{o}</b>! Dat heb je helemaal zelf bereikt.', { o: esc(g.label) }) : t('Je bent een stapje beter in <b>{o}</b>! Dat heb je helemaal zelf bereikt.', { o: esc(g.label) })}</p>
+    ${g.gift ? `<div class="card coin" style="margin-top:10px">🎁 ${t('Vraag papa of mama om je cadeau: <b>{g}</b>', { g: esc(g.gift) })}</div>` : ''}
+    <p class="muted" style="margin-top:8px">${t('Laat dit scherm aan papa of mama zien! 📱')}</p></div>
+    <button class="btn good block" data-close>${t('Ja!! 🙌')}</button>`);
+}
 
 // Voortgang voor het kind: alleen de woorden van Max (waar je goed in bent, waar we nog mee oefenen, een
 // aanmoediging). Balken, scores en niveaus zijn alleen voor de ouder (ouderscherm).
@@ -974,11 +1028,13 @@ async function renderCategory(cat) {
     ${x.note ? `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${esc(x.note)}</div></div>` : ''}</div>
     <div class="card flat"><b>${t('Zo doe je het')}</b>${tipHTML(cat)}</div>
     ${(STATE.mnemonics?.[cat] || []).length ? `<div class="card flat"><b>🧠 ${t('Onthoud-trucs')}</b>${STATE.mnemonics[cat].map((m) => `<div class="trick"><b>${esc(m.kort)}</b>${m.soort === 'ezelsbrug' ? ` <span class="chip coin">${t('ezelsbruggetje')}</span>` : ''}<div class="small muted">${esc(m.uitleg)}</div></div>`).join('')}</div>` : ''}
-    <button class="btn block" data-start="practice" data-cat="${cat}">${t('Oefen dit (20 sommen, zonder centen)')}</button>
+    ${(STATE.goals || []).find((g) => g.cat === cat) ? `<div class="card flat">🎯 <b>${goalText(STATE.goals.find((g) => g.cat === cat))}</b> ${steps(STATE.goals.find((g) => g.cat === cat))}</div>` : ''}
+    <button class="btn block" data-goalpick="${cat}">🎯 ${t('Oefenen met dit onderwerp')}</button>
     ${STATE.ai ? `<button class="btn ghost block" data-coach="${cat}">🧑‍🏫 ${t('Korte les van {m}', { m: esc(STATE.teacher) })}</button>` : ''}
   </div>`;
   bindStart();
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(cat)));
+  $app.querySelector('[data-goalpick]')?.addEventListener('click', () => chooseGoal(cat));
 }
 
 // =====================================================================
@@ -1044,7 +1100,8 @@ async function openSession(id) {
   if (!data.current) return renderSummary({ kind: data.kind, correct: data.correct, total: data.total, points: Math.round(data.points), maxPoints: data.maxPoints });
   startQuestion();
   // lesplan van Max bij de start; anders de uitlegkaart bij een onderdeel waar extra hulp aan staat
-  const stuck = (data.struggling || []);
+  // zelf een onderwerp gekozen? dan alleen een les over dát onderwerp (niet over iets anders)
+  const stuck = (data.struggling || []).filter((c) => !data.focus || c === data.focus);
   const key = `coach-shown-${data.id}`;
   if (data.answered === 0 && !store.get(key)) {
     store.set(key, '1');
@@ -1549,7 +1606,8 @@ function showFeedback(r) {
   // momenten die er toe doen
   if (r.rushWarn) setTimeout(() => sheet(`<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${t('Ho, rustig aan! 🐢 Een paar sommen gingen zo snel dat je ze niet goed gelezen kunt hebben. Die komen aan het eind terug. Lees de volgende som eerst hardop, en reken dan pas. Rustig werken is sneller klaar!')}</div></div>
     <button class="btn block" data-close>${t('Oké, rustig aan')}</button>`), 500);
-  if (r.event === 'up') celebrateLevel(r);
+  if (r.goalReached) setTimeout(() => celebrateGoal(r.goalReached), 400);
+  else if (r.event === 'up') celebrateLevel(r);
   else if (r.event === 'down') sheet(`<div style="text-align:center"><div class="big-emoji">🪜</div><h2 style="margin:8px 0">${t('Even een stapje terug')}</h2>
       <p>${t('Bij <b>{o}</b> oefenen we even met wat makkelijkere sommen. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠', { o: esc(r.eventCat) })}</p>
       <p class="muted" style="margin-top:8px">${t('Gaat het goed? Dan worden de sommen vanzelf weer moeilijker. Je krijgt de komende sommen extra hulp. 💪')}</p></div>
@@ -1634,10 +1692,13 @@ async function renderSummary(sum) {
     ${sum.kind === 'intake' ? `<div class="card stack"><h3>${t('Jouw uitslag')}</h3><p class="small muted">${t('Vanaf nu krijg je bij elke dagtaak {n} sommen die bij jou passen.', { n: STATE.points.dailyCount })}</p><div class="maxnote-body" data-kidnote></div></div>`
     : sum.perCat ? `<div class="card"><h3>${t('Per onderdeel')}</h3>${sum.perCat.map((p) => `<div class="mini-skill"><span class="ico">${p.icon}</span><div style="font-weight:800">${esc(p.label)}</div><span class="chip ${p.ok === p.n ? 'good' : p.ok === 0 ? 'bad' : ''}">${p.ok}/${p.n}</span></div>`).join('')}</div>` : ''}
     <div class="card coin row between"><div class="row"><span class="big-emoji" style="font-size:30px">🐷</span><b>${t('Spaarpot')}</b></div><span class="money" style="font-size:22px">${euro(STATE.wallet.balance)}</span></div>
+    ${sum.kind === 'practice' && sum.perCat?.length === 1 ? (() => { const p = sum.perCat[0], g = (STATE.goals || []).find((x) => x.cat === p.cat);
+      return `<div class="card stack">${g ? `<div>🎯 <b>${goalText(g)}</b>: ${esc(p.label)} ${steps(g)}</div>` : ''}<button class="btn good block" data-again="${p.cat}">💪 ${t('Nog 10 sommen {o}', { o: esc(p.label.toLowerCase()) })}</button></div>`; })() : ''}
     ${mopCard()}
     <a class="btn block" href="#/">${t('Klaar')}</a>
   </div>`;
   $tabs.hidden = true;
+  $app.querySelector('[data-again]')?.addEventListener('click', (e) => startSession('practice', e.currentTarget.dataset.again, { fresh: true }));
   $app.querySelector('[data-mop]')?.addEventListener('click', (e) => { const el = e.currentTarget.querySelector('.punch'); el.hidden = !el.hidden; });
   loadKidNote($app.querySelector('[data-kidnote]'));
   if (STATE.ai && S?.data?.id) {
@@ -1818,6 +1879,10 @@ async function renderParent() {
       <label class="field"><span class="small" style="font-weight:800">${t('Feedback voor de makers: wat valt je op? Wat gaat er mis? Wat kan beter?')}</span><textarea name="text" rows="3" maxlength="3000"></textarea></label>
       <button class="btn ghost block">${t('Versturen')}</button></form>
 
+    <div class="card stack"><h2>🏅 ${t('Eigen oefendoelen')}</h2>
+      ${(data.goals || []).length ? `<p class="small">${t('Bezig met:')} ${data.goals.map((g) => `${g.icon} ${esc(g.label)} (${goalText(g).toLowerCase()}, ${g.done}/${g.total})`).join(' · ')}</p>` : `<p class="small muted">${t('Nog geen eigen doel gekozen.')}</p>`}
+      ${(data.goalLog || []).length ? `<table class="list">${data.goalLog.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>🏅 ${esc(x.label)}${x.gift ? `<div class="small muted">🎁 ${esc(x.gift)}</div>` : ''}</td><td style="text-align:right">${x.given ? '✅' : `<button class="btn ghost" data-goalgiven="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : ''}</div>
+
     <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
       <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed is gegaan. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
       <form class="stack" data-surprise style="gap:8px">
@@ -1912,6 +1977,7 @@ async function renderParent() {
     catch (err) { toast(err.message); }
   };
   $app.querySelectorAll('[data-delivered]').forEach((b) => (b.onclick = async () => { await api('/api/parent/surprise/delivered', { index: Number(b.dataset.delivered) }); renderParent(); }));
+  $app.querySelectorAll('[data-goalgiven]').forEach((b) => (b.onclick = async () => { await api('/api/parent/goal-given', { index: Number(b.dataset.goalgiven) }); renderParent(); }));
   $app.querySelector('[data-delkid]').onclick = async () => {
     if (!(await ask(`<h2 style="margin-bottom:8px">${t('Profiel van {n} verwijderen?', { n: esc(data.name) })}</h2><p>${t('Alles van dit kind gaat weg: niveaus, spaarpot, badges en alle gegevens die {m} heeft onthouden. Dit kun je niet ongedaan maken.', { m: esc(data.teacher) })}</p>`, t('Ja, verwijderen'), t('Annuleren'), true))) return;
     await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });

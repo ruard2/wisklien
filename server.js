@@ -305,6 +305,8 @@ function sessionPayload(s, skills, extra = {}) {
     points: s.points_acc, streak: s.state?.streak || 0, easy: !!s.state?.easy,
     current: s.status === 'active' ? currentPayload(s, skills) : null,
     coach: s.state?.coach || null,
+    // oefenen op één gekozen onderwerp
+    focus: s.kind === 'practice' && s.plan?.length && s.plan.every((c) => c === s.plan[0]) ? s.plan[0] : null,
     ...extra,
   };
 }
@@ -448,6 +450,8 @@ app.get('/api/state', child, wrap(async (req, res) => {
       const d = DIDACTIEK[s.cat], n = d?.niveaus[s.level];
       return [s.cat, n ? { kern: d.kern, stappen: n.aanpak, voorbeeld: n.voorbeeld } : null];
     })),
+    goals: await goalsView(await getSkills()),
+    goalGift: rc.goalGift || '',
     points: { intake: rc.intakeCents, intakeCount: INTAKE_MAX, daily: rc.dailyCents, dailyCount: rc.dailyCount, daysPerWeek: rc.days.length, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
 }));
@@ -564,10 +568,20 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
   if (kind === 'practice') {
     const active = await one(`SELECT * FROM sessions WHERE kind='practice' AND status='active' ORDER BY id DESC LIMIT 1`);
     const focus = req.body.cat && catById[req.body.cat] ? req.body.cat : null;
-    if (active && (!focus || active.plan.every((c) => c === focus))) return res.json(sessionPayload(active, skills, { struggling }));
+    if (active && !req.body.fresh && (!focus || active.plan.every((c) => c === focus))) {
+      if (focus && ['stap', 'kei'].includes(req.body.goal)) { const goals = await getGoals(); goals[focus] = makeGoal(req.body.goal, skills.find((x) => x.cat === focus)); await setSetting('oefendoelen', goals); }
+      return res.json(sessionPayload(active, skills, { struggling }));
+    }
     if (active) await q(`UPDATE sessions SET status='stopped' WHERE id=$1`, [active.id]);
-    const made = focus ? { plan: Array(PRACTICE_COUNT).fill(focus), coach: null } : await makePlan(PRACTICE_COUNT, skills, struggling);
-    return res.json(sessionPayload(await createSession('practice', made.plan, PRACTICE_COUNT, 0, skills, made.coach ? { coach: made.coach } : {}), skills, { struggling }));
+    // eigen oefendoel instellen (of laten staan); oefenen op een onderwerp gaat in rondes van 10
+    if (focus && ['stap', 'kei'].includes(req.body.goal)) {
+      const goals = await getGoals();
+      goals[focus] = makeGoal(req.body.goal, skills.find((x) => x.cat === focus));
+      await setSetting('oefendoelen', goals);
+    }
+    const n = focus ? 10 : PRACTICE_COUNT;
+    const made = focus ? { plan: Array(n).fill(focus), coach: null } : await makePlan(n, skills, struggling);
+    return res.json(sessionPayload(await createSession('practice', made.plan, n, 0, skills, made.coach ? { coach: made.coach } : {}), skills, { struggling }));
   }
   res.status(400).json({ error: ts('Onbekende sessie') });
 }));
@@ -780,6 +794,22 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       sessie: s.kind, herkansing: !!qq.retry, herhaling: !!qq.review, weetniet: !!dontKnow, haast: result.rushed || null, opnieuw: !!qq.redo }, { cat: qq.cat, level: qq.level, session: s.id });
     // uitleg die Max eerder gaf over dit onderdeel: hielp het? (de eerstvolgende som telt)
     await c.query(`UPDATE explanations SET outcome=$2 WHERE cat=$1 AND outcome IS NULL AND created_at > now() - interval '3 days'`, [qq.cat, check.correct]);
+
+    // ---- eigen oefendoel gehaald? ----
+    if (s.kind !== 'intake') {
+      const goals = (await c.query(`SELECT value FROM settings WHERE key='oefendoelen'`)).rows[0]?.value || {};
+      const g = goals[qq.cat];
+      if (g && goalStatus(g, skill).reached) {
+        delete goals[qq.cat];
+        await c.query(`INSERT INTO settings(key, value) VALUES ('oefendoelen', $1) ON CONFLICT (key) DO UPDATE SET value=$1`, [JSON.stringify(goals)]);
+        const gift = (await rewardCfg()).goalGift || '';
+        const log = (await c.query(`SELECT value FROM settings WHERE key='oefendoel_log'`)).rows[0]?.value || [];
+        log.push({ date: todayNL(), cat: qq.cat, label: catById[qq.cat].label, kind: g.kind, gift, given: !gift });
+        await c.query(`INSERT INTO settings(key, value) VALUES ('oefendoel_log', $1) ON CONFLICT (key) DO UPDATE SET value=$1`, [JSON.stringify(log.slice(-50))]);
+        result.goalReached = { cat: qq.cat, label: catById[qq.cat].label, icon: catById[qq.cat].icon, kind: g.kind, gift };
+        await award(c, 'oefendoel');
+      }
+    }
 
     // ---- badges tijdens de sessie ----
     if (s.state.streak === 5) await award(c, 'rij5');
@@ -1002,6 +1032,29 @@ function isGuess(qq, given, prev) {
   return false;
 }
 
+// ---------- eigen oefendoelen ----------
+// Het kind kiest zelf een onderwerp en een doel, zonder groepen/graden: "een stapje beter" of "er een kei in worden".
+// Achter de schermen is dat een echt niveau; het kind ziet alleen voetstapjes richting het doel.
+const getGoals = () => getSetting('oefendoelen', {});
+function makeGoal(kind, skill) {
+  const lv = skill?.level ?? 0;
+  if (kind === 'kei') return { kind, target: 3, strong: true, start: lv, since: todayNL() };
+  return lv >= 3 ? { kind, target: 3, strong: true, start: lv, since: todayNL() } : { kind, target: lv + 1, strong: false, start: lv, since: todayNL() };
+}
+function goalStatus(g, skill) {
+  const lv = skill?.level ?? 0, score = skill ? skillScore(skill) : 0;
+  const total = Math.max(1, g.target - g.start) + (g.strong ? 1 : 0);
+  const done = Math.min(total, Math.max(0, Math.min(lv, g.target) - g.start) + (g.strong && lv >= g.target && score >= 85 ? 1 : 0));
+  return { total, done, reached: lv >= g.target && (!g.strong || score >= 85) };
+}
+async function goalsView(skills) {
+  const goals = await getGoals();
+  return Object.entries(goals).filter(([cat]) => catById[cat]).map(([cat, g]) => {
+    const st = goalStatus(g, skills.find((x) => x.cat === cat));
+    return { cat, label: catById[cat].label, icon: catById[cat].icon, kind: g.kind, total: st.total, done: st.done };
+  });
+}
+
 // Voortgang voor het kind: alleen woorden van Max (goed in / nog oefenen / aanmoediging).
 // Geen balken, scores of niveaus: die staan alleen in het ouderscherm.
 function kidHighlights(list) {
@@ -1107,6 +1160,14 @@ app.post('/api/parent/login', wrap(async (req, res) => {
   await new Promise((r) => setTimeout(r, 800));
   res.status(401).json({ error: ts('Verkeerd wachtwoord') });
 }));
+// Ouder: cadeau voor een gehaald oefendoel is gegeven
+app.post('/api/parent/goal-given', parent, wrap(async (req, res) => {
+  const log = await getSetting('oefendoel_log', []);
+  const i = log.length - 1 - Number(req.body.index); // de lijst in het ouderscherm staat omgekeerd (nieuwste eerst)
+  if (log[i]) { log[i].given = true; await setSetting('oefendoel_log', log); }
+  res.json({ ok: true });
+}));
+
 // Ouder: feedback voor de makers, en meedoen aan het verbeteren aan/uit
 app.post('/api/parent/feedback', parent, wrap(async (req, res) => {
   const text = String(req.body.text || '').trim().slice(0, 3000);
@@ -1158,7 +1219,8 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
   res.json({
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
-    wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS, research: (await getSetting('research', true)) !== false,
+    wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
+    goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()), research: (await getSetting('research', true)) !== false,
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),

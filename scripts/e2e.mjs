@@ -158,7 +158,7 @@ console.log('  badges:', st.badges.filter((b) => b.earned).map((b) => b.icon + b
   await db.query(`UPDATE ${SCHEMA}.reviews SET due = CURRENT_DATE - 1`);
   const s = await api('/api/session/start', { kind: 'practice', cat: 'tijd' }); // eerst iets anders stoppen
   void s;
-  const p = await api('/api/session/start', { kind: 'practice' });
+  const p = await api('/api/session/start', { kind: 'practice', fresh: true });
   const st = (await db.query(`SELECT state, plan FROM ${SCHEMA}.sessions WHERE id=$1`, [p.id])).rows[0];
   assert((st.state.reviews || []).length > 0 && st.plan.some((x) => String(x).startsWith('review:')), `herhalingen zitten in de oefenronde (${(st.state.reviews || []).length})`);
   assert(p.total === 20, `extra oefenen = 20 sommen (${p.total})`);

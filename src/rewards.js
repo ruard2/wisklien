@@ -3,11 +3,12 @@
 import { getSetting } from './db.js';
 
 export const REWARD_DEFAULTS = {
-  dailyCents: 50, // max per dagtaak (alleen goede antwoorden leveren op)
-  intakeCents: 100, // max voor de starttoets
+  dailyCents: 50, // voor een afgemaakte dagtaak (voor de moeite, niet per goed antwoord)
+  intakeCents: 100, // voor de afgemaakte starttoets
   weekBonusCents: 25, // als alle dagtaken van de week af zijn
   dailyCount: 20, // sommen per dagtaak
   days: [1, 2, 3, 4, 5], // dagen met een dagtaak (0 = zondag … 6 = zaterdag)
+  goalGift: '', // cadeau van de ouder als het kind een eigen oefendoel haalt (leeg = geen)
 };
 export const DAILY_COUNTS = [10, 15, 20, 25, 30];
 
@@ -33,6 +34,7 @@ export function cleanRewards(b = {}, base = REWARD_DEFAULTS) {
     if (!DAILY_COUNTS.includes(n)) return { error: 'count' };
     out.dailyCount = n;
   }
+  if (b.goalGift != null) out.goalGift = String(b.goalGift).trim().slice(0, 60);
   if (b.days != null) {
     const d = [...new Set((Array.isArray(b.days) ? b.days : []).map(Number))].filter((x) => Number.isInteger(x) && x >= 0 && x <= 6).sort();
     if (!d.length) return { error: 'days' };

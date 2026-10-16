@@ -363,6 +363,7 @@ export const BADGES = {
   week: { icon: '📅', title: 'Weekbonus', text: 'Alle vijf dagtaken van een week af.' },
   doel: { icon: '🎯', title: 'Spaardoel gehaald', text: 'Genoeg gespaard voor je doel!' },
   uitlegger: { icon: '🗣️', title: 'Uitlegger', text: 'Je hebt uitgelegd hoe jij een som oplost.' },
+  oefendoel: { icon: '🏅', title: 'Doel bereikt', text: 'Je hebt je eigen oefendoel gehaald!' },
 };
 export async function awardBadge(id, client = { query: q }) {
   if (!BADGES[id]) return null;
