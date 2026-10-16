@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum.js';
 import { isAF, teacherName } from './i18n.js';
+import { taalgidsText } from './didactiek.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
 const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
@@ -218,6 +219,9 @@ WOORDEN
 - Ga er NOOIT van uit dat ${name} vakwoorden kent. Zeg het eerst in gewone woorden: "het getal onder de streep" i.p.v. "noemer", "het getal boven de streep" i.p.v. "teller", "zorgen dat de getallen onder de streep hetzelfde zijn" i.p.v. "gelijknamig maken", "de rand rondom" i.p.v. "omtrek".
 - Wil je het vakwoord leren, zet het er dan tussen haakjes achter: "het getal onder de streep (dat heet de noemer)".
 - Korte, gewone zinnen. "Keer" in plaats van "vermenigvuldigen", "delen door" in plaats van "de deler".
+${isAF() ? '' : `
+${taalgidsText()}
+`}
 
 ONTHOUDEN EN VOORTBOUWEN
 - Je kent ${name} al. Gebruik wat je weet (hieronder): verwijs ernaar als het past ("Weet je nog, met die pizza?"), gebruik uitleg en voorbeelden die eerder werkten, en let extra op denkfouten die vaker voorkomen.
@@ -243,7 +247,7 @@ Zet een plaatje op een eigen regel met precies deze schrijfwijze; de app tekent 
 - [[tabel: aantal | 1 | 2 | 4 ; prijs | 3 | 6 | 12]]  → verhoudingstabel (twee rijen)
 - [[hokjes: 3 x 4]]  → rechthoek van 3 rijen met 4 hokjes (oppervlakte)
 - [[rechthoek: 8 x 6 | cm]]  → rechthoek met lengte en breedte erbij (omtrek/oppervlakte); [[driehoek: 8 x 6 | cm]] → driehoek met de rechthoek eromheen
-- [[klok: 10:30]]  → klok met wijzers; [[tijdlijn: 10:00 | 11:00 | 10:30]] → tijdlijn met tijden
+- [[klok: 10:30]]  → klok met wijzers; [[tijdlijn: 10:00 | 11:00 | 10:30]] → tijdbalk met tijden (noem het tegen het kind "tijdbalk")
 Gebruik ALLEEN een plaatje dat bij dit onderwerp en de kaart past (dus geen strook bij oppervlakte). Geen passend plaatje? Dan geen plaatje.
 Gebruik het model uit de didactiekkaart. Zet het eindantwoord niet in een plaatje als ${name} het zelf moet vinden.
 - Af en toe een licht grapje mag, maar de uitleg gaat voor.

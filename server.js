@@ -567,7 +567,7 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     const made = focus ? { plan: Array(PRACTICE_COUNT).fill(focus), coach: null } : await makePlan(PRACTICE_COUNT, skills, struggling);
     return res.json(sessionPayload(await createSession('practice', made.plan, PRACTICE_COUNT, 0, skills, made.coach ? { coach: made.coach } : {}), skills, { struggling }));
   }
-  res.status(400).json({ error: ts('Onbekend soort sessie') });
+  res.status(400).json({ error: ts('Onbekende sessie') });
 }));
 
 app.get('/api/session/:id', child, wrap(async (req, res) => {
@@ -641,7 +641,7 @@ app.post('/api/session/:id/guide', child, wrap(async (req, res) => {
 app.post('/api/session/:id/step', child, wrap(async (req, res) => {
   const out = await tx(async (c) => {
     const { s, qq } = await lockCurrent(c, req.params.id, req.body.index);
-    if (!qq || !qq.guided || qq.guideStep >= qq.guide.length) return { error: ts('Geen stap open.') };
+    if (!qq || !qq.guided || qq.guideStep >= qq.guide.length) return { error: ts('Er staat geen stap open.') };
     const step = qq.guide[qq.guideStep];
     const given = String(req.body.answer ?? '').slice(0, 30);
     const check = checkAnswer(step, given);
@@ -677,7 +677,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     const i = Number(req.body.index);
     if (!s) return { status: 404, error: ts('Niet gevonden') };
     if (i < s.results.length) return { ...s.results[i], steps: s.questions[i].steps, dup: true };
-    if (s.status !== 'active' || i !== s.results.length) return { status: 400, error: ts('Ongeldige som') };
+    if (s.status !== 'active' || i !== s.results.length) return { status: 400, error: ts('Deze som bestaat niet.') };
 
     const qq = s.questions[i];
     const dontKnow = !!req.body.dontKnow;
@@ -827,7 +827,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       const wk = await weekInfo(s.day);
       if (wk.count === wk.days.length && !wk.given && wk.bonus > 0) {
         await setSetting(`weekbonus:${wk.days[0].day}`, true);
-        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [wk.bonus, ts('Weekbonus week van {d}', { d: wk.days[0].day })]);
+        await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'earn',$2)`, [wk.bonus, ts('Weekbonus: week van {d}', { d: wk.days[0].day })]);
         weekBonus = wk.bonus;
         const b = await awardBadge('week'); if (b) newBadges.push(b);
       }
@@ -893,7 +893,7 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
     max: replyText || null, vorm: form || null, denkfout: qq.misconception?.label || null, beurt: qq.chat.length }, { cat: qq.cat, level: qq.level, session: s.id });
   qq.chat = qq.chat.slice(-24);
   await q('UPDATE sessions SET questions = jsonb_set(questions, $2, $3::jsonb) WHERE id=$1', [s.id, `{${i},chat}`, JSON.stringify(qq.chat)]);
-  res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : ts('{m} kon nu even niet antwoorden. Probeer het zo nog eens.', { m: teacherName() }) });
+  res.json({ reply: replyText, chat: qq.chat, reason: replyText ? null : ts('{m} kon nu even niet antwoorden. Probeer het straks nog eens.', { m: teacherName() }) });
 }));
 
 // Korte interactieve les van de leraar over een onderdeel (de app bewaart het gesprek)
@@ -921,7 +921,7 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
 // Persoonlijk berichtje van de leraar na een sessie (één keer per sessie, daarna bewaard)
 app.post('/api/session/:id/reflect', child, wrap(async (req, res) => {
   const s = await loadSession(req.params.id);
-  if (!s || s.status !== 'done') return res.status(400).json({ error: ts('Sessie is nog niet klaar.') });
+  if (!s || s.status !== 'done') return res.status(400).json({ error: ts('De sessie is nog niet klaar.') });
   if (s.state?.reflection) return res.json({ text: s.state.reflection });
   if (!aiEnabled() || !aiAllowed()) return res.json({ text: null });
   const per = {};
@@ -995,7 +995,7 @@ app.post('/api/session/:id/teachback', child, wrap(async (req, res) => {
   const qq = s?.questions[i], r = s?.results[i];
   if (!qq || !r) return res.status(404).json({ error: ts('Niet gevonden') });
   const text = String(req.body.text || '').trim().slice(0, 600);
-  if (text.length < 3) return res.status(400).json({ error: ts('Schrijf eerst kort op hoe je het deed.') });
+  if (text.length < 3) return res.status(400).json({ error: ts('Schrijf eerst kort op hoe je hebt gerekend.') });
   const b = await awardBadge('uitlegger');
   let feedback = null;
   if (aiEnabled() && aiAllowed()) feedback = await teachBack({ question: qq, explanation: text, name: await getName(), profile: await teacherProfile(), memory: await memoryText() });
@@ -1119,7 +1119,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
 app.post('/api/parent/payout', parent, wrap(async (req, res) => {
   const cents = Math.round(Number(req.body.cents));
   const w = await wallet();
-  if (!(cents > 0) || cents > w.balance) return res.status(400).json({ error: ts('Ongeldig bedrag') });
+  if (!(cents > 0) || cents > w.balance) return res.status(400).json({ error: ts('Dit bedrag klopt niet.') });
   await q(`INSERT INTO ledger(cents, kind, note) VALUES ($1,'payout',$2)`, [-cents, String(req.body.note || 'Uitbetaald').slice(0, 80)]);
   res.json({ wallet: await wallet() });
 }));

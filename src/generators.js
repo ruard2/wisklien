@@ -137,7 +137,7 @@ function splitMul(a, b) {
 }
 // Kolomsgewijs delen: "happen"
 function happen(a, d) {
-  const steps = [`Kolomsgewijs delen: haal steeds een grote "hap" van ${fmt(d)} eraf.`];
+  const steps = [`Delen met happen: haal steeds een zo groot mogelijke hap van ${fmt(d)} eraf.`];
   const guide = [];
   let rest = a, total = 0;
   const haps = [];
@@ -147,7 +147,7 @@ function happen(a, d) {
       const hap = k * 10 ** p;
       steps.push(`${fmt(hap)} × ${fmt(d)} = ${fmt(hap * d)} → er blijft ${fmt(rest - hap * d)} over.`);
       guide.push(st(`Hap: ${fmt(hap)} × ${fmt(d)} = ?`, hap * d, p ? `Reken ${fmt(k)} × ${fmt(d)} en zet er ${p === 1 ? 'een nul' : p + ' nullen'} achter.` : d <= 10 ? `De tafel van ${d}.` : `Splits ${fmt(d)}: ${k} × ${d - (d % 10)} en ${k} × ${d % 10}, en tel op.`));
-      guide.push(st(`Wat blijft er over? ${fmt(rest)} − ${fmt(hap * d)} = ?`, rest - hap * d, 'Trek de hap eraf.'));
+      guide.push(st(`Wat blijft er over? ${fmt(rest)} − ${fmt(hap * d)} = ?`, rest - hap * d, 'Haal de hap eraf.'));
       rest -= hap * d; total += hap; haps.push(hap);
     }
   }
@@ -158,7 +158,7 @@ function happen(a, d) {
 function tafel(a, b) {
   // a × b met b de "tafel"
   const routes = {
-    2: [[`1 × ${b} = ?`, b, 'Eén keer is het getal zelf.'], `Dubbel het: ${b} + ${b}`],
+    2: [[`1 × ${b} = ?`, b, '1 keer een getal is het getal zelf.'], `Verdubbel ${b}: ${b} + ${b}`],
     3: [[`2 × ${b} = ?`, 2 * b, `Het dubbele van ${b}.`], `Nog één ${b} erbij: ${2 * b} + ${b}`],
     4: [[`2 × ${b} = ?`, 2 * b, `Het dubbele van ${b}.`], `4 keer is het dubbele daarvan: ${2 * b} + ${2 * b}`],
     5: [[`10 × ${b} = ?`, 10 * b, 'Zet een nul erachter.'], `5 keer is de helft daarvan: de helft van ${10 * b}`],
@@ -166,7 +166,7 @@ function tafel(a, b) {
     7: [[`5 × ${b} = ?`, 5 * b, `De helft van 10 × ${b}.`], `Nog 2 × ${b} = ${2 * b} erbij: ${5 * b} + ${2 * b}`],
     8: [[`4 × ${b} = ?`, 4 * b, `Dubbel ${b} en nog eens dubbel.`], `8 keer is het dubbele: ${4 * b} + ${4 * b}`],
     9: [[`10 × ${b} = ?`, 10 * b, 'Zet een nul erachter.'], `9 keer is één ${b} minder: ${10 * b} − ${b}`],
-    10: [[`1 × ${b} = ?`, b, 'Eén keer is het getal zelf.'], `Zet er een nul achter`],
+    10: [[`1 × ${b} = ?`, b, '1 keer een getal is het getal zelf.'], `Zet er een nul achter`],
   };
   const [g, final] = routes[a];
   return {
@@ -225,7 +225,7 @@ const optellen = {
     const t = pick(['bike', 'school', 'big']);
     if (t === 'bike') {
       const spaar = rnd(180, 420), krijgt = rnd(45, 95), fiets = rnd(spaar + krijgt + 40, 649);
-      return { ...num(`${n} heeft € ${spaar} gespaard en krijgt € ${krijgt} voor de verjaardag. De nieuwe fiets kost € ${fiets}. Hoeveel euro komt ${n} nog tekort?`,
+      return { ...num(`${n} heeft € ${spaar} gespaard en krijgt € ${krijgt} cadeau voor de verjaardag. De nieuwe fiets kost € ${fiets}. Hoeveel euro komt ${n} nog tekort?`,
         fiets - spaar - krijgt, [`Eerst wat ${n} heeft: ${spaar} + ${krijgt} = ${spaar + krijgt}.`, `Dan het verschil met de prijs: ${fiets} − ${spaar + krijgt} = ${fiets - spaar - krijgt}.`], { unit: 'euro' }),
       guide: [st(`Hoeveel geld heeft ${n} in totaal? ${spaar} + ${krijgt} = ?`, spaar + krijgt, 'Tel het gespaarde geld en het cadeau op.')], guideFinal: `Hoeveel komt ${n} tekort? ${fiets} − ${spaar + krijgt}` };
     }
@@ -293,7 +293,7 @@ const delen = {
   0() {
     const b = pick([2, 3, 4, 5, 10]), q = rnd(3, 9), a = b * q;
     const half = Math.min(5, q - 1);
-    return { ...num(`${a} : ${b} =`, q, [`Welke som uit de tafel van ${b} geeft ${a}?`, `${q} × ${b} = ${a}, dus ${a} : ${b} = ${q}.`]),
+    return { ...num(`${a} : ${b} =`, q, [`Welke keersom uit de tafel van ${b} heeft als antwoord ${a}?`, `${q} × ${b} = ${a}, dus ${a} : ${b} = ${q}.`]),
       guide: [st(`Begin met een makkelijke som: ${half} × ${b} = ?`, half * b, `Tafel van ${b}.`), st(`Hoeveel blijft er over? ${a} − ${half * b} = ?`, a - half * b, 'Trek het eraf.')],
       guideFinal: `Hoe vaak past ${b} in ${a}? Je had al ${half} keer, en dan nog: hoe vaak past ${b} in ${a - half * b}?` };
   },
@@ -311,9 +311,9 @@ const delen = {
   2() {
     if (Math.random() < 0.2) {
       const d = pick([3, 9]), n = rnd(1000, 9999), sum = String(n).split('').reduce((a, b) => a + Number(b), 0), ja = sum % d === 0;
-      return { ...choice(`Is ${fmt(n)} deelbaar door ${d}? (Kan het zonder rest?)`, ['ja', 'nee'], ja ? 0 : 1, [
+      return { ...choice(`Is ${fmt(n)} deelbaar door ${d}? `, ['ja', 'nee'], ja ? 0 : 1, [
         `Truc voor ${d}: tel de cijfers op.`, `${String(n).split('').join(' + ')} = ${sum}.`, `Zit ${sum} in de tafel van ${d}? ${ja ? 'Ja' : 'Nee'}, dus ${fmt(n)} is ${ja ? '' : 'niet '}deelbaar door ${d}.`]),
-      guide: [st(`Tel de cijfers op: ${String(n).split('').join(' + ')} = ?`, sum, 'Elk cijfer los optellen.')], guideFinal: `Zit ${sum} in de tafel van ${d}?` };
+      guide: [st(`Tel de cijfers op: ${String(n).split('').join(' + ')} = ?`, sum, 'Tel elk cijfer los op.')], guideFinal: `Zit ${sum} in de tafel van ${d}?` };
     }
     if (Math.random() < 0.6) {
       const d = rnd(3, 9), q = rnd(112, 289), g = happen(d * q, d);
@@ -339,7 +339,7 @@ const delen = {
     const bussen = Math.ceil(kinderen / plaatsen), vol = Math.floor(kinderen / plaatsen);
     return { ...num(`Er gaan ${kinderen} kinderen op schoolreis. In één bus passen ${plaatsen} kinderen. Hoeveel bussen zijn er nodig?`,
       bussen, [`${kinderen} : ${plaatsen} = ${vol} rest ${kinderen % plaatsen}.`, `Die ${kinderen % plaatsen} kinderen moeten ook mee! Dus nog één bus extra: ${bussen}.`, `Let op: hier rond je naar boven af.`]),
-    guide: [st(`Hoeveel kinderen passen er in ${vol} volle bussen? ${vol} × ${plaatsen} = ?`, vol * plaatsen, 'Vermenigvuldig.'), st(`Hoeveel kinderen hebben dan nog geen plek? ${kinderen} − ${vol * plaatsen} = ?`, kinderen % plaatsen, 'Trek het eraf.')],
+    guide: [st(`Hoeveel kinderen passen er in ${vol} volle bussen? ${vol} × ${plaatsen} = ?`, vol * plaatsen, 'Reken de keersom uit.'), st(`Hoeveel kinderen hebben dan nog geen plek? ${kinderen} − ${vol * plaatsen} = ?`, kinderen % plaatsen, 'Trek het eraf.')],
     guideFinal: `Die kinderen moeten ook mee. Hoeveel bussen heb je dus nodig` };
   },
 };
@@ -351,18 +351,18 @@ const kommagetallen = {
       const tot = e1 + e2 + (c1 + c2) / 100;
       return { ...num(`Je koopt een tijdschrift van ${euro(e1 + c1 / 100)} en een snoepzak van ${euro(e2 + c2 / 100)}. Hoeveel betaal je samen?`, tot,
         [`Eerst de hele euro's: ${e1} + ${e2} = ${e1 + e2}.`, `Dan de centen: ${c1} + ${c2} = ${c1 + c2} cent${c1 + c2 >= 100 ? ` = € 1 en ${c1 + c2 - 100} cent` : ''}.`, `Samen: ${euro(tot)}.`], { money: true }),
-      guide: [st(`Eerst de hele euro's: ${e1} + ${e2} = ?`, e1 + e2, 'Alleen de getallen vóór de komma.'), st(`Dan de centen: ${c1} + ${c2} = ? cent`, c1 + c2, 'De getallen achter de komma zijn centen.', { unit: 'cent' })],
-      guideFinal: `Zet het samen: € ${e1 + e2} en ${c1 + c2} cent${c1 + c2 >= 100 ? ' (100 cent = € 1!)' : ''}` };
+      guide: [st(`Eerst de hele euro's: ${e1} + ${e2} = ?`, e1 + e2, 'Alleen de cijfers vóór de komma.'), st(`Dan de centen: ${c1} + ${c2} = ? cent`, c1 + c2, 'De cijfers achter de komma zijn de centen.', { unit: 'cent' })],
+      guideFinal: `Samen: € ${e1 + e2} en ${c1 + c2} cent${c1 + c2 >= 100 ? ' (100 cent = € 1!)' : ''}` };
     }
     const a = rnd(1, 6), b = rnd(1, 9 - a), w = rnd(0, 3);
     return { ...num(`${fmt(w + a / 10)} + 0,${b} =`, w + (a + b) / 10, [`0,${b} is ${b} tienden.`, `${a} tienden + ${b} tienden = ${a + b} tienden.`, `Dus ${fmt(w + (a + b) / 10)}.`]),
-      guide: [st(`Tienden: ${a} + ${b} = ? tienden`, a + b, 'Het cijfer achter de komma zijn tienden.')], guideFinal: `${w} geheel en ${a + b} tienden` };
+      guide: [st(`Tienden: ${a} + ${b} = ? tienden`, a + b, 'Het eerste cijfer achter de komma zijn de tienden.')], guideFinal: `${w} helen en ${a + b} tienden` };
   },
   1() {
     if (Math.random() < 0.3) {
       const prijs = rnd(105, 1795) / 100, briefje = prijs < 5 ? 5 : prijs < 10 ? 10 : 20, heel = Math.ceil(prijs);
       return { ...num(`Je koopt iets van ${euro(prijs)} en betaalt met een briefje van € ${briefje}. Hoeveel geld krijg je terug?`, briefje - prijs, [
-        `Vul aan tot een hele euro: ${euro(prijs)} → € ${heel} = ${euro(heel - prijs)}.`, `Dan verder tot € ${briefje}: € ${briefje - heel}.`, `Samen terug: ${euro(briefje - prijs)}.`], { money: true }),
+        `Vul aan tot een hele euro: ${euro(prijs)} → € ${heel} = ${euro(heel - prijs)}.`, ...(briefje > heel ? [`Dan verder tot € ${briefje}: € ${briefje - heel}.`] : []), `Samen terug: ${euro(briefje - prijs)}.`], { money: true }),
       guide: heel === prijs ? [st(`${briefje} − ${fmt(prijs)} = ?`, briefje - prijs, 'Gewoon aftrekken.', { money: true })]
         : [st(`Aanvullen tot een hele euro: van ${euro(prijs)} naar € ${heel} = ?`, heel - prijs, 'Hoeveel cent mist er tot de hele euro?', { money: true }), st(`En van € ${heel} naar € ${briefje} = ?`, briefje - heel, 'Hele euro\'s.', { money: true })],
       guideFinal: heel === prijs ? 'Dat krijg je terug' : `Tel op: ${euro(heel - prijs)} + € ${briefje - heel}` };
@@ -459,10 +459,10 @@ const getalbegrip = {
     if (Math.random() < 0.5) {
       const n = rnd(11, 989), r = Math.round(n / 10) * 10;
       return { ...num(`Rond ${n} af op tientallen.`, r, [`Kijk naar het laatste cijfer: ${n % 10}.`, `5 of meer → naar boven, minder dan 5 → naar beneden.`, `${n} → ${r}`]),
-        guide: [st(`Welk cijfer staat op de plek van de eenheden in ${n}?`, n % 10, 'Het laatste cijfer.')], guideFinal: `Het laatste cijfer is ${n % 10}. Is dat 5 of meer? Dan omhoog, anders omlaag` };
+        guide: [st(`Welk cijfer staat op de plek van de eenheden in ${n}?`, n % 10, 'Het laatste cijfer.')], guideFinal: `Het laatste cijfer is ${n % 10}. Is dat 5 of meer? Dan rond je naar boven af, anders naar beneden` };
     }
     const digits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 4), i = rnd(0, 3), d = digits[i], n = Number(digits.join(''));
-    return { ...num(`Hoeveel is de ${d} waard in het getal ${n}?`, d * 10 ** (3 - i), [`Plekken van rechts: eenheden, tientallen, honderdtallen, duizendtallen.`, `De ${d} staat op de plek van de ${PLACE[3 - i]}.`, `Dus ${d * 10 ** (3 - i)}.`]),
+    return { ...num(`Hoeveel is de ${d} waard in het getal ${n}?`, d * 10 ** (3 - i), [`Van rechts naar links: eenheden, tientallen, honderdtallen, duizendtallen.`, `De ${d} staat op de plek van de ${PLACE[3 - i]}.`, `Dus ${d * 10 ** (3 - i)}.`]),
       guide: [stC(`Op welke plek staat de ${d}?`, ['eenheden', 'tientallen', 'honderdtallen', 'duizendtallen'], 3 - i, 'Tel van rechts: eenheden, tientallen, honderdtallen, duizendtallen.')],
       guideFinal: `Hoeveel is ${d} ${PLACE[3 - i]}` };
   },
@@ -490,7 +490,7 @@ const getalbegrip = {
       const ra = Math.round(a / 100) * 100, rb = Math.round(b / 10) * 10, est = ra * rb;
       return { ...choice(`Schat: ${a} × ${b} is ongeveer…`, [fmt(est), fmt(est / 10), fmt(est * 10), fmt(est / 2)], 0, [
         `Maak er makkelijke getallen van (afronden): ${a} wordt ${ra} en ${b} wordt ${rb}.`, `${ra} × ${rb} = ${fmt(est)}.`]),
-      guide: [st(`Rond ${a} af op honderdtallen:`, ra, 'Naar het dichtstbijzijnde honderdtal.'), st(`Rond ${b} af op tientallen:`, rb, 'Naar het dichtstbijzijnde tiental.')], guideFinal: `Reken ${ra} × ${rb}` };
+      guide: [st(`Rond ${a} af op honderdtallen:`, ra, 'Kijk naar het cijfer van de tientallen: 0 t/m 4 naar beneden, 5 t/m 9 naar boven.'), st(`Rond ${b} af op tientallen:`, rb, 'Kijk naar het cijfer van de eenheden: 0 t/m 4 naar beneden, 5 t/m 9 naar boven.')], guideFinal: `Reken ${ra} × ${rb}` };
     }
     if (t === 'woorden') {
       const m = rnd(1, 9), k = rnd(1, 9) * 100 + pick([0, rnd(1, 9) * 10]) + pick([0, rnd(1, 9)]), n = m * 1e6 + k * 1000;
@@ -513,7 +513,7 @@ const getalbegrip = {
       const d = pick([19, 21, 39, 41, 49, 51]), rd = Math.round(d / 10) * 10, q = pick([20, 30, 40, 200, 300]), n = rd * q + rnd(-40, 40);
       return { ...choice(`Welke schatting past het best bij ${fmt(n)} : ${d}?`, [fmt(q), fmt(q * 10), fmt(q / 10), fmt(q * 2)], 0, [
         `Maak van ${d} een makkelijk getal: ${d} wordt ${rd}.`, `Welk rond getal × ${rd} komt in de buurt van ${fmt(n)}? ${fmt(q)} × ${rd} = ${fmt(q * rd)}.`, `Dus ongeveer ${fmt(q)}.`]),
-      guide: [st(`Rond ${d} af op tientallen:`, rd, 'Naar het dichtstbijzijnde tiental.')], guideFinal: `Hoe vaak past ${rd} ongeveer in ${fmt(n)}?` };
+      guide: [st(`Rond ${d} af op tientallen:`, rd, 'Kijk naar het cijfer van de eenheden: 0 t/m 4 naar beneden, 5 t/m 9 naar boven.')], guideFinal: `Hoe vaak past ${rd} ongeveer in ${fmt(n)}?` };
     }
     if (t === 'temp') {
       const lo = -rnd(3, 12), hi = rnd(2, 14);
@@ -534,7 +534,7 @@ const getalbegrip = {
     }
     const n = rnd(1001, 9999) / 1000, r = round(Math.round(round(n * 10, 6)) / 10, 1), c = Number(n.toFixed(3)[3]);
     return { ...num(`Rond ${fmt(n)} af op één cijfer achter de komma.`, r, [`Kijk naar het tweede cijfer achter de komma: ${c}.`, `5 of meer → naar boven, anders naar beneden.`, `${fmt(n)} → ${fmt(r, 1)}`], { display: fmt(r, 1) }),
-      guide: [st(`Welk cijfer staat op de 2e plek achter de komma?`, c, 'Dat cijfer bepaalt of je omhoog of omlaag gaat.')], guideFinal: `${c} is ${c >= 5 ? '5 of meer → omhoog' : 'minder dan 5 → omlaag'}` };
+      guide: [st(`Welk cijfer staat op de 2e plek achter de komma?`, c, 'Dat cijfer bepaalt of je naar boven of naar beneden afrondt.')], guideFinal: `${c} is ${c >= 5 ? '5 of meer → omhoog' : 'minder dan 5 → omlaag'}` };
   },
 };
 
@@ -572,7 +572,7 @@ const breuken = {
       const k = rnd(2, 6);
       return { ...frac(`Vereenvoudig zo ver mogelijk: ${n * k}/${d * k}`, [n, d], [`Zoek een getal waardoor teller én noemer allebei te delen zijn: ${k}.`,
         `${n * k} : ${k} = ${n}, ${d * k} : ${k} = ${d}.`, `Antwoord: ${n}/${d}`], { requireSimplest: true }),
-      guide: [st(`Deel de teller door ${k}: ${n * k} : ${k} = ?`, n, `${n * k} en ${d * k} zitten allebei in de tafel van ${k}.`), st(`Deel de noemer ook door ${k}: ${d * k} : ${k} = ?`, d, 'Altijd allebei hetzelfde doen!')],
+      guide: [st(`Deel de teller door ${k}: ${n * k} : ${k} = ?`, n, `${n * k} en ${d * k} zitten allebei in de tafel van ${k}.`), st(`Deel de noemer ook door ${k}: ${d * k} : ${k} = ?`, d, 'Doe met de teller en de noemer altijd hetzelfde!')],
       guideFinal: 'Schrijf de nieuwe breuk op' };
     }
     const d = pick([5, 7, 8, 9, 10, 12]), a = rnd(1, d - 2), b = rnd(1, d - a - 1);
@@ -620,16 +620,16 @@ const breuken = {
     if (t === 'maal') {
       const a = [rnd(1, 4), 0]; a[1] = rnd(a[0] + 1, 6); const b = [rnd(1, 5), 0]; b[1] = rnd(b[0] + 1, 8);
       return { ...frac(`${a[0]}/${a[1]} × ${b[0]}/${b[1]} =`, [a[0] * b[0], a[1] * b[1]], [`Teller × teller: ${a[0]} × ${b[0]} = ${a[0] * b[0]}.`,
-        `Noemer × noemer: ${a[1]} × ${b[1]} = ${a[1] * b[1]}.`, ...(gcd(a[0] * b[0], a[1] * b[1]) > 1 ? [`Maak kleiner: ${a[0] * b[0]}/${a[1] * b[1]} = ${fracStr([a[0] * b[0], a[1] * b[1]])}`] : [`Dus ${a[0] * b[0]}/${a[1] * b[1]}.`])]),
+        `Noemer × noemer: ${a[1]} × ${b[1]} = ${a[1] * b[1]}.`, ...(gcd(a[0] * b[0], a[1] * b[1]) > 1 ? [`Vereenvoudig: ${a[0] * b[0]}/${a[1] * b[1]} = ${fracStr([a[0] * b[0], a[1] * b[1]])}`] : [`Dus ${a[0] * b[0]}/${a[1] * b[1]}.`])]),
       guide: [st(`Teller × teller: ${a[0]} × ${b[0]} = ?`, a[0] * b[0], 'De bovenste getallen.'), st(`Noemer × noemer: ${a[1]} × ${b[1]} = ?`, a[1] * b[1], 'De onderste getallen.')],
       guideFinal: `Schrijf de breuk en vereenvoudig als het kan` };
     }
     if (t === 'deeldoor') {
       const d = pick([2, 3, 4, 5, 8]), w = rnd(2, 6), unit = pick(['liter', 'kilo', 'meter']);
       const ding = { liter: 'flesjes van', kilo: 'zakjes van', meter: 'stukken van' }[unit];
-      return { ...num(`Je hebt ${w} ${unit}. Je verdeelt dat in ${ding} 1/${d} ${unit}. Hoeveel ${ding.split(' ')[0]} krijg je?`, w * d,
-        [`Hoe vaak past 1/${d} in 1 ${unit}? ${d} keer.`, `In ${w} ${unit} past het dus ${w} × ${d} = ${w * d} keer.`, `Dat is de som ${w} : 1/${d} = ${w * d}.`]),
-      guide: [st(`Hoeveel ${ding.split(' ')[0]} van 1/${d} ${unit} haal je uit 1 ${unit}?`, d, `1/${d} past ${d} keer in 1 geheel.`)], guideFinal: `En uit ${w} ${unit}: ${w} × ${d}` };
+      return { ...num(`Je hebt ${w} ${unit}. Je verdeelt het over ${ding} 1/${d} ${unit}. Hoeveel ${ding.split(' ')[0]} krijg je?`, w * d,
+        [`Hoe vaak past 1/${d} in 1 ${unit}? ${d} keer.`, `In ${w} ${unit} past het dus ${w} × ${d} = ${w * d} keer.`, `Dat is de deelsom ${w} : 1/${d} = ${w * d}.`]),
+      guide: [st(`Hoeveel ${ding.split(' ')[0]} van 1/${d} ${unit} haal je uit 1 ${unit}?`, d, `1/${d} ${unit} past ${d} keer in 1 ${unit}.`)], guideFinal: `En uit ${w} ${unit}: ${w} × ${d}` };
     }
     const d = pick([2, 4, 3]), d2 = pick([4, 8, 6]), w1 = rnd(1, 4), w2 = rnd(1, 3), n1 = rnd(1, d - 1), n2 = rnd(1, d2 - 1);
     const L = lcm(d, d2), tot = (w1 + w2) * L + n1 * (L / d) + n2 * (L / d2);
@@ -676,7 +676,7 @@ const procenten = {
       if (p % 10 === 5) g.push(st(`5% is de helft van 10%: = ?`, base / 20, `De helft van ${base / 10}.`));
       return { ...num(`Hoeveel is ${p}% van ${base}?`, (p * base) / 100, [`Begin met 10%: ${base} : 10 = ${base / 10}.`,
         p % 10 === 5 ? `5% is de helft van 10%: ${base / 20}.` : `${p}% is ${p / 10} × 10%.`, `${p}% = ${(p * base) / 100}.`]),
-      guide: g, guideFinal: p % 10 === 5 ? `${p}% = ${Math.floor(p / 10)} × 10% + 5% = ${Math.floor(p / 10)} × ${base / 10} + ${base / 20}` : `${p}% = ${p / 10} × ${base / 10}` };
+      guide: g, guideFinal: p % 10 === 5 ? `${p}% = ${Math.floor(p / 10)} × 10% + 5% = ${Math.floor(p / 10)} × ${base / 10} + ${base / 20}` : `${p}% = ${p / 10} × 10% = ${p / 10} × ${base / 10}` };
     }
     if (t === 'korting') {
       const p = pick([10, 20, 25, 30, 40]), prijs = rnd(3, 12) * 20, item = pick(['jas', 'skateboard', 'koptelefoon', 'voetbal']);
@@ -709,7 +709,7 @@ const procenten = {
       if (!Number.isInteger(nieuw)) return procenten[3]();
       return { ...num(`Een spelcomputer kostte € ${oud}. Nu kost hij € ${nieuw}. Hoeveel procent korting is dat?`, p, [
         `Korting in euro: ${oud} − ${nieuw} = ${oud - nieuw}.`, `10% van ${oud} = ${fmt(oud / 10)}, en 5% is de helft daarvan: ${fmt(oud / 20)}.`,
-        `Hoeveel keer 5% is ${oud - nieuw}? ${oud - nieuw} : ${fmt(oud / 20)} = ${p / 5}. Dus ${p / 5} × 5% = ${p}%.`], { unit: '%' }),
+        `5% van ${oud} is ${fmt(oud / 20)}. Hoe vaak past ${fmt(oud / 20)} in ${oud - nieuw}? ${oud - nieuw} : ${fmt(oud / 20)} = ${p / 5}. Dus ${p / 5} × 5% = ${p}%.`], { unit: '%' }),
       guide: [st(`Hoeveel euro korting is het? ${oud} − ${nieuw} = ?`, oud - nieuw, 'Oude prijs min nieuwe prijs.'), st(`Wat is 10% van ${oud}?`, oud / 10, 'Deel door 10.')],
       guideFinal: `10% is € ${fmt(oud / 10)} en 5% is € ${fmt(oud / 20)}. Hoeveel procent is € ${oud - nieuw}? (Probeer: 10% + 5%, 2 × 10%, …)` };
     }
@@ -890,7 +890,7 @@ const oppervlakte = {
     const w = rnd(3, 7), h = rnd(2, 5);
     if (Math.random() < 0.5) return { ...num(`Hoeveel hokjes zitten er in deze rechthoek?`, w * h, [`Tel de hokjes in één rij: ${w}.`, `Er zijn ${h} rijen.`, `${h} × ${w} = ${w * h}`], { visual: { kind: 'grid', w, h } }),
       guide: [st('Hoeveel hokjes zitten er in één rij?', w, 'Tel de bovenste rij.'), st('Hoeveel rijen zijn er?', h, 'Tel van boven naar beneden.')], guideFinal: `${h} rijen van ${w}: ${h} × ${w}` };
-    return { ...num(`Een rechthoek is ${w} cm lang en ${h} cm breed. Hoe lang is de rand (omtrek) helemaal rondom?`, 2 * (w + h), [`Loop de rand rond: ${w} + ${h} + ${w} + ${h}.`, `= ${2 * (w + h)} cm`], { unit: 'cm', visual: { kind: 'rect', w, h, unit: 'cm' } }),
+    return { ...num(`Een rechthoek is ${w} cm lang en ${h} cm breed. Hoe lang is de rand rondom (de omtrek)?`, 2 * (w + h), [`Tel alle zijden op: ${w} + ${h} + ${w} + ${h}.`, `= ${2 * (w + h)} cm`], { unit: 'cm', visual: { kind: 'rect', w, h, unit: 'cm' } }),
       guide: [st(`Eén lange en één korte kant: ${w} + ${h} = ?`, w + h, 'Dat is de halve rand.', { unit: 'cm' })], guideFinal: `De hele rand is twee keer zo lang: 2 × ${w + h}` };
   },
   1() {
@@ -900,14 +900,14 @@ const oppervlakte = {
     guide: [stC('Oppervlakte van een rechthoek is:', ['lengte × breedte', 'lengte + breedte', 'alle kanten optellen'], 0, 'Hoeveel vierkante meters passen erin.')], guideFinal: `${l} × ${b}` };
     return { ...num(`Een rechthoekig grasveld is ${l} m lang en ${b} m breed. Hoe groot is de omtrek?`, 2 * (l + b),
       [`Omtrek = de afstand helemaal rondom.`, `${l} + ${b} + ${l} + ${b} = ${2 * (l + b)} m.`], { unit: 'm', visual: { kind: 'rect', w: l, h: b, unit: 'm' } }),
-    guide: [st(`Lengte + breedte: ${l} + ${b} = ?`, l + b, 'Dat is de halve rand.', { unit: 'm' })], guideFinal: `Rondom is twee keer zoveel: 2 × ${l + b}` };
+    guide: [st(`Lengte + breedte: ${l} + ${b} = ?`, l + b, 'Dat is de halve rand.', { unit: 'm' })], guideFinal: `De hele rand is twee keer zoveel: 2 × ${l + b}` };
   },
   2() {
     if (Math.random() < 0.5) {
       const l = pick([10, 20, 25, 30, 40]), b = pick([10, 15, 20]), h = pick([10, 20, 30]), cm3 = l * b * h;
       return { ...num(`Een doos (balk) is ${l} cm lang, ${b} cm breed en ${h} cm hoog. Hoeveel liter past erin?`, cm3 / 1000,
         [`Inhoud = lengte × breedte × hoogte.`, `${l} × ${b} × ${h} = ${fmt(cm3)} cm³.`, `1 liter = 1000 cm³, dus ${fmt(cm3)} : 1000 = ${fmt(cm3 / 1000)} liter.`], { unit: 'liter' }),
-      guide: [st(`Grondvlak: ${l} × ${b} = ?`, l * b, 'Lengte × breedte.', { unit: 'cm²' }), st(`Inhoud: ${l * b} × ${h} = ?`, cm3, 'Keer de hoogte.', { unit: 'cm³' })], guideFinal: `Naar liters: ${fmt(cm3)} : 1000` };
+      guide: [st(`Grondvlak: ${l} × ${b} = ?`, l * b, 'Lengte × breedte.', { unit: 'cm²' }), st(`Inhoud: ${l * b} × ${h} = ?`, cm3, 'Doe dat keer de hoogte.', { unit: 'cm³' })], guideFinal: `Naar liters: ${fmt(cm3)} : 1000` };
     }
     const basis = rnd(3, 12) * 2, hoogte = rnd(3, 10);
     return { ...num(`Een driehoek heeft een basis van ${basis} cm en een hoogte van ${hoogte} cm. Hoe groot is de oppervlakte?`, (basis * hoogte) / 2,
@@ -992,7 +992,7 @@ const tijd = {
     const [txt, m] = pick([['kwart voor drie \'s middags', 14 * 60 + 45], ['half acht \'s avonds', 19 * 60 + 30], ['tien over half vijf \'s middags', 16 * 60 + 40],
       ['vijf voor half tien \'s avonds', 21 * 60 + 25], ['kwart over elf \'s avonds', 23 * 60 + 15], ['twintig over zes \'s avonds', 18 * 60 + 20]]);
     return { ...time(`Schrijf in 24-uursnotatie: ${txt}`, m, [`Na 12 uur 's middags tel je er 12 bij op.`, `Dus: ${hhmm(m)}`]),
-      guide: [st(`Hoe laat is het op een gewone klok? Welk uur (1-12)?`, Math.floor(m / 60) - 12, 'Het uur dat de kleine wijzer net voorbij is.'), st('Hoeveel minuten over het hele uur?', m % 60, 'Half = 30, kwart over = 15, kwart voor = 45.', { unit: 'min' })],
+      guide: [st(`Hoe laat is het op een klok met wijzers? Welk uur (1-12)?`, Math.floor(m / 60) - 12, 'Het uur dat de kleine wijzer net voorbij is.'), st('Hoeveel minuten over het hele uur?', m % 60, 'Half = 30, kwart over = 15, kwart voor = 45.', { unit: 'min' })],
       guideFinal: `Tel 12 bij het uur op ('s middags/avonds)` };
   },
   2() {
@@ -1006,7 +1006,7 @@ const tijd = {
     const v = pick([15, 20, 60, 80, 90, 100, 120]), u = pick([0.5, 1.5, 2, 3, 2.5]);
     return { ...num(`Een ${v <= 20 ? 'fietser' : 'auto'} rijdt ${u === 0.5 ? 'een half uur' : fmt(u) + ' uur'} met een snelheid van ${v} km per uur. Hoeveel kilometer legt die af?`, v * u,
       [`${v} km per uur betekent: in 1 uur ${v} km.`, `In ${fmt(u)} uur: ${fmt(u)} × ${v} = ${fmt(v * u)} km.`], { unit: 'km' }),
-    guide: [st(`Hoeveel km in 1 uur?`, v, `Dat zegt "${v} km per uur".`, { unit: 'km' }), ...(u % 1 ? [st('Hoeveel km in een half uur?', v / 2, 'De helft.', { unit: 'km' })] : [])],
+    guide: [st(`Hoeveel km in 1 uur?`, v, `"${v} km per uur" betekent: ${v} km in 1 uur.`, { unit: 'km' }), ...(u % 1 ? [st('Hoeveel km in een half uur?', v / 2, 'De helft.', { unit: 'km' })] : [])],
     guideFinal: `In ${fmt(u)} uur` };
   },
   3() {
@@ -1029,7 +1029,7 @@ const tijd = {
     const s = rnd(9 * 4, 20 * 4) * 15;
     return { ...time(`In Amsterdam is het ${hhmm(s)}. In ${stad} is het ${Math.abs(diff)} uur ${diff < 0 ? 'vroeger' : 'later'}. Hoe laat is het in ${stad}?`, s + diff * 60,
       [`${diff < 0 ? 'Vroeger' : 'Later'} betekent ${diff < 0 ? 'eraf halen' : 'erbij tellen'}.`, `${hhmm(s)} ${diff < 0 ? '−' : '+'} ${Math.abs(diff)} uur = ${hhmm(s + diff * 60)}.`]),
-    guide: [stC(`${diff < 0 ? 'Vroeger' : 'Later'} betekent:`, ['uren erbij tellen', 'uren eraf halen'], diff < 0 ? 1 : 0, 'Vroeger = de klok staat nog niet zo ver.')],
+    guide: [stC(`${diff < 0 ? 'Vroeger' : 'Later'} betekent:`, ['uren erbij tellen', 'uren eraf halen'], diff < 0 ? 1 : 0, 'Vroeger betekent: de klok staat nog niet zo ver.')],
     guideFinal: `${hhmm(s)} ${diff < 0 ? '−' : '+'} ${Math.abs(diff)} uur (de minuten blijven hetzelfde)` };
   },
 };
@@ -1077,7 +1077,7 @@ const grafieken = {
     if (Math.random() < 0.5) return { ...num(`Kijk naar de grafiek. Hoeveel ${fruit[i]} zijn er?`, vals[i], [`Zoek de staaf van de ${fruit[i]}.`, `Kijk tot waar de staaf komt: ${vals[i]}.`], { visual }), guide: [], guideFinal: null };
     const mx = Math.max(...vals);
     if (vals.filter((v) => v === mx).length > 1) return grafieken[0]();
-    return { ...choice('Kijk naar de grafiek. Van welk fruit is er het meest?', fruit, vals.indexOf(mx), ['De hoogste staaf is het meest.', `Dat is ${fruit[vals.indexOf(mx)]} (${mx}).`], { visual }), guide: [], guideFinal: null };
+    return { ...choice('Kijk naar de grafiek. Van welk fruit is er het meest?', fruit, vals.indexOf(mx), ['De hoogste staaf hoort bij het meeste fruit.', `Dat zijn de ${fruit[vals.indexOf(mx)]} (${mx}).`], { visual }), guide: [], guideFinal: null };
   },
   1() {
     if (Math.random() < 0.3) return rij(1);
@@ -1089,7 +1089,7 @@ const grafieken = {
     const mx = Math.max(...vals), mn = Math.min(...vals);
     return { ...num(`Kijk naar de grafiek. Hoeveel boeken zijn er op de drukste dag meer uitgeleend dan op de rustigste dag?`, mx - mn,
       [`Drukste dag: ${DAGNAAM[DAGEN[vals.indexOf(mx)]]} met ${mx}.`, `Rustigste dag: ${DAGNAAM[DAGEN[vals.indexOf(mn)]]} met ${mn}.`, `${mx} − ${mn} = ${mx - mn}.`], { visual }),
-    guide: [st('Hoeveel boeken op de drukste dag (hoogste staaf)?', mx, 'Zoek de hoogste staaf.'), st('Hoeveel op de rustigste dag (laagste staaf)?', mn, 'Zoek de laagste staaf.')], guideFinal: `${mx} − ${mn}` };
+    guide: [st('Hoeveel boeken waren er op de drukste dag (hoogste staaf)?', mx, 'Zoek de hoogste staaf.'), st('Hoeveel boeken waren er op de rustigste dag (laagste staaf)?', mn, 'Zoek de laagste staaf.')], guideFinal: `${mx} − ${mn}` };
   },
   2() {
     if (Math.random() < 0.3) return combinaties(2);
@@ -1100,9 +1100,9 @@ const grafieken = {
       if (vals.some((x) => x < 1 || x > 10)) return grafieken[2]();
       const name = pick(NAMES);
       return { ...num(`${name} haalde deze cijfers voor rekenen: ${vals.join(', ')}. Wat is het gemiddelde cijfer?`, mean,
-        [`Tel alle cijfers op: ${vals.join(' + ')} = ${mean * n}.`, `Deel door het aantal cijfers (${n}): ${mean * n} : ${n} = ${mean}.`],
+        [`Tel alle getallen op: ${vals.join(' + ')} = ${mean * n}.`, `Deel door het aantal getallen (${n}): ${mean * n} : ${n} = ${mean}.`],
         { visual: { kind: 'table', headers: ['toets', ...vals.map((_, i) => String(i + 1))], rows: [['cijfer', ...vals]] } }),
-      guide: [st(`Tel alle cijfers op: ${vals.join(' + ')} = ?`, mean * n, 'Gewoon optellen.'), st('Hoeveel cijfers zijn het?', n, 'Tel ze.')], guideFinal: `Deel het totaal door het aantal: ${mean * n} : ${n}` };
+      guide: [st(`Tel alle getallen op: ${vals.join(' + ')} = ?`, mean * n, 'Je hoeft alleen op te tellen.'), st('Hoeveel getallen zijn het?', n, 'Tel ze.')], guideFinal: `Deel het totaal door het aantal getallen: ${mean * n} : ${n}` };
     }
     const sports = shuffle(['voetbal', 'hockey', 'zwemmen', 'judo', 'dansen']).slice(0, 4), vals = sports.map(() => rnd(3, 12));
     const total = vals.reduce((a, b) => a + b, 0);
@@ -1129,13 +1129,13 @@ const grafieken = {
     const hoe = { fiets: 'met de fiets', lopen: 'lopend', auto: 'met de auto', bus: 'met de bus' }[names[i]];
     const tien = parts[i] % 10 === 0;
     return { ...num(`Op een school met ${totaal} leerlingen is gevraagd hoe ze naar school komen. Hoeveel leerlingen komen ${hoe}?`, (parts[i] * totaal) / 100,
-      [`In de cirkel zie je: ${names[i]} = ${parts[i]}%.`,
+      [`In het cirkeldiagram zie je: ${names[i]} = ${parts[i]}%.`,
         ...(parts[i] === 25 ? [`25% is een kwart: ${totaal} : 4 = ${totaal / 4}.`]
           : parts[i] === 50 ? [`50% is de helft: ${totaal} : 2 = ${totaal / 2}.`]
             : [`10% van ${totaal} = ${totaal / 10}.`, ...(parts[i] === 10 ? [] : tien ? [`${parts[i]}% = ${parts[i] / 10} × 10% = ${parts[i] / 10} × ${totaal / 10} = ${(parts[i] * totaal) / 100}.`]
               : [`5% is de helft van 10%: ${totaal / 20}.`, `${parts[i]}% = ${Math.floor(parts[i] / 10)} × 10% + 5% = ${Math.floor(parts[i] / 10) * (totaal / 10)} + ${totaal / 20} = ${(parts[i] * totaal) / 100}.`])])],
       { visual: { kind: 'pie', labels: names, values: parts } }),
-    guide: [st(`Hoeveel procent komt ${hoe}? (kijk in de cirkel)`, parts[i], 'Zoek de kleur van ' + names[i] + '.', { unit: '%' }),
+    guide: [st(`Hoeveel procent komt ${hoe}? (kijk in het cirkeldiagram)`, parts[i], 'Zoek de kleur van ' + names[i] + ' in het cirkeldiagram.', { unit: '%' }),
       ...(parts[i] === 25 || parts[i] === 50 ? [] : [st(`10% van ${totaal} = ?`, totaal / 10, 'Deel door 10.'), ...(tien ? [] : [st(`5% is de helft van 10%. 5% van ${totaal} = ?`, totaal / 20, 'De helft.')])])],
     guideFinal: parts[i] === 25 ? `25% is een kwart: ${totaal} : 4` : parts[i] === 50 ? `50% is de helft: ${totaal} : 2` : parts[i] === 10 ? 'Dat is 10%: zoveel leerlingen'
       : tien ? `${parts[i]}% is ${parts[i] / 10} keer 10%: ${parts[i] / 10} × ${totaal / 10}` : `${parts[i]}% = ${Math.floor(parts[i] / 10)} × 10% + 5%: ${Math.floor(parts[i] / 10)} × ${totaal / 10} + ${totaal / 20}` };
@@ -1246,47 +1246,52 @@ export const GENERATORS = { optellen, vermenigvuldigen, delen, kommagetallen, ge
 // ---------- kindertaal ----------
 // Vakwoorden eerst in gewone woorden, met het vakwoord erachter (alleen de eerste keer per tekst).
 const KIDWORDS = [
-  // [familie, patroon, uitleg]
-  ['vereenvoudig', /\b[Vv]ereenvoudig(en|d)?\b/, 'maak de getallen zo klein mogelijk'],
-  ['noemer', /\b[Nn]oemers?\b/, 'het getal onder de streep'],
-  ['teller', /\b[Tt]ellers?\b/, 'het getal boven de streep'],
-  ['gelijknamig', /\b[Gg]elijknamig\b/, 'met hetzelfde getal onder de streep'],
-  ['kolomsgewijs', /\b[Kk]olomsgewijs\b/, 'in stukjes, per plek'],
-  ['verhoudingstabel', /\b[Vv]erhoudingstabel\b/, 'een tabelletje waarin je links en rechts hetzelfde doet'],
-  ['omtrek', /\b[Oo]mtrek\b/, 'de lengte van de rand rondom'],
-  ['oppervlakte', /\b[Oo]ppervlakte\b/, 'hoeveel vierkantjes erin passen'],
+  // [familie, patroon, uitleg (of [enkelvoud, meervoud]), al uitgelegd als de tekst dit bevat]
+  ['vereenvoudig', /\b[Vv]ereenvoudig(en)?\b(?! worden)/, 'maak de getallen zo klein mogelijk'],
+  ['gelijknamig', /\b[Gg]elijknamig\b/, 'met hetzelfde getal onder de streep', /onder de streep/],
+  ['noemer', /\b[Nn]oemers?\b/, ['het getal onder de streep', 'de getallen onder de streep'], /onder de streep/],
+  ['teller', /\b[Tt]ellers?\b/, ['het getal boven de streep', 'de getallen boven de streep'], /boven de streep/],
+  ['kolomsgewijs', /\b[Kk]olomsgewijs\b/, 'onder elkaar, per positie'],
+  ['verhoudingstabel', /\b[Vv]erhoudingstabel\b/, 'een tabelletje met twee rijen: wat je boven doet, doe je onder ook'],
+  ['omtrek', /\b[Oo]mtrek\b/, 'de lengte van de rand rondom', /rand rondom/],
+  ['oppervlakte', /\b[Oo]ppervlakte\b/, 'hoeveel vierkantjes erin passen', /vierkantjes/],
   ['diameter', /\b[Dd]iameter\b/, 'de lijn dwars door het midden'],
-  ['deelbaar', /\bdeelbaar\b/, 'te delen zonder rest'],
-  ['deler', /\bde deler\b/, 'het getal waardoor je deelt'],
+  ['deelbaar', /\bdeelbaar\b/, 'te delen zonder rest', /zonder rest/],
   ['gemengd', /\b[Gg]emengd getal\b/, 'een heel getal met een breuk erbij, zoals 2 1/2'],
 ];
 // Eén keer uitleggen, in één ronde (zodat uitleg niet zelf weer vervangen wordt).
 // `done` deelt de uitgelegde woorden tussen teksten: een woord dat al is uitgelegd, krijgt geen uitleg meer.
+// Staat de uitleg al in de tekst (bv. "onder de streep"), dan geen tweede uitleg.
 export function kid(text, done = new Set()) {
   if (!text || typeof text !== 'string') return text;
   const parts = [];
   let out = text;
-  for (const [fam, re, uitleg] of KIDWORDS) {
-    if (done.has(fam) || out.includes(`(${uitleg})`)) continue;
+  for (const [fam, re, uitleg, al] of KIDWORDS) {
+    const [een, meer] = Array.isArray(uitleg) ? uitleg : [uitleg, uitleg];
+    if (done.has(fam) || out.includes(`(${een})`) || out.includes(`(${meer})`) || (al && al.test(text))) continue;
     const g = new RegExp(re.source, 'g');
     out = out.replace(g, (m, ...rest) => {
       const at = rest[rest.length - 2], str = rest[rest.length - 1], after = str.slice(at + m.length);
       // al uitgelegd, onderdeel van een formule (teller/noemer) of al een eigen uitleg erachter
       if (done.has(fam) || /^\s?[/()]/.test(after) || str[at - 1] === '/' || str[at - 1] === '(') return m;
       done.add(fam);
-      parts.push(`${m} (${uitleg})`);
+      if (fam === 'gelijknamig') done.add('noemer'); // die uitleg zegt al wat er onder de streep staat
+      parts.push(`${m} (${/s$/.test(m) && fam !== 'deelbaar' ? meer : een})`);
       return `⟦${parts.length - 1}⟧`;
     });
   }
   return out.replace(/⟦(\d+)⟧/g, (_, i) => parts[Number(i)]);
 }
+// Een vraag eindigt met een vraagteken ("Hoe vaak past 8 in 72?"), ook als de tekst in stukjes is opgebouwd.
+const VRAAGWOORD = /(^|[.!?]\s+)(Hoeveel|Hoe|Welke|Welk|Wat|Waar|Wie|Waarom|Is|Zijn|Past|Kun|Kan|Klopt|Ligt|Heb|Moet)\b[^.!?:]*$/;
+const vraagteken = (t) => (typeof t === 'string' && VRAAGWOORD.test(t.trim()) && !/[?:!.…]$/.test(t.trim()) ? t.trim() + '?' : t);
 function kidify(q) {
   // De vraag is altijd zichtbaar: wat daar is uitgelegd, hoeft nergens meer.
   const seen = new Set();
   q.text = kid(q.text, seen);
   const guideSeen = new Set(seen), stepSeen = new Set(seen);
-  q.guide = (q.guide || []).map((g) => ({ ...g, ask: kid(g.ask, guideSeen), tip: kid(g.tip, guideSeen) }));
-  q.guideFinal = kid(q.guideFinal, guideSeen);
+  q.guide = (q.guide || []).map((g) => ({ ...g, ask: vraagteken(kid(g.ask, guideSeen)), tip: kid(g.tip, guideSeen) }));
+  q.guideFinal = vraagteken(kid(q.guideFinal, guideSeen));
   q.steps = (q.steps || []).map((t) => kid(t, stepSeen));
   return q;
 }
@@ -1374,7 +1379,7 @@ export function checkAnswer(q, input) {
       if (x != null && q.commonMultipleOf) {
         // tussenstap "gemeenschappelijke noemer": elk gemeenschappelijk veelvoud is goed
         const ok = x > 0 && Number.isInteger(x) && q.commonMultipleOf.every((d) => x % d === 0);
-        return { correct: ok, note: ok && x !== q.answer ? ts('Klopt! Wij rekenen verder met de kleinste: {x}.', { x: q.answer }) : null };
+        return { correct: ok, note: ok && x !== q.answer ? ts('Klopt! We rekenen verder met het kleinste getal: {x}.', { x: q.answer }) : null };
       }
       return { correct: x != null && Math.abs(x - q.answer) < 1e-6 };
     }
@@ -1384,8 +1389,8 @@ export function checkAnswer(q, input) {
       const [n, d] = q.answer;
       if (f[0] * d !== n * f[1]) return { correct: false };
       const isSimplest = gcd(f[0], f[1]) === 1;
-      if (q.requireSimplest && !isSimplest) return { correct: false, note: ts('Bijna! Het kan nog verder vereenvoudigd worden tot {x}.', { x: fracStr(q.answer, false) }) };
-      if (!isSimplest) return { correct: true, note: ts('Goed! Mooier opgeschreven is het {x}.', { x: fracStr(q.answer) }) };
+      if (q.requireSimplest && !isSimplest) return { correct: false, note: ts('Bijna! Je kunt de breuk nog verder vereenvoudigen tot {x}.', { x: fracStr(q.answer, false) }) };
+      if (!isSimplest) return { correct: true, note: ts('Goed! Korter opgeschreven is het {x}.', { x: fracStr(q.answer) }) };
       return { correct: true };
     }
     case 'time': {

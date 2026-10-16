@@ -346,7 +346,7 @@ export const BADGES = {
   omhoog: { icon: '⬆️', title: 'Niveau omhoog', text: 'Je bent bij een onderdeel een niveau gestegen.' },
   opstap: { icon: '🪜', title: 'Klimmer', text: 'Van het laagste niveau omhoog geklommen!' },
   sterk: { icon: '💪', title: 'Sterk!', text: 'Een onderdeel staat op "Sterk".' },
-  comeback: { icon: '🦸', title: 'Comeback', text: 'Eerst fout, daarna de herkansing goed.' },
+  comeback: { icon: '🦸', title: 'Weer op dreef', text: 'Eerst fout, daarna de herkansing goed.' },
   zelf: { icon: '🎯', title: 'Zelf gedaan', text: 'Je koos "helemaal zelf" en had het goed.' },
   perfect: { icon: '🏆', title: 'Foutloos', text: 'Een hele dagtaak zonder fouten.' },
   record: { icon: '📈', title: 'Nieuw record', text: 'Meer sommen goed dan ooit in een dagtaak.' },

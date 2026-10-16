@@ -17,6 +17,9 @@
 // uit, en gebruik dit om die antwoord te kontroleer. Altyd sê WAT jy afrond en HOE (nooit "skat eers" sonder uitleg).
 
 export const ALGEMEEN = {
+  // (ook gebruikt in Max se prompt, net soos by die Nederlandse handboek)
+  schatten: 'Skatting (beraam) = rond die getalle af en reken die maklike som uit, bv. 243 × 36 is omtrent 200 × 40 = 8 000. Sê altyd wat jy afrond en hoe. Gebruik dit om die antwoord te kontroleer.',
+  drieslag: 'Woordprobleem: (1) Wat is die vraag? Watter getalle het ek nodig? (2) Watter bewerking? Skryf die getallesin en reken uit. (3) Kontroleer: maak die antwoord sin?',
   stappe: 'Elke som: (1) Wat is die vraag? (2) Watter getalle het ek nodig? (3) Watter bewerking? (4) Skryf die getallesin. (5) Reken uit. (6) Kontroleer: maak dit sin?',
   modelle: 'Gebruik die modelle uit die werkboeke: getallelyn, plekwaardetabel (D H T E), uitgebreide notasie, kolomme, breukstroke en sirkels, 100-blokkies vir persentasie, inset-uitset-vloeidiagramme.',
   notasie: 'Suid-Afrikaanse notasie: desimale komma (2,5), ÷ vir deel, × vir maal, geld as R12,50, groot getalle met spasies (4 362; 12 500), getalle in \'n ry met ; tussenin.',
