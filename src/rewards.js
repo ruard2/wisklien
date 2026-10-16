@@ -9,8 +9,11 @@ export const REWARD_DEFAULTS = {
   dailyCount: 20, // sommen per dagtaak
   days: [1, 2, 3, 4, 5], // dagen met een dagtaak (0 = zondag … 6 = zaterdag)
   goalGift: '', // cadeau van de ouder als het kind een eigen oefendoel haalt (leeg = geen)
+  levelEvery: 10, // om de hoeveel levels (van 20 sommen) een beloning (0 = geen)
+  levelGift: '', // die beloning, door de ouder gekozen (leeg = alleen een feestje)
 };
 export const DAILY_COUNTS = [10, 15, 20, 25, 30];
+export const LEVEL_EVERY = [0, 5, 10, 20];
 
 export async function rewardCfg() {
   return { ...REWARD_DEFAULTS, ...(await getSetting('reward_cfg', {})) };
@@ -35,6 +38,12 @@ export function cleanRewards(b = {}, base = REWARD_DEFAULTS) {
     out.dailyCount = n;
   }
   if (b.goalGift != null) out.goalGift = String(b.goalGift).trim().slice(0, 60);
+  if (b.levelGift != null) out.levelGift = String(b.levelGift).trim().slice(0, 60);
+  if (b.levelEvery != null && b.levelEvery !== '') {
+    const n = Number(b.levelEvery);
+    if (!LEVEL_EVERY.includes(n)) return { error: 'count' };
+    out.levelEvery = n;
+  }
   if (b.days != null) {
     const d = [...new Set((Array.isArray(b.days) ? b.days : []).map(Number))].filter((x) => Number.isInteger(x) && x >= 0 && x <= 6).sort();
     if (!d.length) return { error: 'days' };

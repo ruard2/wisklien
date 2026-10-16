@@ -13,7 +13,7 @@ import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
 import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
-import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS } from './src/rewards.js';
+import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -452,6 +452,9 @@ app.get('/api/state', child, wrap(async (req, res) => {
     })),
     goals: await goalsView(await getSkills()),
     goalGift: rc.goalGift || '',
+    goalsDone: (await getSetting('oefendoel_log', [])).filter((x) => catById[x.cat] && x.date >= addDays(today, -21)).slice(-3).reverse()
+      .map((x) => ({ date: x.date, label: catById[x.cat].label, icon: catById[x.cat].icon, kind: x.kind, gift: x.gift || '' })),
+    inzet: levelView(await effortCount(), rc),
     points: { intake: rc.intakeCents, intakeCount: INTAKE_MAX, daily: rc.dailyCents, dailyCount: rc.dailyCount, daysPerWeek: rc.days.length, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
 }));
@@ -811,6 +814,22 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
       }
     }
 
+    // ---- level voor inzet omhoog? ----
+    if (!(result.redo || ['niet-gelezen', 'gok', 'te-snel'].includes(result.rushed))) {
+      const n = await effortCount(c);
+      if (n > 0 && n % PER_LEVEL === 0) {
+        const rc = await rewardCfg(), level = n / PER_LEVEL + 1;
+        result.levelUp = { level };
+        if (rc.levelEvery && level % rc.levelEvery === 0) {
+          const log = (await c.query(`SELECT value FROM settings WHERE key='level_log'`)).rows[0]?.value || [];
+          log.push({ date: todayNL(), level, gift: rc.levelGift || '', given: !rc.levelGift });
+          await c.query(`INSERT INTO settings(key, value) VALUES ('level_log', $1) ON CONFLICT (key) DO UPDATE SET value=$1`, [JSON.stringify(log.slice(-50))]);
+          result.levelUp.reward = true;
+          result.levelUp.gift = rc.levelGift || '';
+        }
+      }
+    }
+
     // ---- badges tijdens de sessie ----
     if (s.state.streak === 5) await award(c, 'rij5');
     if (s.state.streak === 10) await award(c, 'rij10');
@@ -1032,6 +1051,22 @@ function isGuess(qq, given, prev) {
   return false;
 }
 
+// ---------- levels voor inzet ----------
+// Levels gaan over hoeveel je oefent, niet over hoe goed: elke 20 echt gemaakte sommen = 1 level.
+// Afgeraffelde sommen tellen niet mee. Los van de rekenniveaus (die blijven alleen voor de ouder).
+const PER_LEVEL = 20;
+const RUSHED = `(r->>'redo')='true' OR r->>'rushed' IN ('niet-gelezen','gok','te-snel')`;
+async function effortCount(c = null) {
+  const run = (sql) => (c ? c.query(sql) : q(sql));
+  const all = (await run('SELECT COUNT(*)::int n FROM attempts')).rows[0].n;
+  const bad = (await run(`SELECT COUNT(*)::int n FROM sessions, jsonb_array_elements(results) r WHERE ${RUSHED}`)).rows[0].n;
+  return Math.max(0, all - bad);
+}
+function levelView(n, rc) {
+  const level = Math.floor(n / PER_LEVEL) + 1, every = rc.levelEvery || 0;
+  return { count: n, level, inLevel: n % PER_LEVEL, per: PER_LEVEL, every, gift: rc.levelGift || '', toReward: every ? every - (level % every) : null };
+}
+
 // ---------- eigen oefendoelen ----------
 // Het kind kiest zelf een onderwerp en een doel, zonder groepen/graden: "een stapje beter" of "er een kei in worden".
 // Achter de schermen is dat een echt niveau; het kind ziet alleen voetstapjes richting het doel.
@@ -1160,6 +1195,14 @@ app.post('/api/parent/login', wrap(async (req, res) => {
   await new Promise((r) => setTimeout(r, 800));
   res.status(401).json({ error: ts('Verkeerd wachtwoord') });
 }));
+// Ouder: beloning voor een level is gegeven
+app.post('/api/parent/level-given', parent, wrap(async (req, res) => {
+  const log = await getSetting('level_log', []);
+  const i = log.length - 1 - Number(req.body.index);
+  if (log[i]) { log[i].given = true; await setSetting('level_log', log); }
+  res.json({ ok: true });
+}));
+
 // Ouder: cadeau voor een gehaald oefendoel is gegeven
 app.post('/api/parent/goal-given', parent, wrap(async (req, res) => {
   const log = await getSetting('oefendoel_log', []);
@@ -1220,7 +1263,8 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
-    goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()), research: (await getSetting('research', true)) !== false,
+    goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()),
+    levelLog: (await getSetting('level_log', [])).slice().reverse(), inzet: levelView(await effortCount(), rewards), levelChoices: LEVEL_EVERY, research: (await getSetting('research', true)) !== false,
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
