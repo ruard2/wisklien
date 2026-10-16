@@ -943,7 +943,93 @@ const oppervlakte = {
   },
 };
 
-const tijd = {
+// ---------- klokken: klokkijken, tijd in woorden, wekker, oven, vertrekbord ----------
+// Zo zeg je de tijd in Nederland (per 5 minuten, zoals op school). Na het halve uur noem je al het volgende uur.
+const UREN = ['twaalf', 'één', 'twee', 'drie', 'vier', 'vijf', 'zes', 'zeven', 'acht', 'negen', 'tien', 'elf'];
+const uurW = (h) => UREN[((h % 12) + 12) % 12];
+export function tijdInWoorden(h, m) {
+  const nu = uurW(h), straks = uurW(h + 1);
+  return { 0: `${nu} uur`, 5: `vijf over ${nu}`, 10: `tien over ${nu}`, 15: `kwart over ${nu}`, 20: `tien voor half ${straks}`, 25: `vijf voor half ${straks}`,
+    30: `half ${straks}`, 35: `vijf over half ${straks}`, 40: `tien over half ${straks}`, 45: `kwart voor ${straks}`, 50: `tien voor ${straks}`, 55: `vijf voor ${straks}` }[m];
+}
+// foute keuzes zoals kinderen ze echt maken: uur ernaast ("half drie" i.p.v. "half vier"), over/voor omgedraaid
+function tijdAfleiders(h, m, woorden, extra = []) {
+  const ok = woorden(h, m), out = [];
+  for (const w of [woorden(h - 1, (60 - m) % 60), woorden(h, m) === woorden(h - 1, m) ? null : woorden(h - 1, m), woorden(h + 1, m), woorden(h, (60 - m) % 60), ...extra]) {
+    if (w && w !== ok && !out.includes(w)) out.push(w);
+  }
+  return out.slice(0, 3);
+}
+const LOOKS = ['wall', 'alarm', 'watch'];
+const KLOKNAAM = { wall: 'de klok', alarm: 'de wekker', watch: 'het horloge' };
+const klokPlaatje = (min, look, label) => ({ kind: 'clock', time: hhmm(min), look: look || pick(LOOKS), ...(label ? { label } : {}) });
+const TREINEN = ['Utrecht Centraal', 'Amersfoort', 'Zwolle', 'Groningen', 'Den Haag Centraal', 'Eindhoven', 'Rotterdam Centraal', 'Maastricht'];
+
+// Klokkijken: wat wijst de klok aan? (ochtend, dus 12-uursklok volstaat)
+function klokLezen(lv) {
+  const h = rnd(7, 11), m = lv === 0 ? pick([0, 15, 30, 45]) : rnd(0, 11) * 5, look = pick(LOOKS);
+  const kort = m === 0 ? `De kleine wijzer (de uurwijzer) staat precies op de ${h}.` : `De kleine wijzer (de uurwijzer) staat tussen de ${h} en de ${h + 1}: het is dus al ná ${h} uur.`;
+  return { ...time(`Hoe laat is het op ${KLOKNAAM[look]}? Het is ochtend.`, h * 60 + m, [
+    kort, `De grote wijzer (de minutenwijzer) staat ${m === 0 ? 'op de 12: precies het hele uur' : `bij de ${m / 5}: dat is ${m / 5} × 5 = ${m} minuten`}.`,
+    `Het is ${hhmm(h * 60 + m)}. Je zegt: ${tijdInWoorden(h, m)}.`], { twelve: true, visual: klokPlaatje(h * 60 + m, look) }),
+  guide: [st('Bij welk getal staat de grote wijzer?', m === 0 ? 12 : m / 5, 'De grote (lange) wijzer wijst de minuten aan.'),
+    st('Hoeveel minuten is dat? (elk getal is 5 minuten)', m, m === 0 ? 'Op de 12 is precies het hele uur: 0 minuten.' : `${m / 5} × 5.`, { unit: 'minuten' }),
+    st('Welk uur is de kleine wijzer al voorbij (of staat hij op)?', h, 'De kleine wijzer wijst de uren aan.')],
+  guideFinal: 'Schrijf de tijd zo: uur:minuten' };
+}
+// De tijd in woorden: hoe zeg je wat de klok aanwijst?
+function klokWoorden(lv) {
+  const h = rnd(1, 12), m = lv === 0 ? pick([15, 30, 45]) : pick([5, 10, 20, 25, 35, 40, 50, 55, 15, 45, 30]);
+  const ok = tijdInWoorden(h, m);
+  return { ...choice('Hoe zeg je deze tijd?', [ok, ...tijdAfleiders(h, m, tijdInWoorden)], 0, [
+    `De grote wijzer staat ${m === 0 ? 'op de 12' : `bij de ${m / 5}`}: ${m} minuten. De kleine wijzer: na ${uurW(h)} uur.`,
+    m >= 20 ? `Na kwart over zeg je het al vanaf het volgende uur: ${m === 30 ? `half ${uurW(h + 1)}` : `rond half ${uurW(h + 1)}`}.` : 'Tot kwart over zeg je het uur dat net geweest is.',
+    `Dus: ${ok}.`], { visual: klokPlaatje(h * 60 + m) }),
+  guide: [st('Hoeveel minuten over het hele uur is het?', m, `De grote wijzer bij de ${m / 5 || 12}: elk getal is 5 minuten.`, { unit: 'minuten' }),
+    stC(`Is het vóór of na half ${uurW(h + 1)}?`, ['vóór half', 'precies half', 'na half'], m < 30 ? 0 : m === 30 ? 1 : 2, 'Half is 30 minuten na het hele uur.')],
+  guideFinal: 'Kies hoe je het zegt' };
+}
+// Digitale wekker (24 uur): hoe zeg je dat? (met 's middags/'s avonds)
+function digiWoorden() {
+  const h = rnd(13, 22), m = pick([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]);
+  const dagdeel = h < 18 ? "'s middags" : "'s avonds", ander = h < 18 ? "'s avonds" : "'s ochtends";
+  const ok = `${tijdInWoorden(h, m)} ${dagdeel}`;
+  return { ...choice(`Op de digitale wekker staat ${hhmm(h * 60 + m)}. Hoe zeg je deze tijd?`, [ok, `${tijdInWoorden(h, m)} ${ander}`, ...tijdAfleiders(h, m, tijdInWoorden).map((w) => `${w} ${dagdeel}`)].slice(0, 4), 0, [
+    `${h} uur is na 12 uur 's middags: haal er 12 af. ${h} − 12 = ${h - 12}.`, `${h - 12}:${String(m).padStart(2, '0')} ${dagdeel} = ${ok}.`],
+  { visual: { kind: 'digital', time: hhmm(h * 60 + m), look: 'alarm' } }),
+  guide: [st(`Haal er 12 af: ${h} − 12 = ?`, h - 12, 'Een digitale klok telt door tot 24 uur.')], guideFinal: `Hoe zeg je ${h - 12}:${String(m).padStart(2, '0')}?` };
+}
+// Oven: hoe laat is het eten klaar?
+function ovenSom(lang) {
+  // echte baktijden per gerecht
+  const wat = pick([['een pizza', 'hij', [15, 20, 25]], ['een ovenschotel', 'die', [30, 35, 40, 45, 50]], ['een appeltaart', 'die', [50, 55, 60, 65, 70]], ['een lasagne', 'die', [40, 45, 50, 55, 60]]]);
+  const tijden = wat[2], d = lang ? tijden.at(-1 - rnd(0, 1)) : pick(tijden);
+  const s = rnd(15, 18) * 60 + rnd(0, 11) * 5, heel = Math.floor(s / 60) * 60 + 60;
+  const over = s + d >= heel;
+  return { ...time(`Je zet om ${hhmm(s)} ${wat[0]} in de oven (zie het klokje van de oven). ${cap(wat[1])} moet ${d} minuten bakken. Hoe laat is ${wat[1]} klaar?`, s + d,
+    over ? [`Tel eerst door naar het hele uur: ${hhmm(s)} → ${hhmm(heel)} = ${heel - s} minuten.`, `Dan nog ${d} − ${heel - s} = ${s + d - heel} minuten: ${hhmm(s + d)}.`]
+      : [`${hhmm(s)} + ${d} minuten = ${hhmm(s + d)} (het uur blijft hetzelfde).`],
+    { visual: { kind: 'digital', time: hhmm(s), look: 'oven' } }),
+  guide: over ? [st(`Hoeveel minuten van ${hhmm(s)} tot ${hhmm(heel)}?`, heel - s, 'Tel door tot het hele uur (60 minuten).', { unit: 'minuten' }),
+    st(`Hoeveel minuten moet ${wat[1]} daarna nog? ${d} − ${heel - s} = ?`, d - (heel - s), 'Wat er van de bakttijd overblijft.', { unit: 'minuten' })] : [],
+  guideFinal: over ? `${hhmm(heel)} + ${s + d - heel} minuten` : null };
+}
+// Bestaande tijdsommen krijgen het plaatje dat erbij hoort
+function metKlok(q) {
+  let m;
+  if ((m = q.text.match(/^Het is (\d{1,2}:\d{2})\. Hoe laat is het over/))) q.visual = klokPlaatje(toMin(m[1]), 'wall');
+  else if ((m = q.text.match(/begint om (\d{1,2}:\d{2}) en is afgelopen om (\d{1,2}:\d{2})/))) q.visual = { kind: 'clocks', items: [{ time: m[1], look: 'wall', label: 'begin' }, { time: m[2], look: 'wall', label: 'einde' }] };
+  else if (/^Schrijf in 24-uursnotatie/.test(q.text)) q.visual = klokPlaatje(q.answer, 'wall', q.text.includes("avonds") ? "'s avonds" : "'s middags");
+  else if ((m = q.text.match(/^De trein vertrekt om (\d{1,2}:\d{2})\./))) {
+    const naar = pick(TREINEN), ander = pick(TREINEN.filter((x) => x !== naar)), dep = toMin(m[1]);
+    q.text = q.text.replace('De trein vertrekt om', `De trein naar ${naar} vertrekt om`);
+    q.visual = { kind: 'board', rows: [{ time: m[1], to: naar, track: String(rnd(1, 12)) }, { time: hhmm(dep + rnd(2, 9)), to: ander, track: String(rnd(1, 12)) }] };
+  } else if ((m = q.text.match(/^In Amsterdam is het (\d{1,2}:\d{2})\./))) q.visual = { kind: 'digital', time: m[1], look: 'phone', label: 'Amsterdam' };
+  return q;
+}
+const toMin = (t) => { const [a, b] = String(t).split(':').map(Number); return a * 60 + b; };
+
+const tijdBasis = {
   0() {
     const t = pick(['later', 'uur', 'halfuur']);
     if (t === 'later') {
@@ -1231,6 +1317,14 @@ const meetkunde = {
   },
 };
 
+// Tijd: klokkijken en de tijd in woorden horen er vanaf groep 5 gewoon bij, met echte klokken
+const tijd = {
+  0() { const r = Math.random(); if (r < 0.3) return klokLezen(0); if (r < 0.5) return klokWoorden(0); return metKlok(tijdBasis[0]()); },
+  1() { const r = Math.random(); if (r < 0.15) return klokLezen(1); if (r < 0.3) return klokWoorden(1); if (r < 0.42) return digiWoorden(); if (r < 0.55) return ovenSom(false); return metKlok(tijdBasis[1]()); },
+  2() { return Math.random() < 0.25 ? ovenSom(true) : metKlok(tijdBasis[2]()); },
+  3() { return metKlok(tijdBasis[3]()); },
+};
+
 // Strategie-tip per onderdeel: de eerste hint, verklapt nooit een uitkomst.
 // Aanpak per onderwerp en niveau komt uit het didactisch handboek (src/didactiek.js): overal dezelfde aanpak.
 export const STRATEGY = Object.fromEntries(Object.keys(DIDACTIEK).map((c) => [c, hintAanpak(c, 2)]));
@@ -1395,7 +1489,8 @@ export function checkAnswer(q, input) {
     }
     case 'time': {
       const t = parseTime(input);
-      return { correct: t != null && t === q.answer };
+      // klokkijken op een wijzerklok: 8:25 en 20:25 zien er hetzelfde uit
+      return { correct: t != null && (q.twelve ? t % 720 === q.answer % 720 : t === q.answer) };
     }
     case 'choice':
       return { correct: Number(input) === q.answer };

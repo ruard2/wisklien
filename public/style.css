@@ -426,3 +426,10 @@ table.list th { color: var(--muted); font-weight: 800; }
 .kid-chip span { font-size: 16px; }
 /* mop van de dag: vraag en clou duidelijker */
 .mop .punch { font-size: 16px; }
+/* klokken: niet over de hele breedte, twee naast elkaar mag */
+.visual .clock, .model .clock { display: flex; justify-content: center; }
+.visual .clock svg, .model .clock svg { max-width: 210px; }
+.visual .clock.digi svg, .model .clock.digi svg { max-width: 300px; }
+.clock-row { display: flex; gap: 10px; justify-content: center; }
+.clock-row > div { flex: 1; max-width: 190px; }
+.clock-row svg { width: 100%; height: auto; display: block; }

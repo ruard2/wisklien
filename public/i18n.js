@@ -19,6 +19,10 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  // vertrekbord
+  "Vertrek": "Vertrek",
+  "Naar": "Na",
+  "Spoor": "Perron",
   "als hij af is": "as dit klaar is",
   // beloning voor de moeite; afgeraffelde sommen komen terug
   "{n} {c} als je hem afmaakt": "{n} {c} as jy dit klaarmaak",

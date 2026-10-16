@@ -432,6 +432,8 @@ const MODEL = {
   klok(arg) {
     const m = String(arg).match(/(\d{1,2}):(\d{2})/);
     if (!m) return '';
+    // echte wandklok (of wekker/horloge als Max dat erbij zet: [[klok: 7:45 | wekker]])
+    if (window.KLOK) { const look = /wekker/i.test(arg) ? 'alarm' : /horloge/i.test(arg) ? 'watch' : 'wall'; return `<div class="clock">${KLOK.analog(`${m[1]}:${m[2]}`, look)}</div>`; }
     const hh = +m[1] % 12, mm = +m[2], c = 60, r = 52;
     const hand = (deg, len, wdt) => { const a = (deg - 90) * Math.PI / 180; return `<line x1="${c}" y1="${c}" x2="${c + Math.cos(a) * len}" y2="${c + Math.sin(a) * len}" stroke="var(--ink)" stroke-width="${wdt}" stroke-linecap="round"/>`; };
     const ticks = Array.from({ length: 12 }, (_, i) => { const a = (i * 30 - 90) * Math.PI / 180; return `<text x="${c + Math.cos(a) * 42}" y="${c + Math.sin(a) * 42 + 4}" text-anchor="middle" class="m-t" style="font-size:10px">${i || 12}</text>`; }).join('');
@@ -1655,6 +1657,13 @@ function renderVisual(v) {
 }
 function drawVisual(v) {
   if (!v || typeof v !== 'object') return '';
+  // echte klokken (wandklok, wekker, horloge), digitale displays en een vertrekbord (public/klokken.js)
+  if (window.KLOK) {
+    if (v.kind === 'clock') return `<div class="clock">${KLOK.analog(v.time, v.look, esc(v.label || ''))}</div>`;
+    if (v.kind === 'digital') return `<div class="clock digi">${KLOK.digital(v.time, v.look, esc(v.label || ''))}</div>`;
+    if (v.kind === 'clocks') return KLOK.row((v.items || []).map((it) => ({ ...it, label: esc(it.label || '') })));
+    if (v.kind === 'board') return `<div class="clock digi">${KLOK.board((v.rows || []).map((r) => ({ time: esc(r.time), to: esc(r.to), track: esc(r.track || '') })), esc(v.title || t('Vertrek')), [t('Tijd'), t('Naar'), t('Spoor')])}</div>`;
+  }
   const ink = 'currentColor';
   if (v.kind === 'table') {
     return `<table>${v.headers ? `<tr>${v.headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>` : ''}${v.rows.map((r) => `<tr>${r.map((c, i) => (i === 0 && !v.headers ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('')}</tr>`).join('')}</table>`;

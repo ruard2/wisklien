@@ -247,7 +247,7 @@ Zet een plaatje op een eigen regel met precies deze schrijfwijze; de app tekent 
 - [[tabel: aantal | 1 | 2 | 4 ; prijs | 3 | 6 | 12]]  → verhoudingstabel (twee rijen)
 - [[hokjes: 3 x 4]]  → rechthoek van 3 rijen met 4 hokjes (oppervlakte)
 - [[rechthoek: 8 x 6 | cm]]  → rechthoek met lengte en breedte erbij (omtrek/oppervlakte); [[driehoek: 8 x 6 | cm]] → driehoek met de rechthoek eromheen
-- [[klok: 10:30]]  → klok met wijzers; [[tijdlijn: 10:00 | 11:00 | 10:30]] → tijdbalk met tijden (noem het tegen het kind "tijdbalk")
+- [[klok: 10:30]]  → echte klok met wijzers ([[klok: 7:45 | wekker]] of [[klok: 3:25 | horloge]] mag ook; de uurwijzer schuift mee); [[tijdlijn: 10:00 | 11:00 | 10:30]] → tijdbalk met tijden (noem het tegen het kind "tijdbalk")
 Gebruik ALLEEN een plaatje dat bij dit onderwerp en de kaart past (dus geen strook bij oppervlakte). Geen passend plaatje? Dan geen plaatje.
 Gebruik het model uit de didactiekkaart. Zet het eindantwoord niet in een plaatje als ${name} het zelf moet vinden.
 - Af en toe een licht grapje mag, maar de uitleg gaat voor.
@@ -265,6 +265,14 @@ function describeQuestion(q) {
   if (q.visual?.kind === 'pie') s += `\nCirkeldiagram: ${q.visual.labels.map((l, i) => `${l} ${q.visual.values[i]}%`).join(', ')}`;
   if (q.visual?.kind === 'table') s += `\nTabel: ${JSON.stringify({ kop: q.visual.headers, rijen: q.visual.rows })}`;
   if (q.visual?.kind === 'rect' || q.visual?.kind === 'tri') s += `\nTekening: ${q.visual.kind === 'rect' ? 'rechthoek' : 'driehoek'} ${q.visual.w} bij ${q.visual.h} ${q.visual.unit}`;
+  if (q.visual?.kind === 'clock') s += `
+Tekening: ${q.visual.look === 'alarm' ? 'wekker' : q.visual.look === 'watch' ? 'horloge' : 'klok'} met wijzers op ${q.visual.time}${q.visual.label ? ` (${q.visual.label})` : ''}`;
+  if (q.visual?.kind === 'digital') s += `
+Tekening: digitale ${q.visual.look === 'oven' ? 'oven' : q.visual.look === 'phone' ? 'telefoon' : 'wekker'} die ${q.visual.time} aangeeft`;
+  if (q.visual?.kind === 'clocks') s += `
+Tekening: ${q.visual.items.map((i) => `${i.label || 'klok'} ${i.time}`).join(' en ')}`;
+  if (q.visual?.kind === 'board') s += `
+Tekening: vertrekbord: ${q.visual.rows.map((r) => `${r.time} naar ${r.to}`).join('; ')}`;
   if (q.visual?.kind === 'pizza') s += `\nTekening: pizza in ${q.visual.parts} stukken, ${q.visual.eaten} opgegeten`;
   if (q.visual?.kind === 'grid') s += `\nTekening: rechthoek van ${q.visual.w} bij ${q.visual.h} hokjes`;
   return s;
