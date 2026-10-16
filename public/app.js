@@ -124,37 +124,55 @@ function bindSpeak(root) { root.querySelectorAll('[data-speak]').forEach((b) => 
 const hintHTML = (h) => `<div class="hint">💡 ${esc(h).replace(/\n/g, '<br>')}</div>`;
 
 // ---------- humor ----------
+// Bestaande rekenmoppen (verzameld door de ouder uit Nederlandse moppenverzamelingen). [vraag, clou]
 const MOPPEN = [
-  ['Wat zei de 0 tegen de 8?', 'Mooie riem! 😎'],
-  ['Waarom kan een breuk niet zwemmen?', 'Hij zakt steeds onder de streep. 🏊'],
-  ['Waarom ging de breuk naar de dokter?', 'Hij voelde zich niet helemaal heel. 🤒'],
-  ['Wat is het lievelingseten van een rekenaar?', 'Pi-zza. 🍕'],
-  ['Waarom nam Sem een ladder mee naar de rekenles?', 'Hij wilde naar een hoger niveau. 🪜'],
-  ['Wat doet een 8 als hij moe is?', 'Even liggen: ∞ 😴'],
-  ['Waarom maakt een cirkel nooit ruzie?', 'Hij heeft geen zin in hoeken. ⭕'],
-  ['Wat zegt een kommagetal dat te laat komt?', '"Sorry, ik zat nog achter de komma!" ⏰'],
-  ['Waarom is een rechthoek nooit verdrietig?', 'Hij heeft vier rechte hoeken om op te leunen. 📐'],
-  ['Hoe noem je een vierkant dat sport?', 'Een fit-kant. 💪'],
-  ['Welk getal is altijd eerlijk?', 'Een even getal: dat kun je precies in tweeën delen. ⚖️'],
-  ['Wat is de favoriete muziek van een driehoek?', 'Alles met 3 akkoorden. 🎸'],
-  ['Waarom houdt een liniaal nooit op met praten?', 'Hij weet van alles de lengte. 📏'],
-  ['Wat zei de procent tegen de taart?', '"Ik neem er 100% van." 🎂'],
+  ["Meester: 'Als ik vier eieren leg en jij legt er drie bij, hoeveel zijn het er dan?'", "Jantje: 'Vier, meester. Ik kan helemaal geen eieren leggen!' 🥚"],
+  ["Meester: 'Als je vijf appels in je ene hand hebt en zes in je andere, wat heb je dan?'", "Jantje: 'Ontzettend grote handen!' 🙌"],
+  ["Meester: 'Twee konijnen plus twee konijnen, hoeveel zijn dat?' Jantje: 'Vijf!' Meester: 'Hoe kom je daarbij?'", "Jantje: 'Ik heb er thuis al eentje.' 🐇"],
+  ["Meester: 'Je hebt tien chocolaatjes en ik vraag er vijf. Hoeveel heb je er nog?'", "Jantje: 'Tien!' 🍫"],
+  ["Meester: 'Waarom heb je alle antwoorden twee keer opgeschreven?'", "Jantje: 'U zei dat ik alles dubbel moest controleren!' ✌️"],
+  ['Waarom maakt Jantje zijn keersommen op de grond?', 'Omdat de meester gezegd heeft dat hij geen tafels mag gebruiken. 🪑'],
+  ["Meester: 'Als je je boterham in vier stukken snijdt, heb je dan meer eten?'", "Jantje: 'Nee, alleen meer kruimels.' 🥪"],
+  ["Meester: 'Als je vier appels hebt en er twee weggeeft, hoeveel heb je dan nog?'", "Jantje: 'Geen, want ik lust geen appels.' 🍎"],
+  ['Wat zegt de nul tegen de acht?', "'Mooie riem!' 😎"],
+  ['Waarom is een rekenboek zo verdrietig?', 'Het heeft zoveel problemen. 📚'],
+  ['Wat zei de rekenmachine tegen de leerling?', "'Je kunt op me rekenen!' 🧮"],
+  ['Waarom kan een rechte lijn niet liegen?', 'Omdat hij altijd recht is. 📏'],
+  ['Waarom vertelt een breuk nooit het hele verhaal?', 'Omdat hij maar een deel vertelt. 🍕'],
+  ['Wat zei het vierkant tegen de cirkel?', "'Jij draait ook altijd overal omheen!' ⭕"],
+  ['Waarom heeft de kalender zo weinig toekomst?', 'Zijn dagen zijn geteld. 📅'],
+  ['Waarom zijn twee evenwijdige lijnen zo verdrietig?', 'Omdat ze elkaar nooit zullen ontmoeten. 😢'],
+  ['Waarom is een breuk naar de dokter gegaan?', 'Om zich te laten vereenvoudigen. 🩺'],
+  ['Waarom is het is-gelijkteken zo bescheiden?', 'Omdat het zich niet groter of kleiner voelt dan een ander. ⚖️'],
+  ['Waarom is een minteken jaloers op een plusteken?', 'Omdat de plus er altijd iets bij krijgt. ➕'],
+  ['Wat zegt een plus tegen een min die aan zichzelf twijfelt?', "'Blijf positief!' 😊"],
+  ['Waarom gaan getallen graag naar een feestje?', 'Om samen op te tellen. 🎉'],
+  ['Wat is het enige waar je altijd op kunt tellen?', 'Je tien vingers. 🖐️'],
 ];
+// Afrikaans: dieselfde bestaande grappe, net dié wat in Afrikaans ook werk
 const MOPPEN_AF = [
-  ['Wat het die 0 vir die 8 gesê?', 'Mooi belt! 😎'],
-  ['Hoekom was die wiskundeboek hartseer?', 'Hy was vol probleme. 📚'],
-  ['Hoekom het die breuk dokter toe gegaan?', 'Hy het nie heeltemal heel gevoel nie. 🤒'],
-  ['Wat is ’n wiskundige se gunstelingkos?', 'Pi-zza. 🍕'],
-  ['Hoekom het Thabo ’n leer klas toe gevat?', 'Hy wou ’n hoër vlak bereik. 🪜'],
-  ['Wat doen ’n 8 as hy moeg is?', 'Hy gaan lê: ∞ 😴'],
-  ['Hoekom baklei ’n sirkel nooit nie?', 'Hy het nie lus vir hoeke nie. ⭕'],
-  ['Hoekom is ’n reghoek nooit hartseer nie?', 'Hy het vier regte hoeke om teen te leun. 📐'],
-  ['Wat sê die persent vir die koek?', '"Ek vat 100% daarvan." 🎂'],
-  ['Hoekom praat ’n liniaal so baie?', 'Hy weet van alles die lengte. 📏'],
-  ['Watter musiek hou ’n driehoek van?', 'Enigiets met 3 akkoorde. 🎸'],
-  ['Hoekom kon die 7 nie slaap nie?', 'Hy het gewonder hoekom die 8 by hom kuier. 🛏️'],
+  ["Meneer: 'As ek vier eiers lê en jy lê drie by, hoeveel is daar dan?'", "Jannie: 'Vier, Meneer. Ek kan mos nie eiers lê nie!' 🥚"],
+  ["Meneer: 'As jy vyf appels in die een hand het en ses in die ander, wat het jy dan?'", "Jannie: 'Baie groot hande!' 🙌"],
+  ["Meneer: 'Twee hasies plus twee hasies, hoeveel is dit?' Jannie: 'Vyf!' Meneer: 'Hoe kry jy dit?'", "Jannie: 'Ek het al een by die huis.' 🐇"],
+  ["Meneer: 'Jy het tien sjokolades en ek vra vir vyf. Hoeveel het jy oor?'", "Jannie: 'Tien!' 🍫"],
+  ["Meneer: 'Hoekom het jy al die antwoorde twee keer neergeskryf?'", "Jannie: 'Meneer het gesê ek moet alles dubbel kontroleer!' ✌️"],
+  ['Hoekom doen Jannie sy maalsomme op die vloer?', 'Omdat Meneer gesê het hy mag nie tafels gebruik nie. 🪑'],
+  ["Meneer: 'As jy jou toebroodjie in vier stukke sny, het jy dan meer kos?'", "Jannie: 'Nee, net meer krummels.' 🥪"],
+  ["Meneer: 'As jy vier appels het en twee weggee, hoeveel het jy dan oor?'", "Jannie: 'Niks nie, want ek hou nie van appels nie.' 🍎"],
+  ['Wat sê die nul vir die agt?', "'Mooi belt!' 😎"],
+  ['Hoekom is ’n wiskundeboek so hartseer?', 'Dit het soveel probleme. 📚'],
+  ['Wat het die sakrekenaar vir die leerder gesê?', "'Jy kan op my reken!' 🧮"],
+  ['Hoekom kan ’n reguit lyn nie lieg nie?', 'Omdat hy altyd reguit is. 📏'],
+  ['Hoekom vertel ’n breuk nooit die hele storie nie?', 'Omdat hy net ’n deel vertel. 🍕'],
+  ['Wat het die vierkant vir die sirkel gesê?', "'Jy draai ook altyd oral om!' ⭕"],
+  ['Hoekom het die kalender so min toekoms?', 'Sy dae is getel. 📅'],
+  ['Hoekom is twee ewewydige lyne so hartseer?', 'Omdat hulle mekaar nooit sal ontmoet nie. 😢'],
+  ['Hoekom is ’n breuk dokter toe?', 'Om vereenvoudig te word. 🩺'],
+  ['Wat sê ’n plus vir ’n min wat aan homself twyfel?', "'Bly positief!' 😊"],
+  ['Waarop kan jy altyd tel?', 'Jou tien vingers. 🖐️'],
 ];
-const mop = () => { const m = L(MOPPEN, MOPPEN_AF); return m[Math.floor(Math.random() * m.length)]; };
+// "Mop van de dag": elke dag een andere, maar dezelfde de hele dag
+const mop = () => { const m = L(MOPPEN, MOPPEN_AF); const d = Math.floor((Date.now() + 2 * 36e5) / 864e5); return m[d % m.length]; };
 const SUBLINES = ['Klaar om de sommen te laten zien wie de baas is?', 'Je hersenen staan te springen om te rekenen. 🧠💪', 'Vandaag wordt een rekenmooie dag.', 'De sommen staan al te trillen van angst. 😱', 'Even je rekenspieren opwarmen?'];
 const SUBLINES_AF = ['Gereed om ’n paar somme ’n les te leer?', 'Jou brein het lus vir ’n oefensessie. 🧠💪', 'Vandag word ’n lekker wiskundedag.', 'Die somme bewe al van vrees. 😱', 'Kom ons maak jou wiskundespiere warm!'];
 
@@ -678,8 +696,7 @@ async function renderHome() {
   const earned = s.badges.filter((b) => b.earned);
   const badgesCard = earned.length ? `<a href="#/voortgang" class="card row between" style="text-decoration:none;color:inherit"><div><div class="small muted">${t('Badges')}</div><div style="font-size:26px;letter-spacing:2px">${earned.slice(-8).map((b) => b.icon).join('')}</div></div><span class="muted">${earned.length}/${s.badges.length} ›</span></a>` : '';
 
-  const top = s.intakeDone ? `<div class="card stack"><div class="row between"><h3>🧑‍🏫 ${t('{m} zegt', { m: esc(s.teacher) })}</h3><a href="#/voortgang" class="small">${t('Alles')}</a></div>
-      <div data-kidnote></div></div>` : '';
+  const top = s.intakeDone ? `<div class="card maxnote">${maxHead(`<a href="#/voortgang" class="small">${t('Alles')} ›</a>`)}<div class="maxnote-body" data-kidnote></div></div>` : '';
 
   $app.innerHTML = `<div class="stack">
     <div class="hello"><div><h1>${t('Hoi')} ${esc(s.name)} ${esc(s.kid?.avatar || '👋')}</h1><p class="muted small" style="margin-top:2px">${pick(L(SUBLINES, SUBLINES_AF))}</p></div>
@@ -708,14 +725,16 @@ function kidNoteText(v) {
     p.length ? t('We gaan nog samen oefenen met {b}. Stap voor stap wordt dat ook makkelijker.', { b: andList(p) }) : '', '💪'].filter(Boolean).join(' ');
 }
 function kidNoteHTML(v) {
-  const chips = (arr, cls) => `<div class="kid-chips">${arr.map((x) => `<a class="chip ${cls}" href="#/voortgang/${x.cat}">${x.icon} ${esc(x.label)}</a>`).join('')}</div>`;
-  return `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(kidNoteText(v)).replace(/\n/g, '<br>')}</div></div>
-    ${v.strong.length ? `<h3>${t('Hier ben je goed in 💪')}</h3>${chips(v.strong, 'good')}` : ''}
-    ${v.practice.length ? `<h3>${t('Hier gaan we nog mee oefenen 🌱')}</h3>${chips(v.practice, '')}` : ''}`;
+  const chips = (arr) => `<div class="kid-chips">${arr.map((x) => `<a class="kid-chip" href="#/voortgang/${x.cat}"><span>${x.icon}</span>${esc(x.label)}</a>`).join('')}</div>`;
+  return `<div class="maxnote-bubble">${rich(kidNoteText(v)).replace(/\n/g, '<br>')}</div>
+    ${v.strong.length ? `<div class="kid-sec good"><div class="kid-sec-h">${t('Hier ben je goed in 💪')}</div>${chips(v.strong)}</div>` : ''}
+    ${v.practice.length ? `<div class="kid-sec grow"><div class="kid-sec-h">${t('Hier gaan we nog mee oefenen 🌱')}</div>${chips(v.practice)}</div>` : ''}`;
 }
+// kop van de kaart "Max zegt": ronde avatar met naam, optioneel een link rechts
+const maxHead = (link = '') => `<div class="maxnote-head"><span class="max-av">🧑‍🏫</span><div style="flex:1"><div class="maxnote-name">${esc(STATE?.teacher || 'Meester Max')}</div></div>${link}</div>`;
 async function loadKidNote(el) {
   if (!el) return;
-  el.innerHTML = `<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span></div></div>`;
+  el.innerHTML = `<div class="maxnote-bubble muted"><span class="loader"></span></div>`;
   try { el.innerHTML = kidNoteHTML(await api('/api/kid/voortgang')); } catch { el.innerHTML = ''; }
 }
 function aheadBtn(s) {
@@ -929,7 +948,7 @@ async function renderProgress() {
     <h1>${t('Voortgang')}</h1>
     ${hist}
     <div class="card"><h3>${t('Badges')}</h3><div class="badges">${s.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
-    <div class="card stack"><h3>🧑‍🏫 ${t('{m} zegt', { m: esc(s.teacher) })}</h3><div data-kidnote></div></div>
+    <div class="card maxnote">${maxHead()}<div class="maxnote-body" data-kidnote></div></div>
     <div class="card"><h3>${t('Alle onderdelen')}</h3><p class="small muted" style="margin:4px 0 6px">${t('Tik op een onderdeel voor uitleg en om te oefenen.')}</p>
       ${s.skills.map((x) => `<a class="skill" href="#/voortgang/${x.cat}" style="text-decoration:none;color:inherit">
       <span class="ico">${x.icon}</span>
@@ -1590,7 +1609,7 @@ async function renderSummary(sum) {
     ${STATE.ai ? `<div class="card" id="reflect"><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub muted"><span class="loader"></span> ${t('{m} schrijft je een berichtje…', { m: esc(STATE.teacher) })}</div></div></div>` : ''}
     ${highlights.length ? `<div class="card stack">${highlights.map((h) => `<div>${h}</div>`).join('')}</div>` : ''}
     ${badges.length ? `<div class="card"><h3>${t('Nieuwe badges')}</h3><div class="badges">${badges.map((b) => `<div class="badge on"><span>${b.icon}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>` : ''}
-    ${sum.kind === 'intake' ? `<div class="card stack"><h3>${t('Jouw uitslag')}</h3><p class="small muted">${t('Vanaf nu krijg je bij elke dagtaak {n} sommen die bij jou passen.', { n: STATE.points.dailyCount })}</p><div data-kidnote></div></div>`
+    ${sum.kind === 'intake' ? `<div class="card stack"><h3>${t('Jouw uitslag')}</h3><p class="small muted">${t('Vanaf nu krijg je bij elke dagtaak {n} sommen die bij jou passen.', { n: STATE.points.dailyCount })}</p><div class="maxnote-body" data-kidnote></div></div>`
     : sum.perCat ? `<div class="card"><h3>${t('Per onderdeel')}</h3>${sum.perCat.map((p) => `<div class="mini-skill"><span class="ico">${p.icon}</span><div style="font-weight:800">${esc(p.label)}</div><span class="chip ${p.ok === p.n ? 'good' : p.ok === 0 ? 'bad' : ''}">${p.ok}/${p.n}</span></div>`).join('')}</div>` : ''}
     <div class="card coin row between"><div class="row"><span class="big-emoji" style="font-size:30px">🐷</span><b>${t('Spaarpot')}</b></div><span class="money" style="font-size:22px">${euro(STATE.wallet.balance)}</span></div>
     ${mopCard()}
