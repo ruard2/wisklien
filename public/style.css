@@ -253,7 +253,7 @@ p { margin: 0; }
 .pig { text-align: center; padding: 28px 18px; }
 .pig .amount { font-size: 54px; font-weight: 900; margin: 6px 0; font-variant-numeric: tabular-nums; }
 .hist { display: flex; align-items: flex-end; gap: 6px; height: 110px; margin-top: 10px; }
-.hist div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; font-size: 11px; color: var(--muted); font-weight: 800; height: 100%; }
+.hist div { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; font-size: 11px; color: var(--muted); font-weight: 800; height: 100%; }
 .hist i { display: block; width: 100%; border-radius: 8px 8px 3px 3px; background: var(--coin); min-height: 4px; }
 
 /* ---------- ouder ---------- */
@@ -401,3 +401,9 @@ table.list th { color: var(--muted); font-weight: 800; }
 .fb-own { display: flex; gap: 6px; }
 .fb-own input { flex: 1; min-width: 0; min-height: 38px; border-radius: 10px; border: 2px solid var(--line); padding: 0 10px; background: var(--bg); color: var(--ink); font: inherit; }
 .fb-own .btn { min-height: 38px; padding: 0 12px; }
+/* voortgang voor het kind: alleen woorden van Max, onderdelen als knopjes */
+.kid-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kid-chips .chip { text-decoration: none; color: inherit; }
+/* ouderscherm: niveaus zijn een indicatie */
+.indicatie { background: var(--primary-soft); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; }
+.spark { width: 60px; max-width: 60px; }

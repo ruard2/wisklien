@@ -386,6 +386,20 @@ export async function reflect({ name, profile, memory, summary }) {
   }], { maxTokens: 300 });
 }
 
+// Voor het kind op het voortgangsscherm: waar je goed in bent, waar we nog mee oefenen, en een aanmoediging.
+// Bewust GEEN niveaus, groepen/graden, scores of procenten: die zijn alleen voor de ouder.
+export async function kidProgressNote({ name, profile, memory, strong, practice, streak }) {
+  return complete(LERAAR(name, profile, memory), [{
+    role: 'user',
+    content: `Schrijf ${name} een kort berichtje (max. 55 woorden) voor het voortgangsscherm.
+Goed in: ${strong.join(', ') || '(nog te weinig gegevens)'}.
+Nog oefenen: ${practice.join(', ') || '(niets bijzonders)'}.
+${streak ? `Al ${streak} dagen op rij geoefend.` : ''}
+Regels: 1) noem concreet waar ${name} goed in is, 2) noem rustig waar jullie samen nog mee oefenen (als iets om te leren, niet als iets wat slecht is), 3) eindig met een korte aanmoediging (mag grappig).
+Noem NOOIT een niveau, groep, graad, score, percentage of cijfer over hoe goed ${name} is. Geen vragen stellen. Geen plaatjes.`,
+  }], { maxTokens: 260 });
+}
+
 // Leerlingprofiel bijwerken op basis van recente pogingen.
 // Het leerlingprofiel: blijft bestaan over alle sessies heen. Zwakke punten krijgen bewijs en een status,
 // zodat oude problemen niet vergeten worden en je ziet wat er opgelost is.

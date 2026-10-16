@@ -73,6 +73,14 @@ assert(!NLWORD.test(texts), 'geen Nederlands in de sommen' + (NLWORD.test(texts)
 assert(!/ : \d/.test(texts.replace(/verhouding \d+ : \d+/g, '')), 'delen met ÷, niet met :');
 console.log('  voorbeelden:', intake.log.slice(0, 5).map((l) => l.full.text).join(' || '));
 
+// ---- Voortgang voor het kind: alleen woorden van Max, geen niveaus ----
+{
+  const v = await api('/api/kid/voortgang');
+  assert(Array.isArray(v.strong) && Array.isArray(v.practice) && (v.strong.length + v.practice.length) > 0, `kind krijgt goed-in/oefenen (${v.strong.map((x) => x.label)} | ${v.practice.map((x) => x.label)})`);
+  assert(!v.text || !/graad \d|groep \d|vlak|\d+ ?%/i.test(v.text), `berichtje van Max zonder niveau of score: ${String(v.text).slice(0, 120)}`);
+  assert(!JSON.stringify(v).includes('levelName') && !JSON.stringify(v).includes('score'), 'geen niveau of score in wat het kind krijgt');
+}
+
 // ---- Dagtaak met tussenstappen: elke tussenstap moet via de server kloppen ----
 await db.query(`UPDATE ${SCHEMA}.sessions SET status='stopped' WHERE status='active'`);
 const daily = await play('daily', (i, cur, full) => (full.guide?.length ? 'guided-good' : 'good'));

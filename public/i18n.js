@@ -19,6 +19,24 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  // voortgang: woorden van Max voor het kind; balken en niveaus alleen voor ouders
+  "Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). Daarna leert de app je steeds beter kennen en krijg je sommen die bij jou passen. Je kunt tussendoor stoppen.": "Eers kyk ons wat jy al kan: {n} somme uit al die onderwerpe (ongeveer ’n kwartier). Daarna leer die app jou al hoe beter ken en kry jy somme wat by jou pas. Jy kan enige tyd ophou.",
+  "{m} zegt": "{m} sê",
+  "en": "en",
+  "Je bent goed in {a}. Daar mag je trots op zijn!": "Jy is goed in {a}. Daarop kan jy trots wees!",
+  "Je bent goed bezig: elke som maakt je sterker.": "Jy doen goed: elke som maak jou sterker.",
+  "We gaan nog samen oefenen met {b}. Stap voor stap wordt dat ook makkelijker.": "Ons gaan nog saam oefen met {b}. Stap vir stap word dit ook makliker.",
+  "Hier ben je goed in 💪": "Hierin is jy goed 💪",
+  "Hier gaan we nog mee oefenen 🌱": "Hiermee gaan ons nog oefen 🌱",
+  "We beginnen lekker rustig. Gaat het goed? Dan worden de sommen vanzelf moeilijker. 🚀": "Ons begin lekker rustig. Gaan dit goed? Dan word die somme vanself moeiliker. 🚀",
+  "Alle onderdelen": "Al die onderwerpe",
+  "Tik op een onderdeel voor uitleg en om te oefenen.": "Tik op ’n onderwerp vir verduideliking en om te oefen.",
+  "Bij <b>{o}</b> oefenen we even met wat makkelijkere sommen. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠": "By <b>{o}</b> oefen ons eers met ’n bietjie makliker somme. So bou jy dit stewig op, soos ’n huis: eers die fondament. 🏠",
+  "Gaat het goed? Dan worden de sommen vanzelf weer moeilijker. Je krijgt de komende sommen extra hulp. 💪": "Gaan dit goed? Dan word die somme vanself weer moeiliker. Jy kry die volgende somme ekstra hulp. 💪",
+  "Bij <b>{o}</b> krijg je nu moeilijkere sommen. Knap!": "By <b>{o}</b> kry jy nou moeiliker somme. Knap!",
+  "Vanaf nu krijg je elke dagtaak {n} sommen die bij jou passen.": "Van nou af kry jy elke dagtaak {n} somme wat by jou pas.",
+  "Dit is een indicatie, alleen voor ouders: gebaseerd op de sommen in deze app. Het is geen toets van school en zegt niet precies op welk niveau je kind rekent. Je kind ziet deze balken en niveaus niet, alleen de aanmoediging van {m}.": "Dit is ’n aanduiding, net vir ouers: gebaseer op die somme in hierdie app. Dit is nie ’n skooltoets nie en sê nie presies op watter vlak jou kind werk nie. Jou kind sien nie hierdie stawe en vlakke nie, net die aanmoediging van {m}.",
+  "ongeveer {l}-niveau": "ongeveer {l}-vlak",
   "Vertel het in je eigen woorden…": "Vertel dit in jou eie woorde…",
   "Dat duurt te lang. Probeer het nog eens.": "Dit neem te lank. Probeer weer.",
   "Geen verbinding. Controleer je internet en probeer het nog eens.": "Geen verbinding nie. Kyk na jou internet en probeer weer.",

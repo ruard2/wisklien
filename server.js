@@ -10,7 +10,7 @@ import {
   awardBadge, getBadges,
 } from './src/engine.js';
 import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
-import { aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS } from './src/rewards.js';
@@ -949,6 +949,32 @@ app.post('/api/feedback', child, wrap(async (req, res) => {
   await logEvent('feedback', { over: ctx.kind === 'lesson' ? 'les' : 'gesprek', stem: vote, waarom: reason, eigen_woorden: own, bericht_max: msg, som: String(ctx.question || '').slice(0, 300) || null },
     { cat, session: Number(ctx.session) || null });
   res.json({ ok: true });
+}));
+
+// Voortgang voor het kind: alleen woorden van Max (goed in / nog oefenen / aanmoediging).
+// Geen balken, scores of niveaus: die staan alleen in het ouderscherm.
+function kidHighlights(list) {
+  const pickCat = (s) => ({ cat: s.cat, label: s.label, icon: s.icon });
+  const tried = list.filter((s) => s.attempts > 0);
+  const strong = tried.filter((s) => s.score >= 55 && !s.struggling).slice(0, 3);
+  const weakFirst = [...tried].sort((a, b) => (b.struggling - a.struggling) || (a.score - b.score));
+  const practice = weakFirst.filter((s) => !strong.includes(s)).slice(0, 3);
+  return { strong: strong.map(pickCat), practice: practice.map(pickCat) };
+}
+app.get('/api/kid/voortgang', child, wrap(async (req, res) => {
+  const { list } = await skillsView();
+  const h = kidHighlights(list);
+  // Max' berichtje: één keer per dag (en opnieuw als de lijstjes veranderen)
+  const key = `praatje:${todayNL()}:${[...h.strong, ...h.practice].map((x) => x.cat).join(',')}`;
+  let text = (await one('SELECT content FROM ai_cache WHERE key=$1', [key]))?.content || null;
+  if (!text && aiEnabled() && aiAllowed() && (h.strong.length || h.practice.length)) {
+    text = await Promise.race([
+      kidProgressNote({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), strong: h.strong.map((x) => x.label), practice: h.practice.map((x) => x.label), streak: await streak() }),
+      new Promise((r) => setTimeout(() => r(null), 20000)),
+    ]);
+    if (text) await q('INSERT INTO ai_cache(key, content) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET content=$2', [key, text]);
+  }
+  res.json({ ...h, text, teacher: teacherName() });
 }));
 
 // Spaardoel kiezen of wissen (door het kind zelf)
