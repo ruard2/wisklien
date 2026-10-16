@@ -292,6 +292,8 @@ function currentPayload(s, skills) {
       readAloud: !!s.state?.adapt?.readAloud && isWordProblem(qq.text),
       impulsive: !!s.state?.adapt?.impulsive,
       showWork: (s.state?.adapt?.needWork || []).includes(qq.cat) && !qq.guided,
+      // na afraffelen: "controleer" werkt pas na een paar seconden (eerst rustig lezen)
+      pause: s.state?.pauseLeft > 0 ? Math.min(8, 3 + Math.round(String(qq.text).split(/\s+/).length * 0.15)) : 0,
     },
     base: s.max_points / s.total,
   };
@@ -705,13 +707,12 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
         skill = { ...skill, mastery: Math.round((skill.mastery + 0.1 * ((check.correct ? 65 : 0) - skill.mastery)) * 10) / 10,
           attempts: skill.attempts + 1, correct: skill.correct + (check.correct ? 1 : 0) };
       }
-      if (reward.kind === 'guided-free') skill.guided_wins = (skill.guided_wins || 0) + 1;
-      if (reward.kind === 'solo-double') skill.solo_bonus = (skill.solo_bonus || 0) + 1;
+      if (reward.kind === 'guided') skill.guided_wins = (skill.guided_wins || 0) + 1;
+      if (reward.kind === 'solo') skill.solo_bonus = (skill.solo_bonus || 0) + 1;
       await saveSkill(skill, c);
     }
 
-    const base = s.max_points / s.total;
-    const cents = base * reward.mult;
+    const cents = 0; // geld komt pas als de dagtaak af is
     const misconception = !check.correct && !dontKnow ? detectMisconception(qq, given, checkAnswer) : null;
     const result = { correct: check.correct, given: shownGiven, display: qq.display, note: check.note || null, hints: qq.hints || 0, guided: !!qq.guided, cents, rewardKind: reward.kind, retry: !!qq.retry, review: !!qq.review, misconception };
     if (misconception) qq.misconception = misconception;
@@ -736,12 +737,47 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     s.points_acc += cents;
     s.state = updateState(s, qq, check.correct);
 
+    // ---- inzet: afgeraffeld? (alleen dagtaak; alleen bij fout en zonder zichtbare moeite) ----
+    // Vergelijkt met het kind zelf. Een afgeraffelde som komt aan het eind terug: afraffelen maakt
+    // de dagtaak niet sneller af. Na 2 keer grijpt Max rustig in en werkt "controleer" even pas na een paar seconden.
+    const tms = Math.min(Number(req.body.timeMs) || 0, 36e5);
+    const st2 = s.state;
+    if (st2.pauseLeft > 0) st2.pauseLeft -= 1;
+    if (s.kind === 'daily' && !check.correct && !qq.warmup) {
+      const effort = helped || (qq.chat || []).length > 0 || !!scratch?.text || (qq.stepTries || 0) > 0;
+      let why = null;
+      if (!effort) {
+        const words = String(qq.text).split(/\s+/).length;
+        const readMs = 1500 + words * 250;
+        const prev = s.results.at(-2);
+        if (dontKnow) { if (tms < 4000 && prev?.rushed === 'weetniet') why = 'weetniet'; else if (tms < 4000) why = null; }
+        else if (tms > 0 && tms < readMs) why = 'niet-gelezen';
+        else if (isGuess(qq, given, prev)) why = 'gok';
+        else if (tms > 0) {
+          const med = (await c.query(`SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY time_ms) m, COUNT(*)::int n FROM attempts WHERE cat=$1 AND time_ms > 0 AND created_at > now() - interval '30 days'`, [qq.cat])).rows[0];
+          if (med.n >= 6 && tms < 0.4 * med.m && (st2.rushes || 0) >= 1) why = 'te-snel';
+        }
+        if (dontKnow && tms < 4000) result.rushed = 'weetniet'; // telt pas bij twee op rij
+      }
+      if (why) {
+        result.rushed = why;
+        st2.rushes = (st2.rushes || 0) + 1;
+        st2.redos ||= [];
+        if (st2.redos.length < 6 && !qq.redo) {
+          st2.redos.push({ cat: qq.cat, level: qq.level, shape: qq.shape, text: qq.text });
+          s.total += 1; // de dagtaak wordt één som langer; de laatste plekken zijn voor de herhalingen
+          result.redo = true;
+        }
+        if (st2.rushes === 2 || (st2.rushes > 2 && (st2.rushes - 2) % 3 === 0)) { result.rushWarn = true; st2.pauseLeft = 5; }
+      }
+    }
+
     await c.query(`INSERT INTO attempts(session_id, cat, level, correct, hints, time_ms, given, text, display, guided, mult, misconception, scratch_text, nsteps, word, step_errors) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [s.id, qq.cat, qq.level, check.correct, qq.hints || 0, Math.min(Number(req.body.timeMs) || 0, 36e5), shownGiven, qq.text, qq.display, !!qq.guided, reward.mult, misconception?.label || null, scratch?.text || null,
         (qq.guide?.length || 0) + 1, isWordProblem(qq.text), JSON.stringify(qq.stepErrors || [])]);
     logEvent('antwoord', { som: qq.text, gegeven: shownGiven, goed: check.correct, juist: qq.display, tijd_s: Math.round((Number(req.body.timeMs) || 0) / 1000),
       hints: qq.hints || 0, tussenstappen: !!qq.guided, stapfouten: qq.stepErrors || [], denkfout: misconception?.label || null, kladblok: scratch?.text || null,
-      sessie: s.kind, herkansing: !!qq.retry, herhaling: !!qq.review, weetniet: !!dontKnow }, { cat: qq.cat, level: qq.level, session: s.id });
+      sessie: s.kind, herkansing: !!qq.retry, herhaling: !!qq.review, weetniet: !!dontKnow, haast: result.rushed || null, opnieuw: !!qq.redo }, { cat: qq.cat, level: qq.level, session: s.id });
     // uitleg die Max eerder gaf over dit onderdeel: hielp het? (de eerstvolgende som telt)
     await c.query(`UPDATE explanations SET outcome=$2 WHERE cat=$1 AND outcome IS NULL AND created_at > now() - interval '3 days'`, [qq.cat, check.correct]);
 
@@ -760,9 +796,11 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
     const done = s.results.length >= s.total;
     let summary = null;
     if (done) {
-      const points = Math.round(s.points_acc);
-      await c.query(`UPDATE sessions SET results=$2, correct=$3, status='done', points=$4, points_acc=$5, state=$6, finished_at=now() WHERE id=$1`,
-        [s.id, JSON.stringify(s.results), s.correct, points, s.points_acc, JSON.stringify(s.state)]);
+      // dagtaak/starttoets af = het hele bedrag (voor de moeite, niet per goed antwoord)
+      const points = s.kind === 'practice' ? 0 : Math.round(s.max_points || 0);
+      s.points_acc = points;
+      await c.query(`UPDATE sessions SET results=$2, correct=$3, status='done', points=$4, points_acc=$5, state=$6, finished_at=now(), total=$7, plan=$8 WHERE id=$1`,
+        [s.id, JSON.stringify(s.results), s.correct, points, s.points_acc, JSON.stringify(s.state), s.total, JSON.stringify(s.plan)]);
       if (points > 0) {
         await c.query(`INSERT INTO ledger(cents, kind, note, session_id) VALUES ($1,'earn',$2,$3)`, [points, s.kind === 'intake' ? ts('Starttoets') : ts('Dagtaak {d}', { d: s.day }), s.id]);
       }
@@ -797,8 +835,8 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
         return all.map((x) => rows.find((r) => r.cat === x.cat) || x);
       })();
       s.questions.push(nextQuestion(s, skills));
-      await c.query(`UPDATE sessions SET results=$2, correct=$3, questions=$4, state=$5, points_acc=$6 WHERE id=$1`,
-        [s.id, JSON.stringify(s.results), s.correct, JSON.stringify(s.questions), JSON.stringify(s.state), s.points_acc]);
+      await c.query(`UPDATE sessions SET results=$2, correct=$3, questions=$4, state=$5, points_acc=$6, total=$7, plan=$8 WHERE id=$1`,
+        [s.id, JSON.stringify(s.results), s.correct, JSON.stringify(s.questions), JSON.stringify(s.state), s.points_acc, s.total, JSON.stringify(s.plan)]);
     }
     return { s, qq, result, event, eventLevel, done, summary };
   });
@@ -951,6 +989,19 @@ app.post('/api/feedback', child, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Een gok: een antwoord dat nergens op lijkt (factor 10 of meer ernaast, 111/999…, hetzelfde als net)
+function isGuess(qq, given, prev) {
+  if (qq.type === 'choice') return false; // keuzevragen: alleen via de tijd
+  const g = String(given).trim();
+  if (prev && !prev.correct && prev.given === g && g !== '') return true;
+  if (qq.type !== 'number') return false;
+  const x = Number(g.replace(/\s/g, '').replace(',', '.')), a = Number(qq.answer);
+  if (!Number.isFinite(x)) return false;
+  if (/^(\d)\1{2,}$/.test(g.replace(/\D/g, '')) && x !== a) return true;
+  if (a !== 0 && x !== 0 && (Math.abs(x / a) >= 10 || Math.abs(x / a) <= 0.1)) return true;
+  return false;
+}
+
 // Voortgang voor het kind: alleen woorden van Max (goed in / nog oefenen / aanmoediging).
 // Geen balken, scores of niveaus: die staan alleen in het ouderscherm.
 function kidHighlights(list) {
@@ -1096,7 +1147,8 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
   const { list, struggling } = await skillsView();
   const snaps = (await q(`SELECT day::text AS day, cat, score FROM skill_snapshots WHERE day > CURRENT_DATE - 60 ORDER BY day`)).rows;
   const sessions = (await q(`SELECT id, kind, day::text AS day, status, correct, total, points, max_points,
-      EXTRACT(EPOCH FROM (finished_at - created_at))::int AS secs FROM sessions WHERE status <> 'stopped' ORDER BY id DESC LIMIT 40`)).rows;
+      EXTRACT(EPOCH FROM (finished_at - created_at))::int AS secs, COALESCE((state->>'rushes')::int, 0) AS rushes, COALESCE(jsonb_array_length(state->'redos'), 0) AS redos
+      FROM sessions WHERE status <> 'stopped' ORDER BY id DESC LIMIT 40`)).rows;
   const ledger = (await q(`SELECT cents, kind, note, created_at FROM ledger ORDER BY id DESC LIMIT 40`)).rows;
   const recentWrong = (await q(`SELECT cat, text, given, display, created_at FROM attempts WHERE NOT correct ORDER BY id DESC LIMIT 25`)).rows
     .map((r) => ({ ...r, label: catById[r.cat].label }));

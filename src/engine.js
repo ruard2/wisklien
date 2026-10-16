@@ -240,6 +240,15 @@ export function nextQuestion(session, skills) {
   const rate = done ? session.results.filter((r) => r.correct).length / done : 1;
   let qq;
 
+  // afgeraffelde sommen: de laatste plekken van de dagtaak zijn voor hen (zelfde soort, nieuwe getallen)
+  const redos = st.redos || [], served = session.questions.filter((x) => x.redo).length;
+  if (redos.length > served && session.total - i <= redos.length - served) {
+    const r = redos[served];
+    const rq = generateLike(r.cat, r.level, r.shape, r.text);
+    rq.redo = true;
+    return rq;
+  }
+
   if (st.retry) {
     // herkansing: zelfde soort som, nieuwe getallen, samen stap voor stap
     qq = generate(st.retry.cat, st.retry.level);
@@ -311,17 +320,16 @@ export function updateState(session, qq, correct) {
   return st;
 }
 
-// ---------- beloning per som ----------
-// Basis = max centen / aantal sommen. Tussenstappen: eerste 5 keer (per onderdeel) gewoon,
-// daarna de helft. Kiest hij daarna "helemaal zelf": 5 keer dubbel, daarna gewoon.
+// ---------- beloning ----------
+// Geld is voor de moeite: de dagtaak (en de starttoets) levert het bedrag op als hij AF is,
+// hoeveel goed of fout er ook was. Per som geen centen, dus ook geen halve centen voor hulp
+// en geen dubbele voor "helemaal zelf": hulp vragen en fouten maken zijn veilig.
+// rewardFor beschrijft alleen nog wát er gebeurde (voor de leerfase en badges).
 export function rewardFor(qq, skill, correct) {
   if (!correct) return { mult: 0, kind: 'none' };
-  if (qq.guided) {
-    if ((skill.guided_wins || 0) < FREE_GUIDED) return { mult: 1, kind: 'guided-free' };
-    return { mult: 0.5, kind: 'guided-half' };
-  }
-  if (qq.chose === 'solo' && (skill.solo_bonus || 0) < SOLO_BONUS) return { mult: 2, kind: 'solo-double' };
-  return { mult: 1, kind: 'normal' };
+  if (qq.guided) return { mult: 0, kind: 'guided' };
+  if (qq.chose === 'solo') return { mult: 0, kind: 'solo' };
+  return { mult: 0, kind: 'normal' };
 }
 
 // Wat er rond een som te kiezen valt (voor de client).

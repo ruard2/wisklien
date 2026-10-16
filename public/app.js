@@ -578,9 +578,9 @@ function rewardFields(cfg, { tr, za, af, counts = [10, 15, 20, 25, 30] }) {
   const sym = za ? 'R' : '€';
   const money = (name, label, c, help) => `<label class="field"><span style="font-weight:800">${label}</span>
     <div class="money-in"><span>${sym}</span><input name="${name}" inputmode="decimal" value="${money2(c)}" autocomplete="off"></div>${help ? `<span class="small muted">${help}</span>` : ''}</label>`;
-  return `${money('daily', tr('Beloning per dagtaak (max.)', 'Beloning per dagtaak (maks.)'), cfg.dailyCents, tr('Alleen goede antwoorden leveren op. 0 = zonder geld (dan alleen badges en verrassingen).', 'Net regte antwoorde verdien iets. 0 = sonder geld (dan net kentekens en verrassings).'))}
+  return `${money('daily', tr('Beloning per afgemaakte dagtaak', 'Beloning per voltooide dagtaak'), cfg.dailyCents, tr('Voor de moeite: als de dagtaak af is, hoeveel goed of fout er ook was. Afgeraffelde sommen komen terug, dus snel klikken loont niet. 0 = zonder geld (dan alleen badges en verrassingen).', 'Vir die moeite: as die dagtaak klaar is, maak nie saak hoeveel reg of verkeerd nie. Somme wat afgeraffel word, kom terug, so vinnig klik help nie. 0 = sonder geld (dan net kentekens en verrassings).'))}
     <div class="row" style="gap:10px;align-items:flex-start">
-      <div style="flex:1">${money('intake', tr('Starttoets (max.)', 'Begintoets (maks.)'), cfg.intakeCents)}</div>
+      <div style="flex:1">${money('intake', tr('Starttoets af', 'Begintoets klaar'), cfg.intakeCents)}</div>
       <div style="flex:1">${money('week', tr('Weekbonus', 'Weekbonus'), cfg.weekBonusCents)}</div></div>
     <label class="field"><span style="font-weight:800">${tr('Sommen per dagtaak', 'Somme per dagtaak')}</span>
       <select name="count">${counts.map((n) => `<option value="${n}" ${n === cfg.dailyCount ? 'selected' : ''}>${n} ${tr('sommen', 'somme')} (± ${n} min)</option>`).join('')}</select></label>
@@ -667,7 +667,7 @@ async function renderHome() {
       <div class="big-emoji">🚀</div>
       <div><div class="task-title">${t('Starttoets')}</div>
       <p>${s.intakeActive ? t('Je bent al begonnen. Ga verder waar je was!') : t('Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). Daarna leert de app je steeds beter kennen en krijg je sommen die bij jou passen. Je kunt tussendoor stoppen.', { n: s.points.intakeCount })}</p></div>
-      ${s.points.intake > 0 ? `<div class="row"><span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>` : ''}
+      ${s.points.intake > 0 ? `<div class="row"><span class="chip coin">🪙 ${t('{n} {c} als je hem afmaakt', { n: s.points.intake, c: CENT() })}</span></div>` : ''}
       <button class="btn light block" data-start="intake">${s.intakeActive ? t('Verder met de starttoets') : t('Start de starttoets')}</button>
       <p class="small muted">${t('Weet je iets niet? Geen probleem, druk op "Weet ik niet". Dan weten wij wat we gaan oefenen.')}</p></div>`;
   } else if (!s.today.schoolDay) {
@@ -678,8 +678,9 @@ async function renderHome() {
   } else if (!d || d.status === 'active') {
     main = `<div class="card hero stack"><div class="big-emoji">✏️</div>
       <div><div class="task-title">${t('Dagtaak')}</div><p>${d ? t('Je hebt er al {a} van de {n} gedaan. Ga verder!', { a: d.answered, n: d.total }) : t('{n} sommen, vooral van onderdelen waar je nog beter in kunt worden.', { n: s.points.dailyCount })}</p></div>
-      <div class="row">${s.points.daily > 0 ? `<span class="chip coin">🪙 ${t('tot {n} {c}', { n: s.points.daily, c: CENT() })}</span>` : ''}<span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± ${s.points.dailyCount} min</span></div>
+      <div class="row">${s.points.daily > 0 ? `<span class="chip coin">🪙 ${t('{n} {c} als je hem afmaakt', { n: s.points.daily, c: CENT() })}</span>` : ''}<span class="chip" style="background:rgba(255,255,255,.2);color:inherit">± ${s.points.dailyCount} min</span></div>
       ${d ? `<div class="progress light"><i style="width:${(d.answered / d.total) * 100}%"></i></div>` : ''}
+      <p class="small" style="opacity:.85">🐢 ${t('Rustig werken is sneller klaar: sommen die je afraffelt, komen aan het eind terug.')}</p>
       <button class="btn light block" data-start="daily">${d ? t('Verder') : t('Start dagtaak')}</button></div>`;
   } else {
     main = `<div class="card hero stack"><div class="big-emoji">🎉</div>
@@ -995,12 +996,12 @@ async function renderPiggy() {
         <p class="small">${s.goal.reached ? t('<b>Gehaald! 🥳</b> Laat het aan papa of mama zien.') : t('Nog <b>{b}</b> te gaan.', { b: euro(s.goal.left) })}</p>`
       : `<p class="muted">${t('Waar wil jij voor sparen? Een game, iets voor je fiets, een uitje? Kies een doel en zie je spaarpot vollopen.')}</p><button class="btn block" data-goal>${t('Kies een spaardoel')}</button>`}</div>
     <div class="card stack"><h3>${t('Zo verdien je centen')}</h3>
-      <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>${t('Starttoets: tot {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
-      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>${t('Elke dagtaak: tot {n} {c} ({p} per goede som)', { n: s.points.daily, c: CENT(), p: cents(s.points.daily / s.points.dailyCount) })}</span></div>
-      <div class="row"><span class="chip">🪜</span><span>${t('Per onderdeel krijg je de eerste {n} keer gewoon centen. Daarna krijg je de helft.', { n: s.points.freeGuided })}</span></div>
-      <div class="row"><span class="chip coin">🪙🪙</span><span>${t('Kies je daarna "helemaal zelf" en is het goed? {n} keer dubbel!', { n: s.points.soloBonus })}</span></div>
+      <div class="row"><span class="chip coin">🪙 ${s.points.intake}</span><span>${t('Starttoets af: {n} {c}', { n: s.points.intake, c: CENT() })}</span></div>
+      <div class="row"><span class="chip coin">🪙 ${s.points.daily}</span><span>${t('Elke dagtaak af: {n} {c}. Hoeveel goed of fout maakt niet uit: het gaat om je moeite.', { n: s.points.daily, c: CENT() })}</span></div>
+      <div class="row"><span class="chip">🪜</span><span>${t('Tussenstappen, hints en {m} om hulp vragen mag altijd. Dat kost niets!', { m: esc(s.teacher) })}</span></div>
+      <div class="row"><span class="chip">🐢</span><span>${t('Sommen die je afraffelt, komen aan het eind van de dagtaak terug.')}</span></div>
       ${s.week?.bonus ? `<div class="row"><span class="chip coin">📅 ${s.week.bonus}</span><span>${t('Maak alle {d} dagtaken van de week af en krijg {n} {c} extra.', { d: s.week.days.length, n: s.week.bonus, c: CENT() })}</span></div>` : ''}
-      <p class="small muted">${ZAR() ? t('Alleen goede antwoorden leveren centen op. 100 sent = R1.') : t('Alleen goede antwoorden leveren centen op. 100 cent = € 1.')}</p></div>
+      <p class="small muted">${ZAR() ? t('100 sent = R1.') : t('100 cent = € 1.')}</p></div>
     ${s.history.length ? `<div class="card"><h3>${t('Verdiend per dag')}</h3><div class="hist">${s.history.slice(-7).map((h) => `<div><span>${h.points}</span><i style="height:${(h.points / max) * 80 + 4}px"></i><span>${h.day.slice(8)}/${h.day.slice(5, 7)}</span></div>`).join('')}</div></div>` : ''}
     <a href="#/ouder" class="small muted" style="text-align:center;display:block;margin-top:8px">${t('Voor ouders 🔒')}</a>
   </div>`;
@@ -1102,13 +1103,13 @@ function renderQuestion() {
   if (S.klad?.index !== cur.index) kladReset(cur.index);
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.warmup ? `<span class="chip">⚡ ${t('Opwarmer')}</span>` : q.retry ? `<span class="chip good">💪 ${t('Herkansing')}</span>` : q.booster ? `<span class="chip good">😎 ${t('Even een makkie')}</span>` : q.review ? `<span class="chip">🔁 ${t('Herhaling')} · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)}</span>`;
+  const label = q.redo ? `<span class="chip">🔁 ${t('Nog een keer, rustig')}</span>` : q.warmup ? `<span class="chip">⚡ ${t('Opwarmer')}</span>` : q.retry ? `<span class="chip good">💪 ${t('Herkansing')}</span>` : q.booster ? `<span class="chip good">😎 ${t('Even een makkie')}</span>` : q.review ? `<span class="chip">🔁 ${t('Herhaling')} · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)}</span>`;
   $app.innerHTML = `
     <div class="s-top"><button class="x" data-quit aria-label="${t('Stoppen')}">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>
       <span class="small" style="font-weight:900">${cur.index + 1}/${data.total}</span></div>
     <div class="row between" style="margin:-4px 2px 10px">
-      ${data.maxPoints ? `<span class="chip coin">🪙 ${cents(data.points)}</span>` : `<span class="chip">${t('oefenen')}</span>`}
+      ${data.maxPoints ? `<span class="chip coin" title="${t('{n} {c} als je hem afmaakt', { n: Math.round(data.maxPoints), c: CENT() })}">🪙 ${Math.round(data.maxPoints)} ${CENT()} ${t('als hij af is')}</span>` : `<span class="chip">${t('oefenen')}</span>`}
       ${data.streak >= 2 ? `<span class="chip streak-chip">🔥 ${t('{n} op rij', { n: data.streak })}</span>` : '<span></span>'}
     </div>
     <div class="card q-card">
@@ -1138,7 +1139,6 @@ function renderQuestion() {
 function drawChoice() {
   const c = S.cur, o = c.offer;
   const meta = (STATE?.skills || []).find((x) => x.cat === c.question.cat);
-  const money = S.data.maxPoints > 0;
   const transition = o.transition ? `<div class="card flat stack" style="margin-top:14px">
       <div class="row"><span class="big-emoji" style="font-size:34px">🎓</span><div><b>${t('Je hebt {o} al 5 keer goed gedaan met tussenstappen!', { o: esc(meta?.label || '') })}</b><p class="small muted">${t('Nu ga je het zelf proberen. Dit zijn de stappen die je steeds doet:')}</p></div></div>
       <ol class="steps">${(c.plan || []).map((a) => `<li>${esc(a.replace(/= \?$/, '').replace(/\?$/, ''))}</li>`).join('')}<li>${esc(t('En daarna schrijf je het antwoord op.'))}</li></ol>
@@ -1146,8 +1146,8 @@ function drawChoice() {
   $app.querySelector('#answer-area').innerHTML = `${transition}
     <div class="stack" style="margin-top:14px">
       <p style="font-weight:800">${t('Hoe wil je deze som doen?')}</p>
-      <button class="choice-big good" data-ch="solo"><span>💪 ${t('Helemaal zelf')}</span><small>${money ? (o.bonusLeft > 0 ? `🪙🪙 ${t('dubbele centen (nog {n}×)', { n: o.bonusLeft })}` : `🪙 ${t('gewone centen')}`) : t('laat zien dat je het kunt')}</small></button>
-      <button class="choice-big" data-ch="guided"><span>🪜 ${t('Met tussenstappen')}</span><small>${money ? `🪙 ${t('halve centen')}` : t('samen stap voor stap')}</small></button>
+      <button class="choice-big good" data-ch="solo"><span>💪 ${t('Helemaal zelf')}</span><small>${t('laat zien dat je het kunt')}</small></button>
+      <button class="choice-big" data-ch="guided"><span>🪜 ${t('Met tussenstappen')}</span><small>${t('samen stap voor stap')}</small></button>
     </div>`;
   $app.querySelector('#controls').innerHTML = '';
   $app.querySelectorAll('[data-ch]').forEach((b) => (b.onclick = async () => {
@@ -1224,10 +1224,28 @@ function drawAnswer() {
     controls.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => keyPress(b.dataset.k)));
   }
   controls.querySelector('[data-go]').onclick = submit;
+  thinkPause(controls.querySelector('[data-go]'));
   controls.querySelector('[data-hint]')?.addEventListener('click', getHint);
   controls.querySelector('[data-guide]')?.addEventListener('click', startGuide);
   controls.querySelector('[data-ask]')?.addEventListener('click', () => openTeacher());
   controls.querySelector('[data-dunno]')?.addEventListener('click', dontKnow);
+}
+// Na afraffelen: de knop werkt pas na een paar seconden, met aftellen (eerst rustig lezen)
+function thinkPause(btn) {
+  const secs = S.cur?.adapt?.pause || 0;
+  if (!btn || !secs) return;
+  const until = (S.pauseUntil ||= { idx: S.cur.index, t: Date.now() + secs * 1000 }).idx === S.cur.index ? S.pauseUntil.t : (S.pauseUntil = { idx: S.cur.index, t: Date.now() + secs * 1000 }).t;
+  const label = btn.innerHTML;
+  const tick = () => {
+    if (!btn.isConnected) return;
+    const left = Math.ceil((until - Date.now()) / 1000);
+    if (left <= 0) { btn.innerHTML = label; btn.dataset.wait = ''; if (btn.dataset.ok !== '0') btn.disabled = false; return; }
+    btn.disabled = true; btn.dataset.wait = '1';
+    btn.innerHTML = `🐢 ${t('Eerst rustig lezen…')} ${left}`;
+    setTimeout(tick, 250);
+  };
+  btn.dataset.ok = btn.disabled ? '0' : '1';
+  tick();
 }
 function helpRow() {
   const c = S.cur, q = c.question, o = c.offer;
@@ -1491,8 +1509,7 @@ function showFeedback(r) {
     buzz([60, 40, 60]);
     title = r.dontKnow || r.given === 'weet ik niet' ? pick(praise().dunno) : pick(praise().wrong);
   }
-  const rewardChip = S.data.maxPoints && r.correct
-    ? `<span class="chip coin">+${cents(r.cents)}${r.rewardKind === 'solo-double' ? ` · ${t('dubbel!')}` : r.rewardKind === 'guided-half' ? ` · ${t('half (met hulp)')}` : ''}</span>` : '';
+  const rewardChip = r.redo ? `<span class="chip">🔁 ${t('komt terug')}</span>` : '';
   const area = $app.querySelector('#answer-area');
   area.innerHTML = `<div class="answer-box" style="border-color:${r.correct ? 'var(--good)' : 'var(--bad)'}">${esc(r.given)}${q.unit && !q.money && !r.dontKnow && r.given !== 'weet ik niet' ? `<span class="unit">${esc(q.unit)}</span>` : ''}</div>`;
   $app.querySelector('#hints').innerHTML = '';
@@ -1507,7 +1524,8 @@ function showFeedback(r) {
     ${r.correct ? (r.note ? `<p>${esc(r.note)}</p>` : '') : `<p>${t('Het goede antwoord is <b>{d}</b>.', { d: esc(r.display) })}${r.note ? ' ' + esc(r.note) : ''}</p>`}
     ${r.misconception ? `<div class="mis"><b>🔎 ${esc(r.misconception.label)}</b><div>👉 ${esc(r.misconception.fix)}</div></div>` : ''}
     ${!r.correct && r.review ? `<p class="small" style="margin-top:6px">🔁 ${t('Deze komt over een paar dagen nog eens terug. Dan lukt hij vast!')}</p>` : ''}
-    ${slowDown ? `<p class="small" style="margin-top:8px;font-weight:800">🐢 ${t('Dat ging supersnel! Bij de volgende som: kijk eerst wat er ongeveer uit moet komen en reken dan rustig. Snel rekenen levert geen extra centen op. Goed rekenen wel. 😉')}</p>` : ''}
+    ${r.redo ? `<p class="small" style="margin-top:8px;font-weight:800">🔁 ${t('Deze ging wel heel snel. Hij komt aan het eind van de dagtaak terug, dan doe je hem rustig.')}</p>`
+      : slowDown ? `<p class="small" style="margin-top:8px;font-weight:800">🐢 ${t('Dat ging supersnel! Bij de volgende som: lees hem eerst rustig en kijk wat er ongeveer uit moet komen.')}</p>` : ''}
     ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">${t('Zo reken je het uit:')}</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
       : `<details style="margin-top:8px"><summary class="small muted">${t('Hoe reken je dit uit?')}</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
     ${nextIsRetry ? `<p class="small" style="margin-top:10px;font-weight:800">👉 ${t("Daarna krijg je nog een kans: een som van dezelfde soort, samen stap voor stap.")}</p>` : ''}
@@ -1527,6 +1545,8 @@ function showFeedback(r) {
   if (r.weekBonus) setTimeout(() => { confetti(); toast(`📅 ${t('Weekbonus! +{n} {c} extra voor een hele week oefenen!', { n: r.weekBonus, c: CENT() })}`, 4500); }, 400);
 
   // momenten die er toe doen
+  if (r.rushWarn) setTimeout(() => sheet(`<div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${t('Ho, rustig aan! 🐢 Een paar sommen gingen zo snel dat je ze niet goed gelezen kunt hebben. Die komen aan het eind terug. Lees de volgende som eerst hardop, en reken dan pas. Rustig werken is sneller klaar!')}</div></div>
+    <button class="btn block" data-close>${t('Oké, rustig aan')}</button>`), 500);
   if (r.event === 'up') celebrateLevel(r);
   else if (r.event === 'down') sheet(`<div style="text-align:center"><div class="big-emoji">🪜</div><h2 style="margin:8px 0">${t('Even een stapje terug')}</h2>
       <p>${t('Bij <b>{o}</b> oefenen we even met wat makkelijkere sommen. Zo bouw je het stevig op, als een huis: eerst de fundering. 🏠', { o: esc(r.eventCat) })}</p>
@@ -1815,7 +1835,7 @@ async function renderParent() {
     <div class="card"><h2>${t('Recente fouten')}</h2>${data.recentWrong.length ? `<table class="list"><tr><th>${t('Som')}</th><th>${t('Antwoord')}</th><th>${t('Goed')}</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : `<p class="muted">${t('Nog geen fouten.')}</p>`}</div>
 
     <div class="card"><h2>${t('Sessies')}</h2><table class="list"><tr><th>${t('Dag')}</th><th>${t('Soort')}</th><th>${t('Goed')}</th><th>${CENT()}</th><th>${t('Tijd')}</th></tr>
-      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ` <span class="chip">${t('bezig')}</span>` : ''}</td><td>${s.correct}/${s.total}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div>
+      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ` <span class="chip">${t('bezig')}</span>` : ''}</td><td>${s.correct}/${s.total}${s.kind === 'daily' ? `<div class="small ${s.rushes ? '' : 'muted'}">${s.rushes ? `🐢 ${t('{n}× gehaast', { n: s.rushes })}` : `✅ ${t('rustig')}`}</div>` : ''}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div>
 
     <div class="card"><h2>${t('Geschiedenis van de spaarpot')}</h2><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div>
 

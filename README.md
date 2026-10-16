@@ -44,13 +44,17 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
 - **Kladblok** ✏️: uitvouwbaar ruitjesblaadje onder elke som; schrijven met de vinger of typen. Het gaat mee met het antwoord: Max kijkt (via OpenAI vision) naar de uitwerking, wijst aan wáár het misging, en een korte analyse ("aanpak / fout / denkfout") gaat naar het leerlingprofiel en het ouderscherm. Alleen de laatste 60 kladblaadjes worden bewaard.
 - **Uitleg in kindertaal**: moeilijke woorden (noemer, gelijknamig, omtrek, …) worden één keer per som uitgelegd; kommasommen via "doe alsof de komma er niet is, en zet hem daarna terug" in plaats van schatten met ≈.
 
-### Beloning
-- Centen, 100 cent = € 1. **Alleen voor goede antwoorden.**
-- Starttoets: tot **100 cent**. Dagtaak: tot **50 cent** per schooldag (2,5 cent per goede som). Oefenen/weekend: geen centen.
-- **Tussenstappen** (per onderdeel):
-  - De eerste **5 keer** goed met tussenstappen: gewone beloning (leerfase, gaat vanzelf aan als het nodig is).
-  - Daarna een **"Nu moet je het zelf kunnen"**-moment, met de stappen die hij steeds deed op een rij.
-  - Vanaf dan **kiest Christo zelf**: *met tussenstappen* = halve beloning, *helemaal zelf* = **dubbele beloning** (de eerste 5 keer, daarna gewoon).
+### Beloning: voor de moeite, niet per goed antwoord
+- Centen (100 cent = € 1). Het bedrag komt als de **dagtaak af** is, hoeveel goed of fout er ook was. Hetzelfde geldt voor de starttoets. De ouder stelt het bedrag in (standaard 50 cent per dagtaak en 100 voor de starttoets). Oefenen en weekend: geen centen.
+- Waarom: vaste beloningen per goed antwoord kunnen de eigen zin om te leren verdringen (Deci, Koestner & Ryan). Ze maken fouten duur en zijn oneerlijk voor zwakke rekenaars. Moeite belonen maakt fouten maken veilig.
+- **Hulp kost niets.** Tussenstappen, hints en Max mogen altijd. De leerfase (eerste 5 keer met tussenstappen) en het "nu zelf"-moment blijven, maar zonder geldverschil.
+- **Afraffelen loont niet.** Herkend aan een fout antwoord zonder zichtbare moeite (geen kladblaadje, tussenstappen, hint of Max) als:
+  - het antwoord sneller kwam dan je de som kunt lezen;
+  - het duidelijk gokken is (factor 10 ernaast, 999…, hetzelfde foute antwoord);
+  - twee keer snel "weet ik niet" achter elkaar;
+  - het veel sneller is dan het kind zelf normaal doet.
+
+  Zo'n som komt aan het eind van de dagtaak terug (max. 6 per dag), dus afraffelen maakt je niet sneller klaar. Na 2 keer zegt Max er iets van, en werkt "controleer" een paar sommen lang pas na een paar seconden. Snel en goed is altijd prima. De ouder ziet per dagtaak "rustig" of "N× gehaast".
 - **Vooruitwerken**: na de dagtaak (of in het weekend) kan de dagtaak van de volgende schooldag alvast gedaan worden (max. 1 dag vooruit), met gewone beloning.
 - **Wekelijkse verrassing**: één keer per week op een willekeurige dag, als de dagtaak goed ging (standaard ≥ 70%): bijv. extra snoepje, half uur gametijd, 1 euro (gaat automatisch in de spaarpot) of klein cadeautje. Lijst en drempel in te stellen in het ouderscherm; daar vink je ook af wat gegeven is.
 - Ouder ziet saldo en boekt uitbetalingen af in het ouderscherm (Spaarpot → "Voor ouders", pincode).

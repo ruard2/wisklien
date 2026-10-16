@@ -68,7 +68,7 @@ assert(intake.log.slice(0, 14).every((l) => l.full.level === 2), 'groep 8 → st
 assert(intake.log.length === 21, `starttoets 21 sommen (${intake.log.length})`);
 assert(!lv.includes(3), 'starttoets: na fout op 1F geen 1S-sommen');
 assert(intake.log.every((l) => l.cur.offer.mode === 'none'), 'starttoets: geen tussenstappen (eerlijk meten)');
-assert(intake.last.summary.points === Math.round(intake.last.summary.correct * 100 / 21), `starttoets ${intake.last.summary.points} cent voor ${intake.last.summary.correct} goed`);
+assert(intake.last.summary.points === 100, `starttoets af = het hele bedrag (${intake.last.summary.points} cent bij ${intake.last.summary.correct} goed)`);
 let st = await api('/api/state');
 assert(st.skills.every((s) => s.level === 1), `iedereen op basis na "1F fout" (${st.skills.map((s) => s.levelName).join(',')})`);
 assert(st.badges.find((b) => b.id === 'start').earned, 'badge starttoets');
@@ -96,15 +96,13 @@ st = await api('/api/state');
 const br = st.skills.find((s) => s.cat === 'breuken');
 assert(br.level === 0, `breuken nu op opstap (${br.levelName})`);
 
-// ---- Leerfase: eerste 5× tussenstappen = gewone beloning; daarna keuze ----
+// ---- Geld voor de moeite: per som geen centen, dagtaak af = het hele bedrag ----
 const daily = await play('daily', (i, cur) => (cur.offer.mode === 'auto' ? 'guided-good'
   : cur.offer.mode === 'choose' ? (i % 2 ? 'solo-good' : 'guided-good') : 'good'));
 const kinds = daily.log.map((l) => `${l.full.cat}:${l.res.rewardKind}`);
 console.log('  beloningen:', kinds.join(' '));
-const base = 50 / 20;
-assert(daily.log.filter((l) => l.res.rewardKind === 'guided-free').every((l) => Math.abs(l.res.cents - base) < 1e-9), 'tussenstappen in leerfase = gewone beloning');
-const pts = daily.log.reduce((a, l) => a + l.res.cents, 0);
-assert(daily.last.summary.points === Math.round(pts), `dagtaak punten = som van beloningen (${daily.last.summary.points})`);
+assert(daily.log.every((l) => l.res.cents === 0), 'per som geen centen (ook niet met of zonder tussenstappen)');
+assert(daily.last.summary.points === 50, `dagtaak af = het hele bedrag (${daily.last.summary.points})`);
 
 // Breuken forceren tot keuze: oefen breuken met tussenstappen tot 5 gratis op zijn
 const guidedRun = await play('practice', (i, cur) => (cur.offer.mode === 'auto' || cur.offer.mode === 'optional' ? 'guided-good' : cur.offer.mode === 'choose' ? 'solo-good' : 'good'), { cat: 'breuken' });
@@ -114,18 +112,18 @@ st = await api('/api/state');
 const br2 = st.skills.find((s) => s.cat === 'breuken');
 assert(br2.guidedWins >= 5, `breuken: ${br2.guidedWins} keer met tussenstappen goed (leerfase klaar)`);
 
-// Nog een ronde: nu moet er een keuze komen bij voorgestelde hulp, en "zelf" geeft dubbel
+// Nog een ronde: nu moet er een keuze komen bij voorgestelde hulp (zonder geldverschil)
 await db.query(`UPDATE ${SCHEMA}.skills SET scaffold=3 WHERE cat='breuken'`);
 const choiceRun = await play('practice', (i, cur) => (cur.offer.mode === 'choose' ? 'solo-good' : 'good'), { cat: 'breuken' });
-const doubles = choiceRun.log.filter((l) => l.res.rewardKind === 'solo-double').length;
+const doubles = choiceRun.log.filter((l) => l.res.rewardKind === 'solo').length;
 assert(choiceRun.log.some((l) => l.cur.offer.mode === 'choose'), 'na de leerfase mag hij kiezen');
 assert([...guidedRun.log, ...choiceRun.log].some((l) => l.cur.offer.mode === 'choose' && l.cur.offer.transition), 'eerste keer: "nu moet je het zelf kunnen"-moment');
-console.log(`  ${doubles} keer dubbele beloning (oefenen geeft 0 cent, maar de teller loopt)`);
+console.log(`  ${doubles} keer zelf gekozen`);
 
-// Half: gekozen voor tussenstappen na de leerfase (in een dagtaak-achtige sessie meten we de soort)
+// Hulp na de leerfase: kost niets
 await db.query(`UPDATE ${SCHEMA}.skills SET scaffold=3 WHERE cat='breuken'`);
 const halfRun = await play('practice', (i, cur) => (cur.offer.mode === 'choose' ? 'guided-good' : 'good'), { cat: 'breuken' });
-assert(halfRun.log.some((l) => l.res.rewardKind === 'guided-half'), 'na leerfase: tussenstappen = halve beloning');
+assert(halfRun.log.some((l) => l.res.rewardKind === 'guided') && halfRun.log.every((l) => l.res.cents === 0), 'na leerfase: tussenstappen mogen, zonder straf');
 
 // ---- Weer omhoog bij 80% ----
 await db.query(`UPDATE ${SCHEMA}.skills SET level=1, recent='[]' WHERE cat='breuken'`);

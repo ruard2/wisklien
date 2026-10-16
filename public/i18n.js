@@ -19,6 +19,25 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  "als hij af is": "as dit klaar is",
+  // beloning voor de moeite; afgeraffelde sommen komen terug
+  "{n} {c} als je hem afmaakt": "{n} {c} as jy dit klaarmaak",
+  "Rustig werken is sneller klaar: sommen die je afraffelt, komen aan het eind terug.": "Rustig werk is gouer klaar: somme wat jy afraffel, kom aan die einde terug.",
+  "Starttoets af: {n} {c}": "Begintoets klaar: {n} {c}",
+  "Elke dagtaak af: {n} {c}. Hoeveel goed of fout maakt niet uit: het gaat om je moeite.": "Elke dagtaak klaar: {n} {c}. Hoeveel reg of verkeerd maak nie saak nie: dit gaan oor jou moeite.",
+  "Tussenstappen, hints en {m} om hulp vragen mag altijd. Dat kost niets!": "Tussenstappe, wenke en vir {m} om hulp vra mag altyd. Dit kos niks nie!",
+  "Sommen die je afraffelt, komen aan het eind van de dagtaak terug.": "Somme wat jy afraffel, kom aan die einde van die dagtaak terug.",
+  "100 sent = R1.": "100 sent = R1.",
+  "100 cent = € 1.": "100 sent = € 1.",
+  "Nog een keer, rustig": "Nog ’n keer, rustig",
+  "Eerst rustig lezen…": "Lees eers rustig…",
+  "komt terug": "kom terug",
+  "Deze ging wel heel snel. Hij komt aan het eind van de dagtaak terug, dan doe je hem rustig.": "Dié een was baie vinnig. Hy kom aan die einde van die dagtaak terug, dan doen jy hom rustig.",
+  "Dat ging supersnel! Bij de volgende som: lees hem eerst rustig en kijk wat er ongeveer uit moet komen.": "Dit was supervinnig! By die volgende som: lees hom eers rustig en kyk wat omtrent die antwoord moet wees.",
+  "Ho, rustig aan! 🐢 Een paar sommen gingen zo snel dat je ze niet goed gelezen kunt hebben. Die komen aan het eind terug. Lees de volgende som eerst hardop, en reken dan pas. Rustig werken is sneller klaar!": "Ho, stadig! 🐢 ’n Paar somme was so vinnig dat jy hulle nie reg kon gelees het nie. Hulle kom aan die einde terug. Lees die volgende som eers hardop, en reken dan. Rustig werk is gouer klaar!",
+  "Oké, rustig aan": "Goed, stadig",
+  "{n}× gehaast": "{n}× gehaas",
+  "rustig": "rustig",
   // voortgang: woorden van Max voor het kind; balken en niveaus alleen voor ouders
   "Eerst kijken wat je al kunt: {n} sommen uit alle onderdelen (ongeveer een kwartiertje). Daarna leert de app je steeds beter kennen en krijg je sommen die bij jou passen. Je kunt tussendoor stoppen.": "Eers kyk ons wat jy al kan: {n} somme uit al die onderwerpe (ongeveer ’n kwartier). Daarna leer die app jou al hoe beter ken en kry jy somme wat by jou pas. Jy kan enige tyd ophou.",
   "{m} zegt": "{m} sê",
