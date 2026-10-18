@@ -19,6 +19,21 @@ function t(s, vars) {
 const L = (nl, af) => (LANG === 'af' ? af : nl);
 
 const AF = {
+  // duimpjes bij sommen en berichtjes
+  "De som klopt niet": "Die som is verkeerd",
+  "Ik snap de vraag niet": "Ek verstaan nie die vraag nie",
+  "De uitleg snap ik niet": "Ek verstaan nie die verduideliking nie",
+  "Te moeilijk": "Te moeilik",
+  "Bedankt! Daar leren we van. 🙏": "Dankie! Daaruit leer ons. 🙏",
+  "Wat vond je van deze som en de uitleg?": "Wat dink jy van hierdie som en die verduideliking?",
+  "Hielp dit?": "Het dit gehelp?",
+  "Wat {n} ervan vond": "Wat {n} daarvan gedink het",
+  "Duimpjes bij sommen, uitleg en berichtjes van {m}. Zo zie je waar het kind op vastloopt, en wij kunnen de uitleg verbeteren.": "Duimpies by somme, verduidelikings en boodskappies van {m}. So sien jy waar jou kind vashaak, en ons kan die verduidelikings verbeter.",
+  "som": "som",
+  "les": "les",
+  "berichtje": "boodskappie",
+  "gesprek met {m}": "gesprek met {m}",
+  "Nog geen duimpjes gegeven.": "Nog geen duimpies gegee nie.",
   // startscherm: levels voor inzet, accordeons, moppen-popup
   "Waar je goed in bent en wat we oefenen": "Waarin jy goed is en wat ons oefen",
   "Alles over jouw voortgang": "Alles oor jou vordering",

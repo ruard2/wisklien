@@ -1033,9 +1033,20 @@ app.post('/api/feedback', child, wrap(async (req, res) => {
   const ctx = req.body.ctx || {};
   const cat = catById[ctx.cat] ? ctx.cat : null;
   if (!vote && !reason && !own) return res.status(400).json({ error: 'leeg' });
-  await logEvent('feedback', { over: ctx.kind === 'lesson' ? 'les' : 'gesprek', stem: vote, waarom: reason, eigen_woorden: own, bericht_max: msg, som: String(ctx.question || '').slice(0, 300) || null },
+  const over = { lesson: 'les', som: 'som', reflect: 'berichtje' }[ctx.kind] || 'gesprek';
+  const question = String(ctx.question || '').slice(0, 300) || null;
+  // altijd bewaren bij het kind (ook zonder leerlog), zodat de ouder het ziet; het waarom komt erbij op dezelfde regel
+  const log = await getSetting('feedback_log', []);
+  let row = req.body.id ? log.find((x) => x.id === String(req.body.id)) : null;
+  if (row) { if (vote) row.vote = vote; if (reason) row.reason = reason; if (own) row.own = own; }
+  else {
+    row = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: new Date().toISOString(), over, vote, reason, own, message: msg.slice(0, 600) || null, question, cat };
+    log.push(row);
+  }
+  await setSetting('feedback_log', log.slice(-300));
+  await logEvent('feedback', { over, stem: row.vote, waarom: row.reason, eigen_woorden: row.own, bericht_max: msg, som: question, aanvulling: !!req.body.id },
     { cat, session: Number(ctx.session) || null });
-  res.json({ ok: true });
+  res.json({ ok: true, id: row.id });
 }));
 
 // Een gok: een antwoord dat nergens op lijkt (factor 10 of meer ernaast, 111/999…, hetzelfde als net)
@@ -1264,6 +1275,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
     goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()),
+    feedback: (await getSetting('feedback_log', [])).slice(-25).reverse().map((x) => ({ ...x, label: x.cat && catById[x.cat] ? catById[x.cat].label : null })),
     levelLog: (await getSetting('level_log', [])).slice().reverse(), inzet: levelView(await effortCount(), rewards), levelChoices: LEVEL_EVERY, research: (await getSetting('research', true)) !== false,
     skills: list, struggling, snaps, sessions, ledger, recentWrong, acc, categories: CATEGORIES, badges: await getBadges(),
     surprise: { cfg: await surpriseCfg(), list: (await getSetting('surprises', [])).slice(-12).reverse() },

@@ -1032,7 +1032,56 @@ function fbHTML(i, text) {
     <div class="fb-own"><input maxlength="300" placeholder="${t('Vertel het in je eigen woorden…')}" value="${esc(f.text || '')}" enterkeyhint="send"><button type="button" class="btn ghost" data-fbsend="${i}">${t('Stuur')}</button></div></div>`;
   return `<div class="fb"><button type="button" class="fb-b" data-fbv="up" data-fbi="${i}" title="${t('Dit hielp')}">👍</button><button type="button" class="fb-b" data-fbv="down" data-fbi="${i}" title="${t('Dit hielp niet')}">👎</button></div>`;
 }
-const sendFb = (ctx, message, vote, reason) => api('/api/feedback', { vote, reason, message, ctx }).catch(() => {});
+const sendFb = (ctx, message, vote, reason) => api('/api/feedback', { vote, reason, message, ctx }).then((r) => r.id).catch(() => null);
+
+// Losse duimpjes: bij een som (na het antwoord) en bij het berichtje van Max na afloop.
+// Duim omlaag → waarom (aantikken en/of eigen woorden). Alles wordt bewaard; de ouder ziet het ook.
+const FBX = new Map(); // sleutel → { ctx, title, reasons, vote, sel, text, done, idP }
+const FB_SOM = () => [t('De som klopt niet'), t('Ik snap de vraag niet'), t('De uitleg snap ik niet'), t('Te moeilijk'), t('Te makkelijk')];
+function fbBox(key, ctx, title, reasons = FB_REASONS()) {
+  const f = FBX.get(key) || {};
+  FBX.set(key, Object.assign(f, { ctx, title, reasons }));
+  return `<div class="fb-box" data-fbx="${esc(key)}">${fbBoxInner(f)}</div>`;
+}
+function fbBoxInner(f) {
+  if (f.done) return `<span class="small muted">${t('Bedankt! Daar leren we van. 🙏')}</span>`;
+  if (f.vote === 'down') return `<div class="fb fb-ask"><span class="small" style="font-weight:800">${t('Wat ging er mis?')}</span>
+    <div class="fb">${f.reasons.map((r) => `<button type="button" class="chip ${f.sel?.has(r) ? 'sel' : ''}" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+    <div class="fb-own"><input maxlength="300" placeholder="${t('Vertel het in je eigen woorden…')}" value="${esc(f.text || '')}" enterkeyhint="send"><button type="button" class="btn ghost" data-send>${t('Stuur')}</button></div></div>`;
+  return `<div class="fb"><span class="small muted">${esc(f.title)}</span><button type="button" class="fb-b" data-v="up" title="${t('Dit hielp')}">👍</button><button type="button" class="fb-b" data-v="down" title="${t('Dit hielp niet')}">👎</button></div>`;
+}
+function bindFbBoxes(root) {
+  root?.querySelectorAll('[data-fbx]').forEach((el) => {
+    const f = FBX.get(el.dataset.fbx);
+    if (!f) return;
+    const redraw = () => { el.innerHTML = fbBoxInner(f); bindFbBoxes(el.parentElement); };
+    el.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => {
+      f.vote = b.dataset.v;
+      f.idP = sendFb(f.ctx, f.ctx.message || '', f.vote);
+      if (f.vote === 'up') f.done = true;
+      redraw();
+      if (f.vote === 'down') el.querySelector('input')?.focus();
+    }));
+    el.querySelectorAll('[data-r]').forEach((b) => (b.onclick = () => {
+      f.sel ||= new Set();
+      f.sel.has(b.dataset.r) ? f.sel.delete(b.dataset.r) : f.sel.add(b.dataset.r);
+      b.classList.toggle('sel', f.sel.has(b.dataset.r));
+    }));
+    const input = el.querySelector('input');
+    if (input) {
+      input.oninput = () => { f.text = input.value; };
+      const go = async () => {
+        const reason = [...(f.sel || [])].join(', '), text = input.value.trim();
+        if (!reason && !text) { input.focus(); return; }
+        f.done = true; redraw();
+        const id = await f.idP;
+        api('/api/feedback', { id, reason, text, message: f.ctx.message || '', ctx: f.ctx }).catch(() => {});
+      };
+      el.querySelector('[data-send]').onclick = go;
+      input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    }
+  });
+}
 
 // ---------- chatpaneel van de leraar ----------
 function teacherHTML(chat, { loading = false, quick = [], placeholder = t('Typ je vraag of antwoord…'), intro = null, feedback = false } = {}) {
@@ -1056,8 +1105,8 @@ function bindTeacher(box, send, fb = null) {
     box.querySelectorAll('[data-fbv]').forEach((b) => (b.onclick = () => {
       const m = fb.chat[Number(b.dataset.fbi)];
       if (!m) return;
-      sendFb(fb.ctx(), m.text, b.dataset.fbv);
-      FB.set(m.text, b.dataset.fbv === 'up' ? { done: true } : { ask: true });
+      const idP = sendFb(fb.ctx(), m.text, b.dataset.fbv);
+      FB.set(m.text, b.dataset.fbv === 'up' ? { done: true } : { ask: true, idP });
       fb.redraw();
     }));
     // redenen aantikken (meer mag), en/of in eigen woorden vertellen; "Stuur" verstuurt alles
@@ -1075,10 +1124,11 @@ function bindTeacher(box, send, fb = null) {
       if (!f) return;
       const input = el.querySelector('input');
       input.oninput = () => { f.text = input.value; };
-      const go = () => {
+      const go = async () => {
         const reason = [...(f.sel || [])].join(', '), text = input.value.trim();
         if (!reason && !text) { input.focus(); return; }
-        api('/api/feedback', { reason, text, message: m.text, ctx: fb.ctx() }).catch(() => {});
+        const id = await f.idP;
+        api('/api/feedback', { id, reason, text, message: m.text, ctx: fb.ctx() }).catch(() => {});
         FB.set(m.text, { done: true });
         fb.redraw();
       };
@@ -1689,7 +1739,9 @@ function showFeedback(r) {
     ${showSteps && !(STATE?.ai && !r.correct && S.data.kind !== 'intake') ? `<p style="margin-top:10px;font-weight:900">${t('Zo reken je het uit:')}</p><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
       : `<details style="margin-top:8px"><summary class="small muted">${t('Hoe reken je dit uit?')}</summary><ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`}
     ${nextIsRetry ? `<p class="small" style="margin-top:10px;font-weight:800">👉 ${t("Daarna krijg je nog een kans: een som van dezelfde soort, samen stap voor stap.")}</p>` : ''}
+    ${fbBox(`som-${S.data.id}-${S.cur.index}`, { kind: 'som', cat: q.cat, question: q.text, session: S.data.id, message: [t('Het goede antwoord is <b>{d}</b>.', { d: r.display }).replace(/<\/?b>/g, ''), ...(r.steps || [])].join(' | ') }, t('Wat vond je van deze som en de uitleg?'), FB_SOM())}
   </div>`;
+  bindFbBoxes($app.querySelector('#fb'));
   $app.querySelector('#guide').innerHTML = '';
   $app.querySelector('#controls').innerHTML = `<div class="stack" style="margin-top:12px">
     ${STATE?.ai && (r.correct || S.data.kind === 'intake') && !(S.cur.chat || []).length ? `<button class="btn ghost block" data-ask2>🧑‍🏫 ${r.correct ? t('Praat erover met {m}', { m: esc(STATE.teacher) }) : t('Leg het me uit, {m}', { m: esc(STATE.teacher) })}</button>` : ''}
@@ -1806,8 +1858,10 @@ async function renderSummary(sum) {
     api(`/api/session/${S.data.id}/reflect`, {}).then((r) => {
       const box = $app.querySelector('#reflect');
       if (!box) return;
-      if (r.text) box.innerHTML = `<div class="small muted" style="margin-bottom:6px">${t('Berichtje van {m}', { m: esc(STATE.teacher) })}</div><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(r.text)}</div></div>`;
-      else box.remove();
+      if (r.text) {
+        box.innerHTML = `<div class="small muted" style="margin-bottom:6px">${t('Berichtje van {m}', { m: esc(STATE.teacher) })}</div><div class="t-msg t"><span class="t-av">🧑‍🏫</span><div class="t-bub">${rich(r.text)}${fbBox(`reflect-${S.data.id}`, { kind: 'reflect', session: S.data.id, message: r.text }, t('Hielp dit?'))}</div></div>`;
+        bindFbBoxes(box);
+      } else box.remove();
     }).catch(() => $app.querySelector('#reflect')?.remove());
   }
 }
@@ -1979,6 +2033,13 @@ async function renderParent() {
       <label class="row"><input type="checkbox" name="on" ${data.research ? 'checked' : ''}> <span>${t('Meehelpen (aanbevolen)')}</span></label>
       <label class="field"><span class="small" style="font-weight:800">${t('Feedback voor de makers: wat valt je op? Wat gaat er mis? Wat kan beter?')}</span><textarea name="text" rows="3" maxlength="3000"></textarea></label>
       <button class="btn ghost block">${t('Versturen')}</button></form>
+
+    <div class="card stack"><h2>💬 ${t('Wat {n} ervan vond', { n: esc(data.name) })}</h2>
+      <p class="small muted">${t('Duimpjes bij sommen, uitleg en berichtjes van {m}. Zo zie je waar het kind op vastloopt, en wij kunnen de uitleg verbeteren.', { m: esc(data.teacher) })}</p>
+      ${(data.feedback || []).length ? `<table class="list">${data.feedback.map((x) => `<tr><td style="font-size:20px;vertical-align:top">${x.vote === 'up' ? '👍' : x.vote === 'down' ? '👎' : '💬'}</td><td>
+        <div class="small muted">${esc(x.at.slice(8, 10))}-${esc(x.at.slice(5, 7))} · ${esc({ som: t('som'), les: t('les'), berichtje: t('berichtje'), gesprek: t('gesprek met {m}', { m: data.teacher }) }[x.over] || x.over)}${x.label ? ` · ${esc(x.label)}` : ''}</div>
+        ${x.reason || x.own ? `<div style="font-weight:800">${esc([x.reason, x.own ? `“${x.own}”` : ''].filter(Boolean).join(' · '))}</div>` : ''}
+        <div class="small muted fb-about">${esc(x.question || x.message || '')}</div></td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen duimpjes gegeven.')}</p>`}</div>
 
     <div class="card stack"><h2>⭐ ${t('Levels voor inzet')}</h2>
       <p class="small">${t('Level {n}: {c} sommen geoefend (afgeraffelde sommen tellen niet).', { n: data.inzet.level, c: data.inzet.count })} ${data.inzet.every ? (data.inzet.gift ? t('Nog {n} levels tot de beloning: {g}.', { n: data.inzet.toReward, g: esc(data.inzet.gift) }) : t('Nog {n} levels tot een feestje.', { n: data.inzet.toReward })) : ''}</p>
