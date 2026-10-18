@@ -97,3 +97,9 @@ export const hhmm = (min) => {
   min = ((min % 1440) + 1440) % 1440;
   return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 };
+
+// "Dezelfde som": zelfde tekst én zelfde plaatje (bij grafieken en klokken staat het getal vaak alleen in het plaatje)
+// en zelfde keuzes. Gebruikt om sommen binnen een week niet te herhalen.
+// (sleutels gesorteerd: de database bewaart JSON in een andere volgorde)
+const stable = (v) => (Array.isArray(v) ? `[${v.map(stable).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${k}:${stable(v[k])}`).join(',')}}` : JSON.stringify(v ?? null));
+export const sumKey = (q) => `${q.text}|${q.visual ? stable(q.visual) : ''}|${q.options ? [...q.options].sort().join('/') : ''}`;

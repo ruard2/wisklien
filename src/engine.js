@@ -2,8 +2,8 @@
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
 import { ts } from './i18n.js';
-import { CAT_IDS, generate, generateLike, catById, warmupCats } from './curriculum.js';
-import { shuffle, pick, todayNL } from './util.js';
+import { CAT_IDS, generate as genRaw, generateLike as genLikeRaw, catById, warmupCats } from './curriculum.js';
+import { shuffle, pick, todayNL, sumKey } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden
 export const DAILY_POINTS = 50;
@@ -220,10 +220,23 @@ export function buildPlan(skills, alloc) {
   return [first, ...rest];
 }
 
+// ---------- nooit dezelfde som binnen een week ----------
+// avoid = sommen (tekst + plaatje) die het kind de afgelopen 7 dagen al kreeg (plus deze sessie). We proberen tot we een nieuwe hebben.
+function fresh(make, avoid) {
+  let q;
+  for (let k = 0; k < 80; k++) { q = make(); if (!avoid.has(sumKey(q))) break; }
+  avoid.add(sumKey(q));
+  return q;
+}
+
 // ---------- de volgende som kiezen (live bijsturen) ----------
 // state: { easy, streak, wrongStreak, retry: {cat, level} | null }
-export function nextQuestion(session, skills) {
+// recent: teksten van de afgelopen week (uit de database), zodat sommen niet terugkomen
+export function nextQuestion(session, skills, recent = new Set()) {
   const i = session.questions.length;
+  const avoid = new Set([...recent, ...session.questions.map(sumKey)]);
+  const generate = (cat, level) => fresh(() => genRaw(cat, level), avoid);
+  const generateLike = (...a) => fresh(() => genLikeRaw(...a), avoid);
   const byCat = Object.fromEntries(skills.map((s) => [s.cat, s]));
   const st = session.state || {};
 

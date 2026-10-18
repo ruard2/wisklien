@@ -243,15 +243,20 @@ const optellen = {
 
 const vermenigvuldigen = {
   0() {
-    const a = pick([2, 3, 4, 5, 10]), b = rnd(3, 9);
-    return withGuide(num(`${a} × ${b} =`, a * b, tafel(a, b).steps), tafel(a, b));
+    const a = pick([2, 3, 4, 5, 10]), b = rnd(1, 10), vorm = Math.random();
+    if (vorm < 0.55) return withGuide(num(`${a} × ${b} =`, a * b, tafel(a, b).steps), tafel(a, b));
+    if (vorm < 0.7) return withGuide(num(`Hoeveel is ${a} keer ${b}?`, a * b, tafel(a, b).steps), tafel(a, b));
+    if (vorm < 0.82) return { ...num(`${a} × ... = ${a * b}`, b, [`Welk getal keer ${a} is ${a * b}?`, `${a} × ${b} = ${a * b}, dus ${b}.`]),
+      guide: [st(`${a} × 5 = ?`, a * 5, 'Begin bij 5 keer.')], guideFinal: `Is ${a * b} meer of minder dan ${a * 5}? Hoe vaak past ${a} in ${a * b}` };
+    const n = pick(NAMES), [bak, ding] = pick([['zakjes', 'knikkers'], ['doosjes', 'krijtjes'], ['bekers', 'rietjes'], ['bordjes', 'koekjes'], ['vazen', 'bloemen'], ['emmers', 'schelpen'], ['potjes', 'stiften']]);
+    return withGuide(num(`${n} heeft ${a} ${bak} met in elk ${b} ${ding}. Hoeveel ${ding} zijn dat samen?`, a * b, tafel(a, b).steps), tafel(a, b));
   },
   1() {
     const t = pick(['tafel', 'tafel', 'nul', 'handig']);
     if (t === 'tafel') {
       const a = rnd(6, 9), b = rnd(4, 9);
       if (Math.random() < 0.3) {
-        const [wie, wat] = pick([['Een alpaca', 'kilo hooi'], ['Een hamster', 'zonnebloempitten'], ['De kat van Zoë', 'uurtjes slaap']]);
+        const [wie, wat] = pick([['Een alpaca', 'kilo hooi'], ['Een hamster', 'zonnebloempitten'], ['De kat van Zoë', 'uurtjes slaap'], ['Een olifant', 'emmers water'], ['Een papegaai', 'nieuwe woordjes'], ['Een pony', 'wortels']]);
         return withGuide(num(`${wie} krijgt elke dag ${a} ${wat}. Hoeveel ${wat} is dat in ${b} dagen?`, a * b, tafel(a, b).steps), tafel(a, b));
       }
       return withGuide(num(`${a} × ${b} =`, a * b, tafel(a, b).steps), tafel(a, b));
@@ -261,7 +266,7 @@ const vermenigvuldigen = {
       return { ...num(`${a} × ${b} =`, a * b, [`Reken eerst zonder de nul: ${a} × ${b / 10} = ${a * b / 10}.`, `Er hoort nog een nul achter: ${a * b}.`]),
         guide: [st(`Zonder de nul: ${a} × ${b / 10} = ?`, (a * b) / 10, 'Een gewone tafelsom.')], guideFinal: `Zet de nul er weer achter: ${(a * b) / 10} → ...` };
     }
-    const a = pick([25, 15, 12, 11, 13]), b = pick([4, 6, 8, 3]);
+    const a = pick([25, 15, 12, 11, 13, 14, 16, 21, 24, 35, 45]), b = pick([3, 4, 5, 6, 7, 8, 9]);
     const g = splitMul(b, a);
     return withGuide(num(`${a} × ${b} =`, a * b, g.steps), g);
   },
@@ -291,16 +296,19 @@ const vermenigvuldigen = {
 
 const delen = {
   0() {
-    const b = pick([2, 3, 4, 5, 10]), q = rnd(3, 9), a = b * q;
+    const b = pick([2, 3, 4, 5, 10]), q = rnd(2, 10), a = b * q;
     const half = Math.min(5, q - 1);
-    return { ...num(`${a} : ${b} =`, q, [`Welke keersom uit de tafel van ${b} heeft als antwoord ${a}?`, `${q} × ${b} = ${a}, dus ${a} : ${b} = ${q}.`]),
+    const vorm = Math.random(), n = pick(NAMES);
+    const [ding, wie] = pick([['snoepjes', 'kinderen'], ['stickers', 'vriendjes'], ['knikkers', 'zakjes'], ['appels', 'manden'], ['kaartjes', 'stapels'], ['koekjes', 'bordjes'], ['potloden', 'bekers']]);
+    const text = vorm < 0.5 ? `${a} : ${b} =` : vorm < 0.7 ? `Hoe vaak past ${b} in ${a}?` : `${n} verdeelt ${a} ${ding} eerlijk over ${b} ${wie}. Hoeveel ${ding} per ${wie === 'kinderen' ? 'kind' : wie === 'vriendjes' ? 'vriendje' : wie.replace(/s$/, '').replace(/en$/, '')}?`;
+    return { ...num(text, q, [`Welke keersom uit de tafel van ${b} heeft als antwoord ${a}?`, `${q} × ${b} = ${a}, dus ${a} : ${b} = ${q}.`]),
       guide: [st(`Begin met een makkelijke som: ${half} × ${b} = ?`, half * b, `Tafel van ${b}.`), st(`Hoeveel blijft er over? ${a} − ${half * b} = ?`, a - half * b, 'Trek het eraf.')],
       guideFinal: `Hoe vaak past ${b} in ${a}? Je had al ${half} keer, en dan nog: hoe vaak past ${b} in ${a - half * b}?` };
   },
   1() {
-    const t = pick(['tafel', 'nullen', 'nullen2']);
-    const b = rnd(4, 9), q = rnd(4, 9);
-    if (t === 'tafel') return { ...num(`${b * q} : ${b} =`, q, [`Welke som uit de tafel van ${b} geeft ${b * q}?`, `${q} × ${b} = ${b * q}, dus ${b * q} : ${b} = ${q}.`]),
+    const t = pick(['tafel', 'tafel', 'nullen', 'nullen2']);
+    const b = rnd(3, 9), q = rnd(3, 12);
+    if (t === 'tafel') return { ...num(Math.random() < 0.6 ? `${b * q} : ${b} =` : `${pick(NAMES)} deelt ${b * q} ${pick(['stickers', 'knikkers', 'snoepjes', 'kaartjes', 'flippo\'s'])} eerlijk met ${b - 1} vriendjes (en zichzelf). Hoeveel krijgt ieder?`, q, [`Welke som uit de tafel van ${b} geeft ${b * q}?`, `${q} × ${b} = ${b * q}, dus ${b * q} : ${b} = ${q}.`]),
       guide: [st(`5 × ${b} = ?`, 5 * b, `De helft van 10 × ${b}.`)], guideFinal: `Is ${b * q} meer of minder dan ${5 * b}? Hoe vaak past ${b} in ${b * q}` };
     if (t === 'nullen') return { ...num(`${b * q * 10} : ${b} =`, q * 10, [`Denk aan ${b * q} : ${b} = ${q}.`, `${b * q * 10} is 10 keer zo groot, dus het antwoord ook: ${q * 10}.`]),
       guide: [st(`Zonder de nul: ${b * q} : ${b} = ?`, q, `Tafel van ${b}.`)], guideFinal: `Het getal was 10 keer zo groot, dus het antwoord ook` };
@@ -543,20 +551,25 @@ const getalbegrip = {
 // =====================================================================
 const breuken = {
   0() {
-    const t = pick(['pizza', 'helft', 'kwart']);
+    const t = pick(['pizza', 'helft', 'kwart', 'derde']);
     if (t === 'pizza') {
-      const d = pick([4, 6, 8]), n = rnd(1, d - 1);
-      return { ...frac(`Een pizza is in ${d} gelijke stukken gesneden. Je eet er ${n} op. Welk deel van de pizza heb je opgegeten?`, [n, d],
-        [`De noemer (onder de streep) is in hoeveel stukken: ${d}.`, `De teller (boven de streep) is hoeveel je hebt: ${n}.`, `Dus ${n}/${d}.`, ...(gcd(n, d) > 1 ? [`Dat is hetzelfde als ${fracStr([n, d])} (allebei gedeeld door ${gcd(n, d)}). Allebei goed!`] : [])], { visual: { kind: 'pizza', parts: d, eaten: n } }),
-      guide: [st('In hoeveel stukken is de pizza verdeeld? (dat wordt de noemer)', d, 'Tel alle stukken.'), st('Hoeveel stukken heb je gegeten? (dat wordt de teller)', n, 'Tel de opgegeten stukken.')],
+      const d = pick([2, 3, 4, 5, 6, 8, 10, 12]), n = rnd(1, d - 1), [eten, wie] = pick([['pizza', 'Je eet'], ['taart', 'Je eet'], ['quiche', 'Opa eet'], ['pannenkoek', 'Je eet'], ['pizza', `${pick(NAMES)} eet`], ['taart', 'De klas eet']]);
+      return { ...frac(`Een ${eten} is in ${d} gelijke stukken gesneden. ${wie} er ${n} op. Welk deel van de ${eten} is opgegeten?`, [n, d],
+        [`De noemer (onder de streep) is in hoeveel stukken: ${d}.`, `De teller (boven de streep) is hoeveel er op is: ${n}.`, `Dus ${n}/${d}.`, ...(gcd(n, d) > 1 ? [`Dat is hetzelfde als ${fracStr([n, d])} (allebei gedeeld door ${gcd(n, d)}). Allebei goed!`] : [])], { visual: { kind: 'pizza', parts: d, eaten: n } }),
+      guide: [st(`In hoeveel stukken is de ${eten} verdeeld? (dat wordt de noemer)`, d, 'Tel alle stukken.'), st('Hoeveel stukken zijn er opgegeten? (dat wordt de teller)', n, 'Tel de opgegeten stukken.')],
       guideFinal: 'Schrijf als breuk: het gegeten aantal boven de streep, alle stukken eronder' };
     }
     if (t === 'helft') {
-      const k = rnd(3, 25) * 2;
-      return { ...num(`Wat is de helft van ${k}?`, k / 2, [`De helft = delen door 2.`, `${k} : 2 = ${k / 2}`]),
+      const k = rnd(3, 60) * 2;
+      return { ...num(Math.random() < 0.5 ? `Wat is de helft van ${k}?` : `Hoeveel is 1/2 van ${k}?`, k / 2, [`De helft = delen door 2.`, `${k} : 2 = ${k / 2}`]),
         guide: k > 20 ? [st(`De helft van ${k - (k % 20)} = ?`, (k - (k % 20)) / 2, 'Begin met een rond getal.')] : [], guideFinal: k > 20 ? `Nog de helft van ${k % 20} erbij` : null };
     }
-    const k = rnd(2, 10), total = 4 * k;
+    if (t === 'derde') {
+      const k = rnd(2, 15), total = 3 * k;
+      return { ...num(`Hoeveel is 1/3 van ${total}?`, k, [`1/3 = verdeel in 3 gelijke stukken.`, `${total} : 3 = ${k}`]),
+        guide: [st('Hoeveel is 5 × 3?', 15, 'Tafel van 3.')], guideFinal: `Is ${total} meer of minder dan 15? Welk getal keer 3 is ${total}` };
+    }
+    const k = rnd(2, 25), total = 4 * k;
     return { ...num(`Hoeveel is 1/4 van ${total}?`, k, [`1/4 = verdeel in 4 gelijke stukken.`, `${total} : 4 = ${k}`]),
       guide: [st(`De helft van ${total} = ?`, total / 2, '1/4 is de helft van de helft.')], guideFinal: `En nog eens de helft: de helft van ${total / 2}` };
   },
@@ -644,11 +657,11 @@ const procenten = {
   0() {
     const t = pick(['helft', 'tien', 'heel']);
     if (t === 'helft') {
-      const b = rnd(4, 40) * 2;
+      const b = rnd(4, 75) * 2;
       return { ...num(`Hoeveel is 50% van ${b}?`, b / 2, [`50% is de helft.`, `De helft van ${b} = ${b / 2}.`]), guide: [st('50% is hetzelfde als de ... (vul in: deel door hoeveel?)', 2, '50 van de 100 = de helft.')], guideFinal: `${b} : 2` };
     }
     if (t === 'tien') {
-      const b = rnd(2, 15) * 10;
+      const b = rnd(2, 40) * 10;
       return { ...num(`Hoeveel is 10% van ${b}?`, b / 10, [`10% = 1/10 deel.`, `${b} : 10 = ${b / 10}`]), guide: [st('10% is 1/10 deel. Door hoeveel moet je delen?', 10, '10 van de 100 = 1 van de 10.')], guideFinal: `${b} : 10` };
     }
     const b = rnd(10, 90);
@@ -656,14 +669,14 @@ const procenten = {
   },
   1() {
     if (Math.random() < 0.6) {
-      const p = pick([50, 25, 10, 20, 75]), base = { 50: 2, 25: 4, 10: 10, 20: 5, 75: 4 }[p] * rnd(3, 20);
+      const p = pick([50, 25, 10, 20, 75]), base = { 50: 2, 25: 4, 10: 10, 20: 5, 75: 4 }[p] * rnd(3, 40);
       const ans = (p * base) / 100, br = { 50: [1, 2], 25: [1, 4], 10: [1, 10], 20: [1, 5], 75: [3, 4] }[p];
       return { ...num(`Hoeveel is ${p}% van ${base}?`, ans, [`${p}% is hetzelfde als ${br[0]}/${br[1]} deel.`,
         p === 75 ? `1/4 van ${base} = ${base / 4}, dus 3/4 = 3 × ${base / 4} = ${ans}.` : `${br[0]}/${br[1]} van ${base} = ${ans}.`]),
       guide: [stF(`${p}% is welke breuk?`, br, `${p}% = ${p}/100. Vereenvoudig.`), ...(p === 75 ? [st(`1/4 van ${base} = ?`, base / 4, 'Deel door 4.')] : [])],
       guideFinal: p === 75 ? `3/4 = 3 × ${base / 4}` : `${base} : ${br[1]}` };
     }
-    const [b, p] = pick([['1/2', 50], ['1/4', 25], ['3/4', 75], ['1/5', 20], ['7/10', 70], ['2/5', 40], ['3/10', 30]]);
+    const [b, p] = pick([['1/2', 50], ['1/4', 25], ['3/4', 75], ['1/5', 20], ['7/10', 70], ['2/5', 40], ['3/10', 30], ['9/10', 90], ['3/5', 60], ['4/5', 80]]);
     const [bn, bd] = b.split('/').map(Number);
     return { ...num(`${b} deel is hoeveel procent?`, p, [`Procent betekent "van de 100".`, `Maak de noemer 100: ${b} = ${p}/100 = ${p}%.`], { unit: '%' }),
       guide: [st(`Maak de noemer 100: ${bd} × ? = 100`, 100 / bd, 'Hoe vaak past de noemer in 100?'), st(`Doe de teller ook keer ${100 / bd}: ${bn} × ${100 / bd} = ?`, p, 'Teller en noemer allebei.')], guideFinal: `${p}/100 = ...%` };
@@ -742,7 +755,7 @@ function vtabel(rows) {
 
 const verhoudingen = {
   0() {
-    const p = rnd(2, 6), k = rnd(2, 5), item = pick(['ijsjes', 'stickers', 'ballonnen', 'scheetkussens', 'nepsnorren']);
+    const p = rnd(2, 9), k = rnd(2, 9), item = pick(['ijsjes', 'stickers', 'ballonnen', 'scheetkussens', 'nepsnorren', 'knikkers', 'snoepjes', 'zaadjes', 'kraaltjes', 'elastiekjes']);
     return { ...num(`Eén zakje ${item} kost € ${p}. Hoeveel kosten ${k} zakjes?`, p * k, [`${k} keer € ${p}.`, `${k} × ${p} = ${p * k}`], { unit: 'euro', visual: vtabel([['zakjes', 1, k], ['euro', p, '?']]) }),
       guide: k > 2 ? [st(`Wat kosten 2 zakjes?`, 2 * p, 'Het dubbele.')] : [], guideFinal: k > 2 ? `En ${k} zakjes (${k} × ${p})` : null };
   },
@@ -807,35 +820,37 @@ const verhoudingen = {
 
 const schaal = {
   0() {
-    const per = pick([2, 5, 10]), h = rnd(2, 6);
-    return { ...num(`Op een plattegrond is 1 hokje ${per} meter. Een pad is ${h} hokjes lang. Hoeveel meter is dat?`, per * h, [`Elk hokje is ${per} meter.`, `${h} × ${per} = ${per * h} meter.`], { unit: 'meter' }),
+    const per = pick([1, 2, 3, 4, 5, 10, 20]), h = rnd(2, 12), wat = pick(['Een pad', 'Een gang', 'Het schoolplein', 'Een sloot', 'Een hek', 'De zandbak', 'Een tuinpad', 'Een muur']);
+    return { ...num(`Op een plattegrond is 1 hokje ${per} meter. ${wat} is ${h} hokjes lang. Hoeveel meter is dat?`, per * h, [`Elk hokje is ${per} meter.`, `${h} × ${per} = ${per * h} meter.`], { unit: 'meter' }),
       guide: [st(`Hoeveel meter zijn 2 hokjes?`, 2 * per, `2 × ${per}.`, { unit: 'meter' })], guideFinal: `${h} hokjes: ${h} × ${per}` };
   },
   1() {
-    const per = pick([2, 5, 10, 50]), unit = per >= 50 ? 'm' : 'km', cm = rnd(3, 12);
-    return { ...num(`Op een kaart staat: 1 cm is ${per} ${unit} in het echt. Op de kaart is een weg ${cm} cm lang. Hoe lang is de weg in het echt?`, per * cm, [
+    const per = pick([2, 3, 4, 5, 10, 20, 25, 50, 100]), unit = per >= 20 ? 'm' : 'km', cm = rnd(2, 15), wat = pick(['een weg', 'een fietspad', 'een rivier', 'een wandelroute', 'een spoorlijn', 'een dijk', 'een kanaal']);
+    return { ...num(`Op een kaart staat: 1 cm is ${per} ${unit} in het echt. Op de kaart is ${wat} ${cm} cm lang. Hoe lang is dat in het echt?`, per * cm, [
       `Elke cm op de kaart is ${per} ${unit}.`, `${cm} × ${per} = ${per * cm} ${unit}.`], { unit }),
     guide: [st(`Hoeveel ${unit} is 2 cm op de kaart?`, 2 * per, `2 × ${per}.`, { unit })], guideFinal: `${cm} cm: ${cm} × ${per}` };
   },
   2() {
-    const s = pick([10000, 20000, 25000, 50000, 100000]), cm = rnd(2, 9), echtCm = cm * s;
-    return { ...num(`Een kaart heeft schaal 1 : ${fmt(s)}. Op de kaart is de afstand ${cm} cm. Hoeveel kilometer is dat in het echt?`, echtCm / 100000, [
+    const s = pick([10000, 20000, 25000, 40000, 50000, 100000, 200000]), cm = rnd(2, 15), echtCm = cm * s, wat = pick(['de afstand', 'de fietsroute', 'het pad langs het water', 'de weg naar het strand', 'de afstand tussen twee kerken']);
+    return { ...num(`Een kaart heeft schaal 1 : ${fmt(s)}. Op de kaart is ${wat} ${cm} cm. Hoeveel kilometer is dat in het echt?`, echtCm / 100000, [
       `1 cm op de kaart is ${fmt(s)} cm in het echt.`, `${cm} cm → ${cm} × ${fmt(s)} = ${fmt(echtCm)} cm.`,
       `Van cm naar m: deel door 100 → ${fmt(echtCm / 100)} m.`, `Van m naar km: deel door 1000 → ${fmt(echtCm / 100000)} km.`], { unit: 'km' }),
     guide: [st(`Hoeveel cm in het echt? ${cm} × ${fmt(s)} = ?`, echtCm, '1 cm op de kaart = ' + fmt(s) + ' cm echt.', { unit: 'cm' }),
       st(`Van cm naar meter: ${fmt(echtCm)} : 100 = ?`, echtCm / 100, '100 cm = 1 m.', { unit: 'm' })], guideFinal: `Van meter naar km: ${fmt(echtCm / 100)} : 1000` };
   },
   3() {
+    // verzonnen plekken: met echte plaatsnamen zou de afstand niet kloppen
+    const [A, B] = pick([['de school', 'de sporthal'], ['het dorp', 'het strand'], ['de boerderij', 'de molen'], ['de camping', 'het meer'], ['de kerk', 'de haven'], ['het station', 'het kasteel'], ['de brug', 'de vuurtoren'], ['het bos', 'de dierentuin']]);
     if (Math.random() < 0.5) {
-      const s = pick([20000, 25000, 50000]), km = pick([1, 2, 3, 4, 5, 6]) * (s / 50000 >= 1 ? 1 : 0.5), cm = (km * 100000) / s;
-      if (!Number.isInteger(cm * 10)) return schaal[3]();
-      return { ...num(`De afstand tussen twee dorpen is in het echt ${fmt(km)} km. Hoeveel cm is dat op een kaart met schaal 1 : ${fmt(s)}?`, cm, [
+      const s = pick([10000, 20000, 25000, 50000, 100000]), km = rnd(1, 24) / 2, cm = (km * 100000) / s;
+      if (!Number.isInteger(cm * 10) || cm > 40 || cm < 1) return schaal[3]();
+      return { ...num(`De afstand tussen ${A} en ${B} is in het echt ${fmt(km)} km. Hoeveel cm is dat op een kaart met schaal 1 : ${fmt(s)}?`, cm, [
         `${fmt(km)} km = ${fmt(km * 1000)} m = ${fmt(km * 100000)} cm.`, `Elke cm op de kaart is ${fmt(s)} cm echt.`, `${fmt(km * 100000)} : ${fmt(s)} = ${fmt(cm)} cm.`], { unit: 'cm' }),
       guide: [st(`${fmt(km)} km = ? m`, km * 1000, '1 km = 1000 m.', { unit: 'm' }), st(`${fmt(km * 1000)} m = ? cm`, km * 100000, '1 m = 100 cm.', { unit: 'cm' })],
       guideFinal: `Hoe vaak past ${fmt(s)} in ${fmt(km * 100000)}` };
     }
-    const cm = pick([2, 4, 5, 8]), s = pick([10000, 20000, 25000, 50000]), m = (cm * s) / 100;
-    return { ...num(`Op een kaart is een afstand ${cm} cm. In het echt is die afstand ${fmt(m)} meter. Wat is de schaal? Vul in: 1 : ...`, s, [
+    const cm = pick([2, 3, 4, 5, 6, 8, 10, 12]), s = pick([1000, 5000, 10000, 20000, 25000, 50000]), m = (cm * s) / 100;
+    return { ...num(`Op een kaart is de weg van ${A} naar ${B} ${cm} cm. In het echt is die weg ${fmt(m)} meter. Wat is de schaal? Vul in: 1 : ...`, s, [
       `${fmt(m)} m = ${fmt(m * 100)} cm.`, `${cm} cm op de kaart is ${fmt(m * 100)} cm echt.`, `1 cm is dan ${fmt(m * 100)} : ${cm} = ${fmt(s)} cm.`, `Schaal 1 : ${fmt(s)}.`]),
     guide: [st(`${fmt(m)} meter = ? cm`, m * 100, '1 m = 100 cm. Bij schaal reken je alles in cm.', { unit: 'cm' })], guideFinal: `1 cm op de kaart = ${fmt(m * 100)} : ${cm} cm echt` };
   },
@@ -848,10 +863,15 @@ const TRAP = 'km – hm – dam – m – dm – cm – mm';
 const metriek = {
   0() {
     const t = pick([
-      () => { const v = rnd(2, 9); return [`${v} meter = ... cm`, v * 100, 'cm', [`1 m = 100 cm.`, `${v} × 100 = ${v * 100}`], [st('Hoeveel cm is 1 meter?', 100, 'Kijk op een meetlint.', { unit: 'cm' })], `${v} × 100`]; },
-      () => { const v = rnd(2, 9); return [`${v} kilo = ... gram`, v * 1000, 'gram', [`1 kg = 1000 g.`, `${v} × 1000 = ${v * 1000}`], [st('Hoeveel gram is 1 kilo?', 1000, 'Kilo betekent duizend.', { unit: 'gram' })], `${v} × 1000`]; },
-      () => { const v = rnd(2, 6); return [`${v} liter = ... dl`, v * 10, 'dl', [`1 liter = 10 dl.`, `${v} × 10 = ${v * 10}`], [st('Hoeveel dl is 1 liter?', 10, 'Een pak melk van 1 liter vult 10 bekertjes van 1 dl.', { unit: 'dl' })], `${v} × 10`]; },
-      () => { const v = rnd(2, 9) * 100; return [`${v} cm = ... meter`, v / 100, 'meter', [`100 cm = 1 m.`, `${v} : 100 = ${v / 100}`], [st('Hoeveel cm is 1 meter?', 100, 'Kijk op een meetlint.', { unit: 'cm' })], `${v} : 100`]; },
+      () => { const v = rnd(2, 30); return [`${v} meter = ... cm`, v * 100, 'cm', [`1 m = 100 cm.`, `${v} × 100 = ${v * 100}`], [st('Hoeveel cm is 1 meter?', 100, 'Kijk op een meetlint.', { unit: 'cm' })], `${v} × 100`]; },
+      () => { const v = rnd(2, 25); return [`${v} kilo = ... gram`, v * 1000, 'gram', [`1 kg = 1000 g.`, `${v} × 1000 = ${v * 1000}`], [st('Hoeveel gram is 1 kilo?', 1000, 'Kilo betekent duizend.', { unit: 'gram' })], `${v} × 1000`]; },
+      () => { const v = rnd(2, 25); return [`${v} liter = ... dl`, v * 10, 'dl', [`1 liter = 10 dl.`, `${v} × 10 = ${v * 10}`], [st('Hoeveel dl is 1 liter?', 10, 'Een pak melk van 1 liter vult 10 bekertjes van 1 dl.', { unit: 'dl' })], `${v} × 10`]; },
+      () => { const v = rnd(2, 30) * 100; return [`${v} cm = ... meter`, v / 100, 'meter', [`100 cm = 1 m.`, `${v} : 100 = ${v / 100}`], [st('Hoeveel cm is 1 meter?', 100, 'Kijk op een meetlint.', { unit: 'cm' })], `${v} : 100`]; },
+      () => { const v = rnd(2, 30); return [`${v} cm = ... mm`, v * 10, 'mm', [`1 cm = 10 mm.`, `${v} × 10 = ${v * 10}`], [st('Hoeveel mm is 1 cm?', 10, 'Kijk op je liniaal: de kleine streepjes.', { unit: 'mm' })], `${v} × 10`]; },
+      () => { const v = rnd(2, 12); return [`${v} km = ... meter`, v * 1000, 'meter', [`1 km = 1000 m.`, `${v} × 1000 = ${v * 1000}`], [st('Hoeveel meter is 1 kilometer?', 1000, 'Kilo betekent duizend.', { unit: 'meter' })], `${v} × 1000`]; },
+      () => { const v = rnd(2, 15); return [`${v} meter = ... dm`, v * 10, 'dm', [`1 m = 10 dm.`, `${v} × 10 = ${v * 10}`], [st('Hoeveel dm is 1 meter?', 10, 'Een decimeter is 10 cm, een meter is 100 cm.', { unit: 'dm' })], `${v} × 10`]; },
+      () => { const v = rnd(2, 15) * 10; return [`${v} dl = ... liter`, v / 10, 'liter', [`10 dl = 1 liter.`, `${v} : 10 = ${v / 10}`], [st('Hoeveel dl is 1 liter?', 10, 'Een pak melk van 1 liter vult 10 bekertjes van 1 dl.', { unit: 'dl' })], `${v} : 10`]; },
+      () => { const v = rnd(2, 12) * 1000; return [`${fmt(v)} gram = ... kilo`, v / 1000, 'kilo', [`1000 g = 1 kg.`, `${fmt(v)} : 1000 = ${v / 1000}`], [st('Hoeveel gram is 1 kilo?', 1000, 'Kilo betekent duizend.', { unit: 'gram' })], `${fmt(v)} : 1000`]; },
     ])();
     return { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: t[4], guideFinal: t[5] };
   },
@@ -887,15 +907,16 @@ const metriek = {
 
 const oppervlakte = {
   0() {
-    const w = rnd(3, 7), h = rnd(2, 5);
-    if (Math.random() < 0.5) return { ...num(`Hoeveel hokjes zitten er in deze rechthoek?`, w * h, [`Tel de hokjes in één rij: ${w}.`, `Er zijn ${h} rijen.`, `${h} × ${w} = ${w * h}`], { visual: { kind: 'grid', w, h } }),
+    const w = rnd(2, 9), h = rnd(2, 7);
+    if (Math.random() < 0.45) return { ...num(`Hoeveel hokjes zitten er in deze rechthoek?`, w * h, [`Tel de hokjes in één rij: ${w}.`, `Er zijn ${h} rijen.`, `${h} × ${w} = ${w * h}`], { visual: { kind: 'grid', w, h } }),
       guide: [st('Hoeveel hokjes zitten er in één rij?', w, 'Tel de bovenste rij.'), st('Hoeveel rijen zijn er?', h, 'Tel van boven naar beneden.')], guideFinal: `${h} rijen van ${w}: ${h} × ${w}` };
-    return { ...num(`Een rechthoek is ${w} cm lang en ${h} cm breed. Hoe lang is de rand rondom (de omtrek)?`, 2 * (w + h), [`Tel alle zijden op: ${w} + ${h} + ${w} + ${h}.`, `= ${2 * (w + h)} cm`], { unit: 'cm', visual: { kind: 'rect', w, h, unit: 'cm' } }),
+    const wat = pick(['Een rechthoek', 'Een foto', 'Een kaartje', 'Een tegel', 'Een sticker', 'Een boekje', 'Een tekening']);
+    return { ...num(`${wat} is ${w} cm lang en ${h} cm breed. Hoe lang is de rand rondom (de omtrek)?`, 2 * (w + h), [`Tel alle zijden op: ${w} + ${h} + ${w} + ${h}.`, `= ${2 * (w + h)} cm`], { unit: 'cm', visual: { kind: 'rect', w, h, unit: 'cm' } }),
       guide: [st(`Eén lange en één korte kant: ${w} + ${h} = ?`, w + h, 'Dat is de halve rand.', { unit: 'cm' })], guideFinal: `De hele rand is twee keer zo lang: 2 × ${w + h}` };
   },
   1() {
-    const l = rnd(4, 15), b = rnd(3, l - 1);
-    if (Math.random() < 0.5) return { ...num(`Een rechthoekige tuin is ${l} m lang en ${b} m breed. Hoe groot is de oppervlakte?`, l * b,
+    const l = rnd(4, 20), b = rnd(3, l - 1);
+    if (Math.random() < 0.5) return { ...num(`Een rechthoekige ${pick(['tuin', 'kamer', 'moestuin', 'parkeerplaats', 'vijver', 'zolder'])} is ${l} m lang en ${b} m breed. Hoe groot is de oppervlakte?`, l * b,
       [`Oppervlakte rechthoek = lengte × breedte.`, `${l} × ${b} = ${l * b} m².`], { unit: 'm²', visual: { kind: 'rect', w: l, h: b, unit: 'm' } }),
     guide: [stC('Oppervlakte van een rechthoek is:', ['lengte × breedte', 'lengte + breedte', 'alle kanten optellen'], 0, 'Hoeveel vierkante meters passen erin.')], guideFinal: `${l} × ${b}` };
     return { ...num(`Een rechthoekig grasveld is ${l} m lang en ${b} m breed. Hoe groot is de omtrek?`, 2 * (l + b),
@@ -904,12 +925,12 @@ const oppervlakte = {
   },
   2() {
     if (Math.random() < 0.5) {
-      const l = pick([10, 20, 25, 30, 40]), b = pick([10, 15, 20]), h = pick([10, 20, 30]), cm3 = l * b * h;
-      return { ...num(`Een doos (balk) is ${l} cm lang, ${b} cm breed en ${h} cm hoog. Hoeveel liter past erin?`, cm3 / 1000,
+      const l = pick([10, 15, 20, 25, 30, 40, 50]), b = pick([10, 15, 20, 25]), h = pick([10, 20, 30, 40]), cm3 = l * b * h, wat = pick(['Een doos', 'Een kist', 'Een bak', 'Een koelbox', 'Een plantenbak']);
+      return { ...num(`${wat} (balk) is ${l} cm lang, ${b} cm breed en ${h} cm hoog. Hoeveel liter past erin?`, cm3 / 1000,
         [`Inhoud = lengte × breedte × hoogte.`, `${l} × ${b} × ${h} = ${fmt(cm3)} cm³.`, `1 liter = 1000 cm³, dus ${fmt(cm3)} : 1000 = ${fmt(cm3 / 1000)} liter.`], { unit: 'liter' }),
       guide: [st(`Grondvlak: ${l} × ${b} = ?`, l * b, 'Lengte × breedte.', { unit: 'cm²' }), st(`Inhoud: ${l * b} × ${h} = ?`, cm3, 'Doe dat keer de hoogte.', { unit: 'cm³' })], guideFinal: `Naar liters: ${fmt(cm3)} : 1000` };
     }
-    const basis = rnd(3, 12) * 2, hoogte = rnd(3, 10);
+    const basis = rnd(2, 15) * 2, hoogte = rnd(3, 14);
     return { ...num(`Een driehoek heeft een basis van ${basis} cm en een hoogte van ${hoogte} cm. Hoe groot is de oppervlakte?`, (basis * hoogte) / 2,
       [`Denk een rechthoek om de driehoek heen (de stippellijn): ${basis} cm breed en ${hoogte} cm hoog.`, `Die rechthoek is ${basis} × ${hoogte} = ${basis * hoogte} cm².`, `De driehoek vult precies de helft van die rechthoek. Dus ${basis * hoogte} : 2 = ${(basis * hoogte) / 2} cm².`], { unit: 'cm²', visual: { kind: 'tri', w: basis, h: hoogte, unit: 'cm' } }),
     guide: [st(`Kijk naar de stippel-rechthoek om de driehoek. Hoe groot is die? ${basis} × ${hoogte} = ?`, basis * hoogte, 'Rechthoek = breed × hoog.', { unit: 'cm²' })], guideFinal: `De driehoek is precies de helft van de rechthoek. Reken ${basis * hoogte} : 2` };
@@ -1235,7 +1256,22 @@ const RICHTING = ['noord', 'oost', 'zuid', 'west'];
 const draai = (start, kwart) => RICHTING[(RICHTING.indexOf(start) + kwart + 40) % 4];
 const meetkunde = {
   0() {
-    const t = pick(['hoeken', 'richting', 'figuur']);
+    const t = pick(['hoeken', 'richting', 'figuur', 'samen', 'samen', 'route']);
+    if (t === 'samen') {
+      const V = [['driehoek', 'driehoeken', 3], ['vierkant', 'vierkanten', 4], ['vijfhoek', 'vijfhoeken', 5], ['zeshoek', 'zeshoeken', 6], ['achthoek', 'achthoeken', 8]];
+      const [x, y] = shuffle(V).slice(0, 2), a = rnd(1, 6), b = rnd(1, 6), n = pick(NAMES);
+      const fa = a === 1 ? x[0] : x[1], fb = b === 1 ? y[0] : y[1];
+      return { ...num(`${n} tekent ${a === 1 ? 'een' : a} ${fa} en ${b === 1 ? 'een' : b} ${fb}. Hoeveel hoeken tekent ${n} samen?`, a * x[2] + b * y[2],
+        [`Een ${x[0]} heeft ${x[2]} hoeken: ${a} × ${x[2]} = ${a * x[2]}.`, `Een ${y[0]} heeft ${y[2]} hoeken: ${b} × ${y[2]} = ${b * y[2]}.`, `Samen: ${a * x[2]} + ${b * y[2]} = ${a * x[2] + b * y[2]}.`]),
+      guide: [st(`Hoeveel hoeken heeft een ${x[0]}?`, x[2], 'Tel de punten.'), st(`Hoeveel hoeken hebben ${a === 1 ? 'die' : 'de'} ${fa} samen? ${a} × ${x[2]} = ?`, a * x[2], 'Keer het aantal.')], guideFinal: `En nog ${b} × ${y[2]} erbij` };
+    }
+    if (t === 'route') {
+      const start = pick(RICHTING), r1 = rnd(1, 3), l1 = rnd(1, 3), eind = draai(start, r1 - l1);
+      const kw = (k) => (k === 1 ? 'een kwartslag' : `${k} kwartslagen`);
+      return { ...choice(`Je kijkt naar het ${start}en. Je draait ${kw(r1)} naar rechts en daarna ${kw(l1)} naar links. Welke kant kijk je nu op?`, RICHTING, RICHTING.indexOf(eind),
+        ['Rechtsom: noord → oost → zuid → west.', `Eerst ${r1} stap${r1 > 1 ? 'pen' : ''} rechtsom: ${draai(start, r1)}.`, `Dan ${l1} stap${l1 > 1 ? 'pen' : ''} terug (linksom): ${eind}.`]),
+      guide: [stC(`Waar kijk je na ${kw(r1)} naar rechts?`, RICHTING, RICHTING.indexOf(draai(start, r1)), 'Nooit Oorlog Zonder Wapens: N – O – Z – W.')], guideFinal: `Nu ${l1} stap${l1 > 1 ? 'pen' : ''} terug` };
+    }
     if (t === 'hoeken') {
       const [naam, n] = pick([['driehoek', 3], ['vierkant', 4], ['vijfhoek', 5], ['zeshoek', 6], ['achthoek', 8]]);
       return { ...num(`Hoeveel hoeken heeft een ${naam}?`, n, [`Een ${naam} heeft ${n} zijden en dus ook ${n} hoeken.`]), guide: [], guideFinal: null };
@@ -1252,7 +1288,7 @@ const meetkunde = {
     return { ...choice(vraag, opts, opts.indexOf(goed), [WAT[goed], ...opts.filter((o) => o !== goed).map((o) => WAT[o]), `Dus: ${goed}.`]), guide: [], guideFinal: null };
   },
   1() {
-    const t = pick(['soorthoek', 'symmetrie', 'kubus', 'draai180']);
+    const t = pick(['soorthoek', 'soorthoek', 'soorthoek', 'symmetrie', 'kubus', 'draai180']);
     if (t === 'soorthoek') {
       const [g, soort] = pick([[rnd(15, 80), 'scherpe hoek'], [90, 'rechte hoek'], [rnd(100, 170), 'stompe hoek'], [180, 'gestrekte hoek']]);
       const opts = ['scherpe hoek', 'rechte hoek', 'stompe hoek', 'gestrekte hoek'];
@@ -1265,7 +1301,9 @@ const meetkunde = {
     }
     if (t === 'kubus') {
       const [deel, n, tip] = pick([['vlakken', 6, 'Denk aan een dobbelsteen: hoeveel kanten met ogen?'], ['ribben', 12, 'Ribben zijn de randen: 4 boven, 4 onder, 4 staand.'], ['hoekpunten', 8, '4 hoekpunten boven en 4 onder.']]);
-      const vorm = pick(['kubus', 'balk']);
+      const vorm = pick(['kubus', 'balk']), k = Math.random() < 0.6 ? rnd(2, 9) : 1;
+      if (k > 1) return { ...num(`Je hebt ${k} ${vorm === 'kubus' ? 'kubussen' : 'balken'}. Hoeveel ${deel} hebben ze samen?`, k * n, [tip, `Eén ${vorm} heeft ${n} ${deel}.`, `${k} × ${n} = ${k * n}.`]),
+        guide: [st(`Hoeveel ${deel} heeft één ${vorm}?`, n, tip)], guideFinal: `${k} × ${n}` };
       return { ...num(`Hoeveel ${deel} heeft een ${vorm}?`, n, [tip, `Een ${vorm} heeft ${n} ${deel}.`]), guide: [], guideFinal: null };
     }
     const start = pick(RICHTING), eind = draai(start, 2);
@@ -1296,12 +1334,12 @@ const meetkunde = {
   3() {
     const t = pick(['cirkel', 'blokjes', 'rechthoekig', 'kompas']);
     if (t === 'cirkel') {
-      const d = pick([2, 5, 10, 20, 30]);
-      return { ...num(`Een rond tafeltje heeft een diameter van ${d} dm. Hoe lang is de rand (omtrek) ongeveer? Reken met 3,14.`, round(3.14 * d, 2), ['Omtrek cirkel = 3,14 × diameter.', `3,14 × ${d} = ${fmt(3.14 * d)} dm.`], { unit: 'dm' }),
+      const d = rnd(2, 30);
+      return { ...num(`Een rond ${pick(['tafeltje', 'kleed', 'bloembed', 'trampoline', 'zwembadje'])} heeft een diameter van ${d} dm. Hoe lang is de rand (omtrek) ongeveer? Reken met 3,14.`, round(3.14 * d, 2), ['Omtrek cirkel = 3,14 × diameter.', `3,14 × ${d} = ${fmt(3.14 * d)} dm.`], { unit: 'dm' }),
         guide: [stC('Hoe bereken je de omtrek van een cirkel?', ['3,14 × diameter', 'diameter × diameter', '3,14 + diameter'], 0, 'De rand is iets meer dan 3 keer zo lang als de diameter.')], guideFinal: `3,14 × ${d}` };
     }
     if (t === 'blokjes') {
-      const l = rnd(3, 6), b = rnd(2, 5), h = rnd(2, 4);
+      const l = rnd(2, 8), b = rnd(2, 6), h = rnd(2, 5);
       return { ...num(`Een stapel blokjes is ${l} blokjes lang, ${b} blokjes breed en ${h} lagen hoog. Hoeveel blokjes zijn het?`, l * b * h, [`Eén laag: ${l} × ${b} = ${l * b} blokjes.`, `${h} lagen: ${l * b} × ${h} = ${l * b * h}.`]),
         guide: [st(`Hoeveel blokjes zitten er in één laag? ${l} × ${b} = ?`, l * b, 'Lengte × breedte.')], guideFinal: `En ${h} lagen: ${l * b} × ${h}` };
     }
@@ -1311,7 +1349,7 @@ const meetkunde = {
         guide: [st('Hoeveel graden is de rechte hoek?', 90, 'Het hoekje van een blad papier.', { unit: '°' }), st('Hoeveel graden blijft er over voor de andere twee hoeken? 180 − 90 = ?', 90, 'Alle hoeken samen zijn 180°.', { unit: '°' })], guideFinal: `90 − ${a}` };
     }
     const start = pick(RICHTING), g = pick([90, 180, 270]), eind = draai(start, g / 90);
-    return { ...choice(`Een vliegtuig vliegt naar het ${start}en en draait ${g}° rechtsom (met de klok mee). Welke kant vliegt het nu op?`, RICHTING, RICHTING.indexOf(eind),
+    return { ...choice(`${pick(['Een vliegtuig vliegt', 'Een boot vaart', 'Een drone vliegt', 'Een zeilboot vaart'])} naar het ${start}en en draait ${g}° rechtsom (met de klok mee). Welke kant gaat het nu op?`, RICHTING, RICHTING.indexOf(eind),
       [`${g}° = ${g / 90} kwartslagen.`, `Rechtsom: noord → oost → zuid → west.`, `Vanaf ${start} ${g / 90} stappen: ${eind}.`]),
     guide: [st(`Hoeveel kwartslagen is ${g}°?`, g / 90, 'Een kwartslag = 90°.')], guideFinal: `Tel zoveel stappen rechtsom vanaf ${start} (N – O – Z – W)` };
   },

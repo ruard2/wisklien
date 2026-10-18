@@ -11,7 +11,7 @@ import {
 } from './src/engine.js';
 import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
 import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
-import { todayNL, weekdayNL, setTestClock } from './src/util.js';
+import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
@@ -529,7 +529,7 @@ async function createSession(kind, plan, total, maxPoints, skills, state = {}, d
   // dagtaak: begin met 2 opwarmers (tafels), zoals in de rekenles
   if (kind === 'daily') plan = ['warmup', 'warmup', ...plan].slice(0, total);
   const s = { kind, plan, total, max_points: maxPoints, questions: [], results: [], state };
-  s.questions.push(nextQuestion(s, skills));
+  s.questions.push(nextQuestion(s, skills, await recentTexts()));
   return one(`INSERT INTO sessions(kind, day, questions, total, max_points, plan, state) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
     [kind, day, JSON.stringify(s.questions), total, maxPoints, JSON.stringify(plan), JSON.stringify(state)]);
 }
@@ -883,7 +883,7 @@ app.post('/api/session/:id/answer', child, wrap(async (req, res) => {
         const all = await getSkills();
         return all.map((x) => rows.find((r) => r.cat === x.cat) || x);
       })();
-      s.questions.push(nextQuestion(s, skills));
+      s.questions.push(nextQuestion(s, skills, await recentTexts(c)));
       await c.query(`UPDATE sessions SET results=$2, correct=$3, questions=$4, state=$5, points_acc=$6, total=$7, plan=$8 WHERE id=$1`,
         [s.id, JSON.stringify(s.results), s.correct, JSON.stringify(s.questions), JSON.stringify(s.state), s.points_acc, s.total, JSON.stringify(s.plan)]);
     }
@@ -1076,6 +1076,12 @@ async function effortCount(c = null) {
 function levelView(n, rc) {
   const level = Math.floor(n / PER_LEVEL) + 1, every = rc.levelEvery || 0;
   return { count: n, level, inLevel: n % PER_LEVEL, per: PER_LEVEL, every, gift: rc.levelGift || '', toReward: every ? every - (level % every) : null };
+}
+
+// ---------- sommen van de afgelopen week (die komen niet terug) ----------
+async function recentTexts(c = null) {
+  const sql = `SELECT jsonb_build_object('text', x->'text', 'visual', x->'visual', 'options', x->'options') AS q FROM sessions, jsonb_array_elements(questions) x WHERE created_at > now() - interval '7 days'`;
+  return new Set((c ? await c.query(sql) : await q(sql)).rows.map((r) => sumKey(r.q)));
 }
 
 // ---------- eigen oefendoelen ----------
