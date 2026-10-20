@@ -2064,6 +2064,9 @@ async function renderParent() {
   const toGive = (data.surprise?.list || []).filter((x) => !x.delivered).length + (data.levelLog || []).filter((x) => x.gift && !x.given).length + (data.goalLog || []).filter((x) => x.gift && !x.given).length;
   const tot14 = data.acc.reduce((a, x) => ({ n: a.n + x.n, ok: a.ok + x.ok }), { n: 0, ok: 0 });
   const pct14 = tot14.n ? Math.round((100 * tot14.ok) / tot14.n) : null;
+  const bySc = [...data.skills].filter((x) => x.attempts !== 0).sort((a, b) => b.score - a.score);
+  const weak = [...data.skills.filter((x) => x.struggling), ...[...bySc].reverse()].filter((x, i, a) => a.indexOf(x) === i).slice(0, 3);
+  const strong = bySc.filter((x) => !weak.includes(x)).slice(0, 3);
   $app.innerHTML = `<div class="stack">
     <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a>${DEMO ? '' : `<button class="btn ghost" data-logout>${t('Uitloggen')}</button>`}</div>
     <div class="row between"><h1>${t('Ouderoverzicht')}</h1>${DEMO ? '' : `<a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a>`}</div>
@@ -2074,24 +2077,29 @@ async function renderParent() {
       <div><b>${euro(data.wallet.balance)}</b><span>${t('Spaarpot')}</span></div>
       <div><b>🔥 ${data.streak}</b><span>${t('dagen op rij')}</span></div>
       <div><b>⭐ ${data.inzet.level}</b><span>${t('Level')}</span></div>
-      <div><b>${pct14 == null ? '–' : pct14 + '%'}</b><span>${t('goed (14 dagen)')}</span></div>
+      <div><b>${pct14 == null ? '–' : pct14 + '%'}</b><span>${t('goed · 14 d')}</span></div>
     </div>
     ${toGive ? `<button type="button" class="card gift-nudge" data-goto="beloning">🎁 ${t('{n} cadeau(s) nog te geven', { n: toGive })} ›</button>` : ''}
-    <div class="card stack"><div class="row between"><h2>🧑‍🏫 ${esc(data.teacher)} (${t('AI-leraar')})</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : `<span class="chip bad">${t('AI uit')}</span>`}</div>
+    <div class="card stack"><h2>🧭 ${t('In het kort')}</h2>
+      ${data.profile?.samenvatting ? `<p>${esc(data.profile.samenvatting)}</p>` : ''}
+      <div class="kort-row"><b>💪 ${t('Gaat goed')}</b><span>${strong.map((x) => `${x.icon} ${esc(x.label)}`).join(' · ') || '–'}</span></div>
+      <div class="kort-row"><b>🔧 ${t('Extra aandacht')}</b><span>${weak.map((x) => `${x.icon} ${esc(x.label)}`).join(' · ') || '–'}</span></div>
+    </div>
+    <details class="card pacc"><summary><div class="row between" style="flex:1;gap:8px"><h2>🧑‍🏫 ${esc(data.teacher)} (${t('AI-leraar')})</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : `<span class="chip bad">${t('AI uit')}</span>`}</div></summary><div class="pacc-b stack">
       ${data.ai ? '' : `<p class="small">${t('Zet <code>OPENAI_API_KEY</code> in de instellingen (.env of Railway) om de AI-leraar aan te zetten.')}</p>`}
       <h3>${t('Leerlingprofiel')}</h3>
       <div id="profile">${profileHTML(data.profile)}</div>
       <button class="btn ghost block" data-profile ${data.ai ? '' : 'disabled'}>${t('Profiel bijwerken')}</button>
-    </div>
-    <div class="card stack"><div class="row between"><h2>${t('AI-advies voor jou')}</h2></div>
+    </div></details>
+    <details class="card pacc"><summary><h2>💡 ${t('AI-advies voor jou')}</h2></summary><div class="pacc-b stack">
       <p class="small muted">${t('Samenvatting van de voortgang van {n} en wat je thuis kunt doen.', { n: esc(data.name) })}</p>
       <div id="advice"></div>
-      <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>${t('Maak advies')}</button></div>
-    <div class="card"><h2>${t('Onderdelen')}</h2><p class="small muted" style="margin:4px 0 6px">${t('Niveau · score · laatste 14 dagen goed, waarvan met tussenstappen · trend')}</p>
+      <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>${t('Maak advies')}</button></div></details>
+    <details class="card pacc"><summary><h2>📋 ${t('Onderdelen')}</h2></summary><div class="pacc-b"><p class="small muted" style="margin:4px 0 6px">${t('Niveau · score · laatste 14 dagen goed, waarvan met tussenstappen · trend')}</p>
       <p class="small indicatie">ℹ️ ${t('Dit is een indicatie, alleen voor ouders: gebaseerd op de sommen in deze app. Het is geen toets van school en zegt niet precies op welk niveau je kind rekent. Je kind ziet deze balken en niveaus niet, alleen de aanmoediging van {m}.', { m: esc(data.teacher) })}</p>
       <table class="list"><tr><th>${t('Onderdeel')}</th><th>${t('Score')}</th><th>14 d</th><th></th></tr>
       ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ` <span class="chip bad">${t('extra hulp')}</span>` : ''}<div class="bar s${sc(x.score)}" style="margin:4px 0"><i style="width:${Math.max(4, x.score)}%"></i></div><div class="small muted">${t('ongeveer {l}-niveau', { l: x.levelName })} · ${t('{n}/5 leerfase', { n: x.guidedWins })}${x.soloBonus ? ` · ${t('{n}× zelf-bonus', { n: x.soloBonus })}` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
-        <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${t('{n} met stappen', { n: accBy[x.cat].guided })} · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
+        <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${t('{n} met stappen', { n: accBy[x.cat].guided })} · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div></details>
     </section>
 
     <section class="stack" data-psec="leren">

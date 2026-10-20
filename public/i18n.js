@@ -573,10 +573,13 @@ const AF = {
   "Aanpak:": "Benadering:",
   "Bijgewerkt:": "Bygewerk:",
   // ouderscherm in tabs
+  "In het kort": "Kortliks",
+  "Gaat goed": "Gaan goed",
+  "Extra aandacht": "Ekstra aandag",
   "Verrassingen instellen": "Stel verrassings in",
   "Leren": "Leer",
   "Beloning": "Beloning",
-  "goed (14 dagen)": "reg (14 dae)",
+  "goed · 14 d": "reg · 14 d",
   "{n} cadeau(s) nog te geven": "{n} geskenk(e) nog om te gee",
   "dagen op rij": "dae aaneen",
   // demo (voorbeeldkind Maxime)
