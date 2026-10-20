@@ -13,6 +13,7 @@ import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
 import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
+import { createDemoKid } from './src/demo/index.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
@@ -21,6 +22,7 @@ const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('he
 const PARENT_PIN = process.env.PARENT_PIN || '1234';
 const APP_PIN = process.env.APP_PIN || '';
 const AI_DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT || 400);
+const DEMO_AI_LIMIT = Number(process.env.DEMO_AI_LIMIT || 60); // demo-kind: minder AI per dag (kosten)
 if (!process.env.PARENT_PIN) console.warn('[let op] PARENT_PIN niet gezet — standaard is 1234');
 else if (PARENT_PIN.length < 6 || PARENT_PIN === '1234') console.warn('[let op] PARENT_PIN is zwak: met de beheerderspincode open je élk kind, ook kinderen met een eigen ouderwachtwoord. Kies een lange pincode.');
 
@@ -89,8 +91,14 @@ async function mayParent(req, kidId) {
   if (sc.all || sc.ids.includes(kidId)) return true;
   return sc.open && !(await kidHasPassword(kidId));
 }
-const child = (req, res, next) => (!APP_PIN || hasRole(req, 'child') || parentScope(req) ? withKid(req, res, next) : res.status(401).json({ error: 'login' }));
-const parent = (req, res, next) => withKid(req, res, () => mayParent(req, req.kid.id)
+// Kind-routes: met app-pincode (als die er is), of het demo-kind (dat mag iedereen bekijken)
+const child = (req, res, next) => {
+  if (!APP_PIN || hasRole(req, 'child') || parentScope(req)) return withKid(req, res, next);
+  const id = kidIdOf(req);
+  (id ? getKid(id) : Promise.resolve(null)).then((kid) => (kid?.demo ? withKid(req, res, next) : res.status(401).json({ error: 'login' }))).catch(next);
+};
+// het ouderscherm van een demo-kind staat voor iedereen open (er staat niets echts in)
+const parent = (req, res, next) => withKid(req, res, () => (req.kid.demo ? Promise.resolve(true) : mayParent(req, req.kid.id))
   .then((ok) => (ok ? next() : res.status(401).json({ error: 'parent-login' }))).catch(next));
 const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e); res.status(500).json({ error: ts('Er ging iets mis op de server.') }); });
 
@@ -100,7 +108,7 @@ const aiUse = new Map();
 function aiAllowed() {
   const key = `${currentKid()}:${todayNL()}`;
   const n = aiUse.get(key) || 0;
-  if (n >= AI_DAILY_LIMIT) return false;
+  if (n >= (kidStore.getStore()?.demo ? DEMO_AI_LIMIT : AI_DAILY_LIMIT)) return false;
   if (aiUse.size > 500) aiUse.clear();
   aiUse.set(key, n + 1);
   return true;
@@ -401,6 +409,29 @@ app.post('/api/kids/select', wrap(async (req, res) => {
 }));
 app.post('/api/kids/leave', (req, res) => { setKidCookie(res, 0); res.json({ ok: true }); });
 
+// ---------- demo: een virtueel kind met ± drie weken geschiedenis ----------
+// Voor wie de app wil bekijken zonder zelf de starttoets te doen. Het ouderscherm van de demo staat open.
+const demoStarts = new Map(); // per IP: niet eindeloos demo's aanmaken
+app.post('/api/demo', wrap(async (req, res) => {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const now = Date.now(), recent = (demoStarts.get(ip) || []).filter((t) => now - t < 3600e3);
+  if (recent.length >= 10) return res.status(429).json({ error: req.body.lang === 'af' ? 'Te veel demo’s. Probeer later weer.' : 'Te veel demo’s. Probeer het later nog eens.' });
+  if (demoStarts.size > 2000) demoStarts.clear();
+  demoStarts.set(ip, [...recent, now]);
+  // de vorige demo van deze bezoeker mag weg
+  const prev = await getKid(kidIdOf(req));
+  if (prev?.demo) await deleteKid(prev.id);
+  const kid = await createDemoKid(req.body.lang);
+  setKidCookie(res, kid.id);
+  res.json({ kid });
+}));
+app.post('/api/demo/stop', wrap(async (req, res) => {
+  const kid = await getKid(kidIdOf(req));
+  if (kid?.demo) await deleteKid(kid.id);
+  setKidCookie(res, 0);
+  res.json({ ok: true });
+}));
+
 app.post('/api/login', wrap(async (req, res) => {
   if (!APP_PIN || pinOk(req.body.pin, APP_PIN)) { setCookie(res, 'child', 180); return res.json({ ok: true }); }
   res.status(401).json({ error: ts('Verkeerde pincode') });
@@ -420,7 +451,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
   res.json({
     name: await getName(),
     groep: req.kid.grade ?? await getSetting('groep', null),
-    kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar, lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null },
+    kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar, lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null, demo: !!req.kid.demo },
     curriculum: pack().id, gradeWord: pack().gradeWord, levelNames: [...LEVEL_NAMES],
     currency: req.kid.country === 'ZA' ? 'ZAR' : 'EUR',
     ai: aiEnabled(),
@@ -1277,7 +1308,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
       AVG(time_ms)::int avg_ms, SUM(hints)::int hints, SUM(CASE WHEN guided THEN 1 ELSE 0 END)::int guided
       FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
   res.json({
-    name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null,
+    name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null, demo: !!req.kid.demo,
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
     goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()),

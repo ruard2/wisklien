@@ -572,4 +572,14 @@ const AF = {
   "Leerstijl:": "Leerwyse:",
   "Aanpak:": "Benadering:",
   "Bijgewerkt:": "Bygewerk:",
+  // demo (voorbeeldkind Maxime)
+  "Demo": "Demo",
+  "Maxime is een voorbeeldkind": "Maxime is ’n voorbeeldkind",
+  "Kind": "Kind",
+  "Ouder": "Ouer",
+  "Uitleg": "Verduideliking",
+  "Demo stoppen": "Stop die demo",
+  "Demo stoppen?": "Stop die demo?",
+  "Maxime en alles wat je in de demo deed, wordt gewist.": "Maxime en alles wat jy in die demo gedoen het, word uitgevee.",
+  "Verder kijken": "Kyk verder",
 };

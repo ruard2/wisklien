@@ -11,7 +11,7 @@ const ZAR = () => STATE?.currency === 'ZAR';
 const euro = (cents) => (ZAR() ? 'R' : '€ ') + (cents / 100).toFixed(2).replace('.', ',');
 const cents = (c) => (Math.round(c * 10) / 10).toString().replace('.', ',') + (ZAR() ? ' sent' : ' cent');
 const CENT = () => (ZAR() ? 'sent' : 'cent');
-async function loadState() { STATE = await api('/api/state'); setLang(STATE.kid?.lang); return STATE; }
+async function loadState() { STATE = await api('/api/state'); setLang(STATE.kid?.lang); DEMO = !!STATE.kid?.demo; demoBar(); return STATE; }
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const LEVELS = () => STATE?.levelNames || ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
 const store = {
@@ -249,6 +249,8 @@ async function route() {
   $app.classList.remove('full');
   setTab(parts[0] || 'home');
   if (parts[0] === 'overzicht') setLang(store.get('ov-lang') || 'nl'); else if (STATE?.kid) setLang(STATE.kid.lang);
+  if (parts[0] === 'demo') return startDemo(parts[1] === 'af' ? 'af' : 'nl');
+  demoBar();
   try {
     if (!parts.length) return await renderHome();
     if (parts[0] === 'voortgang') return parts[1] ? await renderCategory(parts[1]) : await renderProgress();
@@ -458,10 +460,66 @@ function withModels(html) {
   });
 }
 
+// ---------- demo: een voorbeeldkind (Maxime) met ± drie weken geschiedenis ----------
+// Voor wie de app wil bekijken (ouder, leerkracht) zonder zelf de starttoets te doen. Deelbare link: #/demo (of #/demo/af).
+let DEMO = false;
+function demoBar() {
+  let bar = document.getElementById('demo-bar');
+  const show = DEMO;
+  document.body.classList.toggle('demo', show);
+  if (!show) { bar?.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'demo-bar'; bar.className = 'demo-bar'; document.body.prepend(bar); }
+  const parentView = location.hash.startsWith('#/ouder');
+  bar.innerHTML = `<span class="demo-t">👀 <b>${t('Demo')}</b> <span class="demo-sub">· ${t('Maxime is een voorbeeldkind')}</span></span>
+    <span class="demo-acts">${parentView ? `<a href="#/" class="demo-btn">🧒 ${t('Kind')}</a>` : `<a href="#/ouder" class="demo-btn">👨‍👩‍👧 ${t('Ouder')}</a>`}<button class="demo-btn" data-demo-info aria-label="${t('Uitleg')}">?</button><button class="demo-btn" data-demo-stop aria-label="${t('Demo stoppen')}">✕</button></span>`;
+  bar.querySelector('[data-demo-info]').onclick = () => demoIntro();
+  bar.querySelector('[data-demo-stop]').onclick = () => stopDemo();
+}
+function demoIntro() {
+  const tr = (nl, af) => L(nl, af);
+  sheet(`<div class="big-emoji" style="text-align:center">👀🦊</div>
+    <h2>${tr('Welkom bij de demo', 'Welkom by die demo')}</h2>
+    <p>${tr('Maxime (11 jaar, groep 8) oefent al drie weken met de app. Alles wat je ziet, is echt in de app gebeurd. Alleen Maxime zelf bestaat niet.', 'Maxime (11 jaar, graad 6) oefen al drie weke met die app. Alles wat jy sien, het regtig in die app gebeur. Net Maxime self bestaan nie.')}</p>
+    <div class="demo-list">
+      <div><b>✏️ ${tr('Vandaag', 'Vandag')}</b><span>${tr('De dagtaak van vandaag staat klaar. Maak gerust een paar sommen, ook fout: dan zie je hoe de app helpt.', 'Die dagtaak van vandag staan gereed. Maak gerus ’n paar somme, ook verkeerd: dan sien jy hoe die app help.')}</span></div>
+      <div><b>📈 ${tr('Voortgang', 'Vordering')}</b><span>${tr('Waar Maxime goed in is, wat ze nog oefent, en haar badges.', 'Waarin Maxime goed is, wat sy nog oefen, en haar kentekens.')}</span></div>
+      <div><b>🐷 ${tr('Spaarpot', 'Spaarvarkie')}</b><span>${tr('Verdiende centen, haar spaardoel en de verrassingen.', 'Verdiende sente, haar spaardoel en die verrassings.')}</span></div>
+      <div><b>👨‍👩‍👧 ${tr('Ouderscherm', 'Ouerskerm')}</b><span>${tr('Via de knop bovenaan: niveau per onderdeel, denkfouten, het dossier van de AI-leraar, cadeaus en instellingen.', 'Via die knoppie bo: vlak per onderdeel, denkfoute, die lêer van die KI-onderwyser, geskenke en instellings.')}</span></div>
+    </div>
+    <p class="small muted">${tr('De demo verdwijnt vanzelf na twee dagen. Met ✕ bovenaan stop je meteen.', 'Die demo verdwyn vanself ná twee dae. Met ✕ bo stop jy dadelik.')}</p>
+    <button class="btn block" data-close>${tr('Rondkijken', 'Kyk rond')} →</button>`);
+}
+async function startDemo(lang) {
+  $tabs.hidden = true;
+  setLang(lang);
+  $app.innerHTML = `<div class="boot">${L('Demo wordt klaargezet…', 'Demo word gelaai…')}</div>`;
+  try { await api('/api/demo', { lang }); } catch (e) { return showError(e); }
+  STATE = null; DEMO = true;
+  history.replaceState(null, '', '#/');
+  await route();
+  demoIntro();
+}
+async function stopDemo() {
+  if (!(await ask(`<div class="big-emoji">👋</div><h2>${t('Demo stoppen?')}</h2><p class="muted">${t('Maxime en alles wat je in de demo deed, wordt gewist.')}</p>`, t('Stoppen'), t('Verder kijken')))) return;
+  await api('/api/demo/stop', {});
+  DEMO = false; STATE = null; demoBar();
+  history.replaceState(null, '', '#/');
+  renderWho();
+}
+function chooseDemo() {
+  sheet(`<div class="big-emoji" style="text-align:center">👀</div><h2>Demo · Demo</h2>
+    <p class="muted">Bekijk de app met een voorbeeldkind dat al drie weken oefent. · Kyk na die app met ’n voorbeeldkind wat al drie weke oefen.</p>
+    <button class="lang-card" data-demo-lang="nl"><span class="flag">🇳🇱</span><span><b>Nederlands</b><small>Groep 8 · Nederland</small></span></button>
+    <button class="lang-card" data-demo-lang="af"><span class="flag">🇿🇦</span><span><b>Afrikaans</b><small>Graad 6 · Suid-Afrika</small></span></button>
+    <button class="btn ghost block" data-close>Terug · Terug</button>`, (bg, close) => {
+    bg.querySelectorAll('[data-demo-lang]').forEach((b) => (b.onclick = () => { close(); startDemo(b.dataset.demoLang); }));
+  });
+}
+
 // ---------- wie ben jij? (profielen, alleen een naam) ----------
 async function renderWho() {
   $tabs.hidden = true;
-  STATE = null;
+  STATE = null; DEMO = false; demoBar();
   setLang('nl');
   const { kids, avatars } = await api('/api/kids');
   let avatar = avatars[kids.length % avatars.length];
@@ -479,9 +537,11 @@ async function renderWho() {
           <p class="muted">Tik op je naam · Tik op jou naam</p></div>
         <div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b>${k.country === 'ZA' ? '<small>🇿🇦</small>' : ''}</button>`).join('')}</div>
         <button class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>
+        <button class="btn ghost block" data-demo>👀 Bekijk de demo · Kyk na die demo</button>
         <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a></div>`;
       $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
       $app.querySelector('[data-shownew]').onclick = () => { step = 1; draw('', true); };
+      $app.querySelector('[data-demo]').onclick = () => chooseDemo();
       return;
     }
     const back = kids.length || step > 1 ? `<button type="button" class="btn ghost block" data-back>‹ Terug</button>` : '';
@@ -492,7 +552,9 @@ async function renderWho() {
           <p style="font-weight:800;margin-top:10px">In welke taal krijg je les op school?</p><p class="muted">In watter taal kry jy klas op skool?</p></div>
         <button class="lang-card" data-lang="nl"><span class="flag"><svg viewBox="0 0 90 60" class="flag-svg" aria-hidden="true"><rect width="90" height="20" fill="#AE1C28"/><rect y="20" width="90" height="20" fill="#fff"/><rect y="40" width="90" height="20" fill="#21468B"/></svg></span><span><b>Nederlands</b><small>Ik krijg les in het Nederlands</small></span></button>
         <button class="lang-card" data-lang="af"><span class="flag"><svg viewBox="0 0 900 600" class="flag-svg" aria-hidden="true"><rect width="900" height="300" fill="#E03C31"/><rect y="300" width="900" height="300" fill="#002395"/><path d="M0,0 L450,300 L900,300 M0,600 L450,300" stroke="#fff" stroke-width="200" fill="none"/><path d="M0,0 L450,300 L900,300 M0,600 L450,300" stroke="#007A4D" stroke-width="120" fill="none"/><path d="M0,90 L315,300 L0,510 Z" fill="#FFB612"/><path d="M0,150 L225,300 L0,450 Z" fill="#000"/></svg></span><span><b>Afrikaans</b><small>Ek kry klas in Afrikaans</small></span></button>
-        ${back}</div>`;
+        ${back}
+        <button type="button" class="btn ghost block" data-demo>👀 Eerst de demo bekijken · Kyk eers na die demo</button></div>`;
+      $app.querySelector('[data-demo]').onclick = () => chooseDemo();
       $app.querySelectorAll('[data-lang]').forEach((b) => (b.onclick = () => {
         prof.lang = b.dataset.lang; prof.country = prof.lang === 'af' ? 'ZA' : 'NL';
         if (!gradeOpts().includes(Number(prof.grade))) prof.grade = '';
@@ -598,6 +660,7 @@ async function renderWho() {
   draw();
 }
 async function switchKid() {
+  if (DEMO) return stopDemo();
   await api('/api/kids/leave', {});
   STATE = null;
   renderWho();
@@ -679,9 +742,9 @@ function pwScreen(title, hint, onDone) {
 // ---------- login (alleen als APP_PIN aan staat) ----------
 function renderLogin() {
   $tabs.hidden = true;
-  pinScreen(t('Hoi! Wat is je pincode?'), async (pin) => { await api('/api/login', { pin }); route(); });
+  pinScreen(t('Hoi! Wat is je pincode?'), async (pin) => { await api('/api/login', { pin }); route(); }, { demo: true });
 }
-function pinScreen(title, onDone) {
+function pinScreen(title, onDone, { demo = false } = {}) {
   let pin = '';
   const draw = (err = '') => {
     $app.innerHTML = `<div class="stack" style="margin-top:8vh">
@@ -689,8 +752,10 @@ function pinScreen(title, onDone) {
       <div class="pin">${Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
       <p class="small" style="color:var(--bad);min-height:20px">${esc(err)}</p>
       <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button class="key" data-k="${n}">${n}</button>`).join('')}
-      <button class="key fn" data-k="back">⌫</button><button class="key" data-k="0">0</button><button class="key fn" data-k="ok">OK</button></div></div></div>`;
+      <button class="key fn" data-k="back">⌫</button><button class="key" data-k="0">0</button><button class="key fn" data-k="ok">OK</button></div></div>
+      ${demo ? '<button class="btn ghost block" data-demo>👀 Bekijk de demo · Kyk na die demo</button>' : ''}</div>`;
     $app.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => press(b.dataset.k)));
+    $app.querySelector('[data-demo]')?.addEventListener('click', () => chooseDemo());
   };
   const press = async (k) => {
     if (k === 'back') pin = pin.slice(0, -1);
@@ -765,7 +830,7 @@ async function renderHome() {
   acc?.addEventListener('toggle', () => { if (acc.open && !acc.dataset.loaded) { acc.dataset.loaded = 1; loadKidNote(acc.querySelector('[data-kidnote]')); } });
   $app.querySelectorAll('[data-lvl]').forEach((b) => (b.onclick = () => showLevels(s.inzet)));
   $app.querySelectorAll('[data-topic]').forEach((b) => (b.onclick = () => chooseGoal(b.dataset.topic)));
-  $app.querySelector('[data-switch]').onclick = async () => { if (await ask(`<div class="big-emoji">👤</div><h2>${t('Ben jij niet {n}?', { n: esc(s.name) })}</h2><p class="muted">${t('Dan kies je je eigen naam.')}</p>`, t('Ander kind kiezen'), t('Ik ben het wel'))) switchKid(); };
+  $app.querySelector('[data-switch]').onclick = async () => { if (DEMO) return stopDemo(); if (await ask(`<div class="big-emoji">👤</div><h2>${t('Ben jij niet {n}?', { n: esc(s.name) })}</h2><p class="muted">${t('Dan kies je je eigen naam.')}</p>`, t('Ander kind kiezen'), t('Ik ben het wel'))) switchKid(); };
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
   if (s.intakeDone) maybeMop(0.25, 1500);
 }
@@ -1983,7 +2048,8 @@ async function renderParent() {
     throw e;
   }
   setLang(data.lang);
-  if (!STATE) STATE = { currency: data.country === 'ZA' ? 'ZAR' : 'EUR', kid: { lang: data.lang } };
+  DEMO = !!data.demo; demoBar();
+  if (!STATE) STATE = { currency: data.country === 'ZA' ? 'ZAR' : 'EUR', kid: { lang: data.lang, demo: DEMO } };
   const accBy = Object.fromEntries(data.acc.map((a) => [a.cat, a]));
   const spark = (cat) => {
     const pts = data.snaps.filter((s) => s.cat === cat).map((s) => s.score);
@@ -1993,8 +2059,8 @@ async function renderParent() {
   };
   const kindNl = { intake: t('Starttoets'), daily: t('Dagtaak'), practice: t('Oefenen') };
   $app.innerHTML = `<div class="stack">
-    <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a><button class="btn ghost" data-logout>${t('Uitloggen')}</button></div>
-    <div class="row between"><h1>${t('Ouderoverzicht')}</h1><a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a></div>
+    <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a>${DEMO ? '' : `<button class="btn ghost" data-logout>${t('Uitloggen')}</button>`}</div>
+    <div class="row between"><h1>${t('Ouderoverzicht')}</h1>${DEMO ? '' : `<a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a>`}</div>
     <div class="card coin stack"><div class="row between"><div><div class="small muted">${t('Spaarpot van {n}', { n: esc(data.name) })}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">${t('verdiend')} ${euro(data.wallet.earned)}<br>${t('uitbetaald')} ${euro(data.wallet.paid)}<br>🔥 ${t('{n} dagen op rij', { n: data.streak })}</div></div>
       <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="${ZAR() ? t('Bedrag in rand, bv. 2,50') : 'Bedrag in €, bijv. 2,50'}" name="amt"></div><button class="btn">${t('Uitbetalen')}</button></form></div>
 
@@ -2149,9 +2215,9 @@ async function renderParent() {
   $app.querySelector('[data-delkid]').onclick = async () => {
     if (!(await ask(`<h2 style="margin-bottom:8px">${t('Profiel van {n} verwijderen?', { n: esc(data.name) })}</h2><p>${t('Alles van dit kind gaat weg: niveaus, spaarpot, badges en alle gegevens die {m} heeft onthouden. Dit kun je niet ongedaan maken.', { m: esc(data.teacher) })}</p>`, t('Ja, verwijderen'), t('Annuleren'), true))) return;
     await api('/api/parent/delete-kid', { confirm: 'VERWIJDER' });
-    toast(t('Profiel verwijderd')); switchKid();
+    toast(t('Profiel verwijderd')); DEMO = false; switchKid();
   };
-  $app.querySelector('[data-logout]').onclick = async () => { await api('/api/parent/logout', {}); location.hash = '#/'; };
+  $app.querySelector('[data-logout]')?.addEventListener('click', async () => { await api('/api/parent/logout', {}); location.hash = '#/'; });
   $app.querySelector('[data-payout]').onsubmit = async (e) => {
     e.preventDefault();
     const amt = Math.round(parseFloat(e.target.amt.value.replace(',', '.')) * 100);

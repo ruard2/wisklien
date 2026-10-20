@@ -187,6 +187,14 @@ Ouders kunnen het uitzetten, bij het aanmaken of in het ouderscherm ("Help de ap
 ## Profielen
 Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.
 
+## Demo (voor wie de app wil bekijken)
+Op het startscherm (en op het pincodescherm): **👀 Bekijk de demo**. Of stuur de link **`https://<jouw-app>/#/demo`** (Afrikaans: `#/demo/af`).
+- De bezoeker krijgt een eigen voorbeeldkind **Maxime** (groep 8 / graad 6) met ± drie weken geschiedenis: starttoets, 16 dagtaken op rij, niveaus die omhoog en omlaag gingen, denkfouten, foutenschrift, spaarpot met spaardoel, verrassingen, level-cadeaus, een gehaald oefendoel, badges en het dossier van Max.
+- Alle datums schuiven mee naar de laatste schooldagen vóór vandaag: de reeks klopt en de dagtaak van vandaag (met herhalingen) staat klaar om zelf te proberen.
+- Een balk bovenaan wisselt tussen kind en **ouderscherm** (staat bij de demo open, zonder wachtwoord) en stopt de demo (✕ wist alles).
+- Demo-kinderen staan niet in de kindlijst of het overzicht, krijgen geen leerlog, maximaal `DEMO_AI_LIMIT` (60) AI-beurten per dag, en worden na `DEMO_KEEP_HOURS` (48) uur opgeruimd. Max. 10 nieuwe demo's per uur per IP, max. `DEMO_MAX` (40) tegelijk.
+- De geschiedenis is een momentopname (`src/demo/nl.json.gz`, `af.json.gz`), gemaakt door een virtueel kind de échte app te laten doorlopen: `scripts/demo-seed.mjs` (zie bovenin dat bestand). Teksten van Max (notities, dossier) en de cadeaus staan in `src/demo/texts.js`.
+
 ## Bestanden
 - `src/generators.js` — alle sommen, stappenplannen en het nakijken
 - `src/engine.js` — intake, beheersing, verdeling van de dagtaak, "loopt vast"-detectie
