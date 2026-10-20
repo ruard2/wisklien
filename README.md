@@ -66,7 +66,7 @@ Niveaus per onderdeel, als groep: **groep 5** · **groep 6** · **groep 7** (bev
 - Feedback prijst aanpak en inzet (groei-mindset), fouten worden als leermoment gebracht.
 - Niveau omhoog = feestje; niveau omlaag = rustig uitgelegd ("stapje terug om het stevig op te bouwen, bij 8/10 weer omhoog").
 
-### Ouderscherm
+### Ouderscherm (vier tabs: Overzicht · Leren · Beloning · Instellingen)
 Saldo + uitbetalen, score/niveau/trend per onderdeel (incl. leerfase-teller en hoeveel met tussenstappen), badges, recente fouten (wat hij invulde vs. goed), sessies met tijd, AI-advies ("wat kan ik thuis doen"), naam wijzigen, starttoets opnieuw.
 
 ## Lokaal draaien (zonder Docker)

@@ -572,6 +572,13 @@ const AF = {
   "Leerstijl:": "Leerwyse:",
   "Aanpak:": "Benadering:",
   "Bijgewerkt:": "Bygewerk:",
+  // ouderscherm in tabs
+  "Verrassingen instellen": "Stel verrassings in",
+  "Leren": "Leer",
+  "Beloning": "Beloning",
+  "goed (14 dagen)": "reg (14 dae)",
+  "{n} cadeau(s) nog te geven": "{n} geskenk(e) nog om te gee",
+  "dagen op rij": "dae aaneen",
   // demo (voorbeeldkind Maxime)
   "Demo": "Demo",
   "Maxime is een voorbeeldkind": "Maxime is ’n voorbeeldkind",

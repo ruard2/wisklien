@@ -2058,94 +2058,94 @@ async function renderParent() {
     return `<svg class="spark" viewBox="0 0 ${W} ${H}"><polyline fill="none" stroke="var(--primary)" stroke-width="2" points="${pts.map((p, i) => `${(i / (pts.length - 1)) * (W - 4) + 2},${H - 2 - (p / 100) * (H - 4)}`).join(' ')}"/></svg>`;
   };
   const kindNl = { intake: t('Starttoets'), daily: t('Dagtaak'), practice: t('Oefenen') };
+  // Ouderscherm in tabs: overzicht · leren · beloning · instellingen (lange lijsten ingeklapt)
+  const PTABS = [['overzicht', '📊', t('Overzicht')], ['leren', '🧠', t('Leren')], ['beloning', '🎁', t('Beloning')], ['instellingen', '⚙️', t('Instellingen')]];
+  let tab = PTABS.some(([id]) => id === location.hash.split('/')[2]) ? location.hash.split('/')[2] : 'overzicht';
+  const toGive = (data.surprise?.list || []).filter((x) => !x.delivered).length + (data.levelLog || []).filter((x) => x.gift && !x.given).length + (data.goalLog || []).filter((x) => x.gift && !x.given).length;
+  const tot14 = data.acc.reduce((a, x) => ({ n: a.n + x.n, ok: a.ok + x.ok }), { n: 0, ok: 0 });
+  const pct14 = tot14.n ? Math.round((100 * tot14.ok) / tot14.n) : null;
   $app.innerHTML = `<div class="stack">
     <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a>${DEMO ? '' : `<button class="btn ghost" data-logout>${t('Uitloggen')}</button>`}</div>
     <div class="row between"><h1>${t('Ouderoverzicht')}</h1>${DEMO ? '' : `<a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a>`}</div>
-    <div class="card coin stack"><div class="row between"><div><div class="small muted">${t('Spaarpot van {n}', { n: esc(data.name) })}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">${t('verdiend')} ${euro(data.wallet.earned)}<br>${t('uitbetaald')} ${euro(data.wallet.paid)}<br>🔥 ${t('{n} dagen op rij', { n: data.streak })}</div></div>
-      <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="${ZAR() ? t('Bedrag in rand, bv. 2,50') : 'Bedrag in €, bijv. 2,50'}" name="amt"></div><button class="btn">${t('Uitbetalen')}</button></form></div>
+    <div class="ptabs" role="tablist">${PTABS.map(([id, ico, lab]) => `<button type="button" role="tab" data-ptab="${id}" class="${id === tab ? 'on' : ''}"><span>${ico}</span>${lab}${id === 'beloning' && toGive ? `<i class="ptab-dot">${toGive}</i>` : ''}</button>`).join('')}</div>
 
+    <section class="stack" data-psec="overzicht">
+    <div class="pstats">
+      <div><b>${euro(data.wallet.balance)}</b><span>${t('Spaarpot')}</span></div>
+      <div><b>🔥 ${data.streak}</b><span>${t('dagen op rij')}</span></div>
+      <div><b>⭐ ${data.inzet.level}</b><span>${t('Level')}</span></div>
+      <div><b>${pct14 == null ? '–' : pct14 + '%'}</b><span>${t('goed (14 dagen)')}</span></div>
+    </div>
+    ${toGive ? `<button type="button" class="card gift-nudge" data-goto="beloning">🎁 ${t('{n} cadeau(s) nog te geven', { n: toGive })} ›</button>` : ''}
     <div class="card stack"><div class="row between"><h2>🧑‍🏫 ${esc(data.teacher)} (${t('AI-leraar')})</h2>${data.ai ? `<span class="chip good">${esc(data.aiProvider)}${data.aiModel ? ' · ' + esc(data.aiModel) : ''}</span>` : `<span class="chip bad">${t('AI uit')}</span>`}</div>
       ${data.ai ? '' : `<p class="small">${t('Zet <code>OPENAI_API_KEY</code> in de instellingen (.env of Railway) om de AI-leraar aan te zetten.')}</p>`}
       <h3>${t('Leerlingprofiel')}</h3>
       <div id="profile">${profileHTML(data.profile)}</div>
       <button class="btn ghost block" data-profile ${data.ai ? '' : 'disabled'}>${t('Profiel bijwerken')}</button>
-      <h3 style="margin-top:6px">${t('Wat {m} onthoudt', { m: esc(data.teacher) })}</h3>
-      ${data.memory?.length ? `<ul class="small" style="margin:0 0 0 18px;padding:0">${data.memory.map((m) => `<li><span class="muted">${esc(m.d.slice(8))}-${esc(m.d.slice(5, 7))}</span> ${esc(m.n)}</li>`).join('')}</ul>` : `<p class="small muted">${t('Nog niets. Na elke sessie en les schrijft hij korte notities.')}</p>`}
     </div>
     <div class="card stack"><div class="row between"><h2>${t('AI-advies voor jou')}</h2></div>
       <p class="small muted">${t('Samenvatting van de voortgang van {n} en wat je thuis kunt doen.', { n: esc(data.name) })}</p>
       <div id="advice"></div>
       <button class="btn ghost block" data-advice ${data.ai ? '' : 'disabled'}>${t('Maak advies')}</button></div>
-
     <div class="card"><h2>${t('Onderdelen')}</h2><p class="small muted" style="margin:4px 0 6px">${t('Niveau · score · laatste 14 dagen goed, waarvan met tussenstappen · trend')}</p>
       <p class="small indicatie">ℹ️ ${t('Dit is een indicatie, alleen voor ouders: gebaseerd op de sommen in deze app. Het is geen toets van school en zegt niet precies op welk niveau je kind rekent. Je kind ziet deze balken en niveaus niet, alleen de aanmoediging van {m}.', { m: esc(data.teacher) })}</p>
       <table class="list"><tr><th>${t('Onderdeel')}</th><th>${t('Score')}</th><th>14 d</th><th></th></tr>
       ${data.skills.map((x) => `<tr><td>${x.icon} ${esc(x.label)}${x.struggling ? ` <span class="chip bad">${t('extra hulp')}</span>` : ''}<div class="bar s${sc(x.score)}" style="margin:4px 0"><i style="width:${Math.max(4, x.score)}%"></i></div><div class="small muted">${t('ongeveer {l}-niveau', { l: x.levelName })} · ${t('{n}/5 leerfase', { n: x.guidedWins })}${x.soloBonus ? ` · ${t('{n}× zelf-bonus', { n: x.soloBonus })}` : ''}</div></td><td><b>${x.score}</b> ${trend(x.trend)}</td>
         <td>${accBy[x.cat] ? `${accBy[x.cat].ok}/${accBy[x.cat].n}<div class="small muted">${t('{n} met stappen', { n: accBy[x.cat].guided })} · ${Math.round((accBy[x.cat].avg_ms || 0) / 1000)}s</div>` : '–'}</td><td>${spark(x.cat)}</td></tr>`).join('')}</table></div>
+    </section>
 
-    <form class="card stack" data-rewards><h2>🪙 ${t('Beloning en weekplan')}</h2>
-      ${rewardFields(data.rewards, { tr: (nl, a) => (LANG === 'af' ? a : nl), za: data.country === 'ZA', af: LANG === 'af', counts: data.dailyCounts })}
-      <p class="small muted">${t('Geldt vanaf de volgende dagtaak.')}</p>
-      <button class="btn ghost block">${t('Opslaan')}</button></form>
-    <form class="card stack" data-password><h2>🔒 ${t('Ouderwachtwoord')}</h2>
-      <p class="small muted">${data.hasPassword ? t('Er is een eigen wachtwoord ingesteld. Hier kun je het veranderen.') : t('Nog geen eigen wachtwoord: je opent het ouderscherm met de pincode van de beheerder. Stel hier een eigen wachtwoord in.')}</p>
-      <input type="password" name="pw" autocomplete="new-password" placeholder="${t('nieuw wachtwoord (minstens 4 tekens)')}">
-      <input type="password" name="pw2" autocomplete="new-password" placeholder="${t('nog een keer')}">
-      <button class="btn ghost block">${t('Wachtwoord opslaan')}</button>
-      ${data.hasPassword ? `<button type="button" class="btn ghost block" data-pwclear>${t('Eigen wachtwoord weghalen')}</button>` : ''}</form>
-
-    <form class="card stack" data-research><h2>📊 ${t('Help de app verbeteren')}</h2>
-      <p class="small muted">${t('Antwoorden en gesprekken met {m} worden zonder je naam, maar onder een schuilnaam, bewaard. Zo kunnen de makers de uitleg verbeteren. Je kunt dit uitzetten.', { m: esc(data.teacher) })}</p>
-      <label class="row"><input type="checkbox" name="on" ${data.research ? 'checked' : ''}> <span>${t('Meehelpen (aanbevolen)')}</span></label>
-      <label class="field"><span class="small" style="font-weight:800">${t('Feedback voor de makers: wat valt je op? Wat gaat er mis? Wat kan beter?')}</span><textarea name="text" rows="3" maxlength="3000"></textarea></label>
-      <button class="btn ghost block">${t('Versturen')}</button></form>
-
-    <div class="card stack"><h2>💬 ${t('Wat {n} ervan vond', { n: esc(data.name) })}</h2>
-      <p class="small muted">${t('Duimpjes bij sommen, uitleg en berichtjes van {m}. Zo zie je waar het kind op vastloopt, en wij kunnen de uitleg verbeteren.', { m: esc(data.teacher) })}</p>
-      ${(data.feedback || []).length ? `<table class="list">${data.feedback.map((x) => `<tr><td style="font-size:20px;vertical-align:top">${x.vote === 'up' ? '👍' : x.vote === 'down' ? '👎' : '💬'}</td><td>
-        <div class="small muted">${esc(x.at.slice(8, 10))}-${esc(x.at.slice(5, 7))} · ${esc({ som: t('som'), les: t('les'), berichtje: t('berichtje'), gesprek: t('gesprek met {m}', { m: data.teacher }) }[x.over] || x.over)}${x.label ? ` · ${esc(x.label)}` : ''}</div>
-        ${x.reason || x.own ? `<div style="font-weight:800">${esc([x.reason, x.own ? `“${x.own}”` : ''].filter(Boolean).join(' · '))}</div>` : ''}
-        <div class="small muted fb-about">${esc(x.question || x.message || '')}</div></td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen duimpjes gegeven.')}</p>`}</div>
-
-    <div class="card stack"><h2>⭐ ${t('Levels voor inzet')}</h2>
-      <p class="small">${t('Level {n}: {c} sommen geoefend (afgeraffelde sommen tellen niet).', { n: data.inzet.level, c: data.inzet.count })} ${data.inzet.every ? (data.inzet.gift ? t('Nog {n} levels tot de beloning: {g}.', { n: data.inzet.toReward, g: esc(data.inzet.gift) }) : t('Nog {n} levels tot een feestje.', { n: data.inzet.toReward })) : ''}</p>
-      ${(data.levelLog || []).length ? `<table class="list">${data.levelLog.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>⭐ ${t('Level {n}', { n: x.level })}${x.gift ? `<div class="small muted">🎁 ${esc(x.gift)}</div>` : ''}</td><td style="text-align:right">${x.given ? '✅' : `<button class="btn ghost" data-levelgiven="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : ''}
-      <p class="small muted">${t('Wat de beloning is en hoe vaak, stel je in bij de beloningen.')}</p></div>
-
-    <div class="card stack"><h2>🏅 ${t('Eigen oefendoelen')}</h2>
-      ${(data.goals || []).length ? `<p class="small">${t('Bezig met:')} ${data.goals.map((g) => `${g.icon} ${esc(g.label)} (${goalText(g).toLowerCase()}, ${g.done}/${g.total})`).join(' · ')}</p>` : `<p class="small muted">${t('Nog geen eigen doel gekozen.')}</p>`}
-      ${(data.goalLog || []).length ? `<table class="list">${data.goalLog.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>🏅 ${esc(x.label)}${x.gift ? `<div class="small muted">🎁 ${esc(x.gift)}</div>` : ''}</td><td style="text-align:right">${x.given ? '✅' : `<button class="btn ghost" data-goalgiven="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : ''}</div>
-
-    <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
-      <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed is gegaan. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
-      <form class="stack" data-surprise style="gap:8px">
-        <label class="row"><input type="checkbox" name="enabled" ${data.surprise.cfg.enabled ? 'checked' : ''}> <span>${t('Aan')}</span></label>
-        <label class="field"><span class="small" style="font-weight:800">${t('Verrassingen (één per regel)')}</span><textarea name="rewards" rows="4">${esc(data.surprise.cfg.rewards.join('\n'))}</textarea></label>
-        <label class="field"><span class="small" style="font-weight:800">${t('Minimaal percentage goed in de dagtaak')}</span><select name="min">${[0.5, 0.6, 0.7, 0.8, 0.9].map((m) => `<option value="${m}" ${Math.abs(m - data.surprise.cfg.min) < 0.01 ? 'selected' : ''}>${m * 100}%</option>`).join('')}</select></label>
-        <button class="btn ghost">${t('Opslaan')}</button>
-      </form>
-      ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen verrassingen uitgedeeld.')}</p>`}
-    </div>
-
-    <div class="card stack"><h2>🔧 ${t('Hoe leert {n}?', { n: esc(data.name) })} <span class="small muted">${t('(onder de motorkap)')}</span></h2>
-      ${signalsHTML(data.signals, data.teacher)}</div>
-
+    <section class="stack" data-psec="leren">
     <div class="card stack"><h2>🔎 ${t('Denkfouten & herhaling')}</h2>
       <p class="small">🔁 ${t('Foutenschrift: <b>{a}</b> sommen staan klaar om te herhalen, <b>{b}</b> zijn inmiddels onder de knie.', { a: data.reviews?.open || 0, b: data.reviews?.done || 0 })}</p>
       ${data.misconceptions?.length ? `<table class="list">${data.misconceptions.map((m) => `<tr><td>${esc(m.misconception)}</td><td style="text-align:right"><b>${m.n}×</b></td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen bekende denkfouten gezien (laatste 30 dagen).')}</p>`}
       ${data.scratchNotes?.length ? `<p style="font-weight:900;margin-top:6px">✏️ ${t('Wat {m} op het kladblaadje zag', { m: esc(data.teacher) })}</p>
         <table class="list">${data.scratchNotes.map((n) => `<tr><td><div class="small">${esc(n.text)} → <b>${esc(n.given)}</b> ${n.correct ? '✅' : '❌'}</div><div>${esc(n.scratch_note)}</div></td></tr>`).join('')}</table>` : ''}
     </div>
+    <details class="card pacc"><summary><h2>🧠 ${t('Wat {m} onthoudt', { m: esc(data.teacher) })}</h2></summary><div class="pacc-b stack">
+      ${data.memory?.length ? `<ul class="small" style="margin:0 0 0 18px;padding:0">${data.memory.map((m) => `<li><span class="muted">${esc(m.d.slice(8))}-${esc(m.d.slice(5, 7))}</span> ${esc(m.n)}</li>`).join('')}</ul>` : `<p class="small muted">${t('Nog niets. Na elke sessie en les schrijft hij korte notities.')}</p>`}
+    </div></details>
+    <details class="card pacc"><summary><h2>${t('Recente fouten')}</h2></summary><div class="pacc-b stack">${data.recentWrong.length ? `<table class="list"><tr><th>${t('Som')}</th><th>${t('Antwoord')}</th><th>${t('Goed')}</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : `<p class="muted">${t('Nog geen fouten.')}</p>`}</div></details>
+    <details class="card pacc"><summary><h2>🔧 ${t('Hoe leert {n}?', { n: esc(data.name) })} <span class="small muted">${t('(onder de motorkap)')}</span></h2></summary><div class="pacc-b stack">
+      ${signalsHTML(data.signals, data.teacher)}</div></details>
+    <details class="card pacc"><summary><h2>💬 ${t('Wat {n} ervan vond', { n: esc(data.name) })}</h2></summary><div class="pacc-b stack">
+      <p class="small muted">${t('Duimpjes bij sommen, uitleg en berichtjes van {m}. Zo zie je waar het kind op vastloopt, en wij kunnen de uitleg verbeteren.', { m: esc(data.teacher) })}</p>
+      ${(data.feedback || []).length ? `<table class="list">${data.feedback.map((x) => `<tr><td style="font-size:20px;vertical-align:top">${x.vote === 'up' ? '👍' : x.vote === 'down' ? '👎' : '💬'}</td><td>
+        <div class="small muted">${esc(x.at.slice(8, 10))}-${esc(x.at.slice(5, 7))} · ${esc({ som: t('som'), les: t('les'), berichtje: t('berichtje'), gesprek: t('gesprek met {m}', { m: data.teacher }) }[x.over] || x.over)}${x.label ? ` · ${esc(x.label)}` : ''}</div>
+        ${x.reason || x.own ? `<div style="font-weight:800">${esc([x.reason, x.own ? `“${x.own}”` : ''].filter(Boolean).join(' · '))}</div>` : ''}
+        <div class="small muted fb-about">${esc(x.question || x.message || '')}</div></td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen duimpjes gegeven.')}</p>`}</div></details>
+    <details class="card pacc"><summary><h2>${t('Sessies')}</h2></summary><div class="pacc-b stack"><table class="list"><tr><th>${t('Dag')}</th><th>${t('Soort')}</th><th>${t('Goed')}</th><th>${CENT()}</th><th>${t('Tijd')}</th></tr>
+      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ` <span class="chip">${t('bezig')}</span>` : ''}</td><td>${s.correct}/${s.total}${s.kind === 'daily' ? `<div class="small ${s.rushes ? '' : 'muted'}">${s.rushes ? `🐢 ${t('{n}× gehaast', { n: s.rushes })}` : `✅ ${t('rustig')}`}</div>` : ''}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div></details>
+    </section>
 
-    <div class="card"><h2>${t('Badges')}</h2><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div>
+    <section class="stack" data-psec="beloning">
+    <div class="card coin stack"><div class="row between"><div><div class="small muted">${t('Spaarpot van {n}', { n: esc(data.name) })}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">${t('verdiend')} ${euro(data.wallet.earned)}<br>${t('uitbetaald')} ${euro(data.wallet.paid)}<br>🔥 ${t('{n} dagen op rij', { n: data.streak })}</div></div>
+      <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="${ZAR() ? t('Bedrag in rand, bv. 2,50') : 'Bedrag in €, bijv. 2,50'}" name="amt"></div><button class="btn">${t('Uitbetalen')}</button></form></div>
+    <div class="card stack"><h2>⭐ ${t('Levels voor inzet')}</h2>
+      <p class="small">${t('Level {n}: {c} sommen geoefend (afgeraffelde sommen tellen niet).', { n: data.inzet.level, c: data.inzet.count })} ${data.inzet.every ? (data.inzet.gift ? t('Nog {n} levels tot de beloning: {g}.', { n: data.inzet.toReward, g: esc(data.inzet.gift) }) : t('Nog {n} levels tot een feestje.', { n: data.inzet.toReward })) : ''}</p>
+      ${(data.levelLog || []).length ? `<table class="list">${data.levelLog.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>⭐ ${t('Level {n}', { n: x.level })}${x.gift ? `<div class="small muted">🎁 ${esc(x.gift)}</div>` : ''}</td><td style="text-align:right">${x.given ? '✅' : `<button class="btn ghost" data-levelgiven="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : ''}
+      <p class="small muted">${t('Wat de beloning is en hoe vaak, stel je in bij de beloningen.')}</p></div>
+    <div class="card stack"><h2>🏅 ${t('Eigen oefendoelen')}</h2>
+      ${(data.goals || []).length ? `<p class="small">${t('Bezig met:')} ${data.goals.map((g) => `${g.icon} ${esc(g.label)} (${goalText(g).toLowerCase()}, ${g.done}/${g.total})`).join(' · ')}</p>` : `<p class="small muted">${t('Nog geen eigen doel gekozen.')}</p>`}
+      ${(data.goalLog || []).length ? `<table class="list">${data.goalLog.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>🏅 ${esc(x.label)}${x.gift ? `<div class="small muted">🎁 ${esc(x.gift)}</div>` : ''}</td><td style="text-align:right">${x.given ? '✅' : `<button class="btn ghost" data-goalgiven="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : ''}</div>
+    <div class="card stack"><h2>🎁 ${t('Wekelijkse verrassing')}</h2>
+      <p class="small muted">${t('Eén keer per week, op een willekeurige dag, krijgt {n} een verrassing als de dagtaak goed is gegaan. Een bedrag met "euro" of "rand" gaat automatisch in de spaarpot.', { n: esc(data.name) })}</p>
+      <details class="sub-acc"><summary>⚙️ ${t('Verrassingen instellen')}</summary><form class="stack" data-surprise style="gap:8px;margin-top:10px">
+        <label class="row"><input type="checkbox" name="enabled" ${data.surprise.cfg.enabled ? 'checked' : ''}> <span>${t('Aan')}</span></label>
+        <label class="field"><span class="small" style="font-weight:800">${t('Verrassingen (één per regel)')}</span><textarea name="rewards" rows="4">${esc(data.surprise.cfg.rewards.join('\n'))}</textarea></label>
+        <label class="field"><span class="small" style="font-weight:800">${t('Minimaal percentage goed in de dagtaak')}</span><select name="min">${[0.5, 0.6, 0.7, 0.8, 0.9].map((m) => `<option value="${m}" ${Math.abs(m - data.surprise.cfg.min) < 0.01 ? 'selected' : ''}>${m * 100}%</option>`).join('')}</select></label>
+        <button class="btn ghost">${t('Opslaan')}</button>
+      </form></details>
+      ${data.surprise.list.length ? `<table class="list">${data.surprise.list.map((x, i) => `<tr><td>${esc(x.date.slice(8))}-${esc(x.date.slice(5, 7))}</td><td>${esc(x.reward)}</td><td style="text-align:right">${x.delivered ? '✅' : `<button class="btn ghost" data-delivered="${i}" style="min-height:34px;padding:0 10px">${t('Gegeven')}</button>`}</td></tr>`).join('')}</table>` : `<p class="small muted">${t('Nog geen verrassingen uitgedeeld.')}</p>`}
+    </div>
+    <details class="card pacc"><summary><h2>🪙 ${t('Beloning en weekplan')}</h2></summary><form class="pacc-b stack" data-rewards>
+      ${rewardFields(data.rewards, { tr: (nl, a) => (LANG === 'af' ? a : nl), za: data.country === 'ZA', af: LANG === 'af', counts: data.dailyCounts })}
+      <p class="small muted">${t('Geldt vanaf de volgende dagtaak.')}</p>
+      <button class="btn ghost block">${t('Opslaan')}</button></form></details>
+    <details class="card pacc"><summary><h2>${t('Badges')}</h2></summary><div class="pacc-b stack"><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div></details>
+    <details class="card pacc"><summary><h2>${t('Geschiedenis van de spaarpot')}</h2></summary><div class="pacc-b stack"><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div></details>
+    </section>
 
-    <div class="card"><h2>${t('Recente fouten')}</h2>${data.recentWrong.length ? `<table class="list"><tr><th>${t('Som')}</th><th>${t('Antwoord')}</th><th>${t('Goed')}</th></tr>${data.recentWrong.map((w) => `<tr><td><span class="small muted">${esc(w.label)}</span><br>${esc(w.text)}</td><td>${esc(w.given)}</td><td>${esc(w.display)}</td></tr>`).join('')}</table>` : `<p class="muted">${t('Nog geen fouten.')}</p>`}</div>
-
-    <div class="card"><h2>${t('Sessies')}</h2><table class="list"><tr><th>${t('Dag')}</th><th>${t('Soort')}</th><th>${t('Goed')}</th><th>${CENT()}</th><th>${t('Tijd')}</th></tr>
-      ${data.sessions.map((s) => `<tr><td>${s.day.slice(8)}-${s.day.slice(5, 7)}</td><td>${kindNl[s.kind]}${s.status === 'active' ? ` <span class="chip">${t('bezig')}</span>` : ''}</td><td>${s.correct}/${s.total}${s.kind === 'daily' ? `<div class="small ${s.rushes ? '' : 'muted'}">${s.rushes ? `🐢 ${t('{n}× gehaast', { n: s.rushes })}` : `✅ ${t('rustig')}`}</div>` : ''}</td><td>${s.points}</td><td>${s.secs ? Math.round(s.secs / 60) + ' min' : ''}</td></tr>`).join('')}</table></div>
-
-    <div class="card"><h2>${t('Geschiedenis van de spaarpot')}</h2><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div>
-
+    <section class="stack" data-psec="instellingen">
     <div class="card stack"><h2>${t('Instellingen')}</h2>
       <form class="row" data-name><div class="field" style="flex:1"><input name="name" value="${esc(data.name)}" maxlength="30"></div><button class="btn ghost">${t('Naam opslaan')}</button></form>
       <form class="stack" data-kidprofile style="gap:8px">
@@ -2161,7 +2161,29 @@ async function renderParent() {
       <button class="btn ghost block" data-reset="intake">${t('Starttoets opnieuw laten doen')}</button>
       <button class="btn ghost block" data-reset="all" style="color:var(--bad)">${t('Alles wissen (ook de spaarpot)')}</button>
       <button class="btn ghost block" data-delkid style="color:var(--bad)">${t('Profiel van {n} helemaal verwijderen', { n: esc(data.name) })}</button></div>
+    <details class="card pacc"><summary><h2>🔒 ${t('Ouderwachtwoord')}</h2></summary><form class="pacc-b stack" data-password>
+      <p class="small muted">${data.hasPassword ? t('Er is een eigen wachtwoord ingesteld. Hier kun je het veranderen.') : t('Nog geen eigen wachtwoord: je opent het ouderscherm met de pincode van de beheerder. Stel hier een eigen wachtwoord in.')}</p>
+      <input type="password" name="pw" autocomplete="new-password" placeholder="${t('nieuw wachtwoord (minstens 4 tekens)')}">
+      <input type="password" name="pw2" autocomplete="new-password" placeholder="${t('nog een keer')}">
+      <button class="btn ghost block">${t('Wachtwoord opslaan')}</button>
+      ${data.hasPassword ? `<button type="button" class="btn ghost block" data-pwclear>${t('Eigen wachtwoord weghalen')}</button>` : ''}</form></details>
+    <details class="card pacc"><summary><h2>📊 ${t('Help de app verbeteren')}</h2></summary><form class="pacc-b stack" data-research>
+      <p class="small muted">${t('Antwoorden en gesprekken met {m} worden zonder je naam, maar onder een schuilnaam, bewaard. Zo kunnen de makers de uitleg verbeteren. Je kunt dit uitzetten.', { m: esc(data.teacher) })}</p>
+      <label class="row"><input type="checkbox" name="on" ${data.research ? 'checked' : ''}> <span>${t('Meehelpen (aanbevolen)')}</span></label>
+      <label class="field"><span class="small" style="font-weight:800">${t('Feedback voor de makers: wat valt je op? Wat gaat er mis? Wat kan beter?')}</span><textarea name="text" rows="3" maxlength="3000"></textarea></label>
+      <button class="btn ghost block">${t('Versturen')}</button></form></details>
+    </section>
   </div>`;
+  const showTab = (id) => {
+    tab = id;
+    $app.querySelectorAll('[data-ptab]').forEach((b) => b.classList.toggle('on', b.dataset.ptab === id));
+    $app.querySelectorAll('[data-psec]').forEach((s) => (s.hidden = s.dataset.psec !== id));
+    history.replaceState(null, '', `#/ouder/${id}`);
+    demoBar();
+  };
+  $app.querySelectorAll('[data-ptab]').forEach((b) => (b.onclick = () => { showTab(b.dataset.ptab); window.scrollTo(0, 0); }));
+  $app.querySelectorAll('[data-goto]').forEach((b) => (b.onclick = () => { showTab(b.dataset.goto); window.scrollTo(0, 0); }));
+  showTab(tab);
 
   $app.querySelector('[data-profile]').onclick = async (e) => {
     e.target.disabled = true; e.target.textContent = t('Bezig…');
