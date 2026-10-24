@@ -36,6 +36,17 @@ for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
   });
 }
 
+// Kaarten gelden voor álle sommen van een sjabloon: geen getallen van één voorbeeldsom (Max-meetlat #3: "keersommen met 28"
+// bij een som met 27, "40% → 8" bij 40 leerlingen). Toegestaan: vaste feiten en kleine getallen, of een gelabeld voorbeeld ("bijv. …").
+const { alleKaarten } = await import('../src/uitleg/index.js');
+const VAST = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15', '24', '25', '30', '45', '50', '60', '75', '90', '100', '180', '360', '1000', '1 000', '10 000', '3,14', '0,5', '0,25', '13', '00', '500']); // + vaste feiten (π, half uur, 13:00, ½ ℓ)
+for (const lang of ['nl', 'af']) for (const [id, k] of Object.entries(alleKaarten(lang))) {
+  for (const t of [k.naam, ...(k.aanpak || []), k.model, k.woorden, ...(k.valkuilen || []), k.concreter, ...(k.niet || [])].filter(Boolean)) {
+    const zonderVoorbeeld = String(t).replace(/\((?:bijv\.|bv\.)[^)]*\)|(?:bijv\.|bv\.|Eers ’n klein voorbeeld:|Eerst een klein voorbeeld:|Eerst een makkelijk voorbeeld:)[^.]*\./g, '');
+    const vreemd = [...zonderVoorbeeld.matchAll(/\d+(?:[  ]\d{3})*(?:,\d+)?/g)].map((m) => m[0]).filter((x) => !VAST.has(x));
+    if (vreemd.length) fouten.push(`${lang}:${id} — kaart noemt een voorbeeldgetal (${vreemd.join(', ')}) zonder "bijv.": "${strip(t).slice(0, 90)}"`);
+  }
+}
 const zwak = Object.entries(rauw).filter(([, s]) => s.afgekeurd / s.n > 0.9);
 if (RAUW) {
   console.log('Afgekeurd door de poort (per sjabloon, rauwe generator):');

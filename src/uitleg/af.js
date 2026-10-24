@@ -6,43 +6,43 @@ const K = (naam, aanpak, extra = {}) => ({ naam, aanpak, ...extra });
 const GELD = 'Maak dit konkreet met geld: R1-munte, R10- en R100-note.';
 const LYN = 'die getallelyn: spring eers die groot sprong, dan die klein sprongetjies';
 const KOLOM = 'kolomme (ene onder ene, tiene onder tiene), begin by die ene';
-const KLOK = '’n horlosie met wysers: die lang wyser tel in spronge van 5 minute (by die 1 = 5, by die 6 = 30, by die 9 = 45)';
+const KLOK = '’n horlosie met wysers: die lang wyser tel in spronge van 5 minute';
 const VTABEL = '’n verhoudingstabel (twee rye: wat jy bo doen, doen jy onder ook)';
 const STROOK = '’n breukstrook (’n strook in ewe groot dele)';
 
 export const KAARTEN = {
   // ================= OPTEL EN AFTREK =================
-  'optel.0a': K('Optel deur albei getalle op te breek', ['Breek albei getalle op in honderde, tiene en ene.', 'Tel die honderde bymekaar, dan die tiene, dan die ene.', 'Tel die drie antwoorde bymekaar.'], { model: 'plekwaardekaartjies (100, 80, 7) of base-tien-blokke', woorden: 'opbreek, honderde, tiene, ene, bymekaartel', valkuilen: ['Tiene en ene deurmekaar (80 + 2) → sê die waarde hardop: "tagtig plus sewentig".'], concreter: GELD }),
-  'optel.0b': K('Aftrek met opbreek en terugspring', ['Breek die getal wat afgetrek word op (327 = 300 + 20 + 7).', 'Spring terug op die getallelyn: eers die honderde, dan die tiene, dan die ene.', 'Kontroleer met optel.'], { model: LYN + ' (terug)', valkuilen: ['Kleinste syfer van die grootste afgetrek in elke kolom → spring terug op die getallelyn.'], concreter: GELD }),
+  'optel.0a': K('Optel deur albei getalle op te breek', ['Breek albei getalle op in honderde, tiene en ene.', 'Tel die honderde bymekaar, dan die tiene, dan die ene.', 'Tel die drie antwoorde bymekaar.'], { model: 'plekwaardekaartjies of base-tien-blokke', woorden: 'opbreek, honderde, tiene, ene, bymekaartel', valkuilen: ['Tiene en ene deurmekaar → sê die waarde hardop: "tagtig plus sewentig".'], concreter: GELD }),
+  'optel.0b': K('Aftrek met opbreek en terugspring', ['Breek die getal wat afgetrek word op.', 'Spring terug op die getallelyn: eers die honderde, dan die tiene, dan die ene.', 'Kontroleer met optel.'], { model: LYN + ' (terug)', valkuilen: ['Kleinste syfer van die grootste afgetrek in elke kolom → spring terug op die getallelyn.'], concreter: GELD }),
   'optel.0c': K('Woordsom: altesaam (opbreek)', ['Wat word gevra? Altesaam → optel.', 'Breek albei getalle op en tel honderde, tiene en ene apart.', 'Tel alles bymekaar.'], { model: 'plekwaardekaartjies', valkuilen: ['Afgetrek → "Altesaam beteken bymekaar."'], concreter: 'Met kaartjies van R100 en R10.' }),
   'optel.1a': K('Kolomoptelling met oordra', ['Skryf die getalle onder mekaar: ene onder ene.', 'Begin by die ene; is die antwoord 10 of meer, skryf die ene en dra 1 oor.', 'Gaan so voort na links.'], { model: KOLOM, woorden: 'oordra, kolomme', valkuilen: ['Oordra vergeet → skryf die 1 klein bo die volgende kolom.'], concreter: 'Base-tien-blokke: 10 ene word 1 tien.' }),
-  'optel.1b': K('Kompensering (98 is amper 100)', ['Die getal is amper ’n rond getal (98 → 100).', 'Trek die ronde getal af.', 'Jy het te veel afgetrek: tel die verskil weer by.'], { model: LYN, woorden: 'kompensering', valkuilen: ['Die verskil ook afgetrek → "Het jy te veel of te min afgetrek?"'], concreter: 'Met geld: jy betaal R100 in plaas van R98.' }),
-  'optel.1c': K('Voltooi tot die volgende 1 000', ['Spring eers na die volgende honderd.', 'Dan na die volgende duisend.', 'Tel die spronge bymekaar.'], { model: LYN, valkuilen: ['Na die verkeerde duisend gespring.'], concreter: 'Klein: van 340 tot 400 tot 1 000.' }),
+  'optel.1b': K('Kompensering', ['Die getal is amper ’n rond getal.', 'Trek die ronde getal af.', 'Jy het te veel afgetrek: tel die verskil weer by.'], { model: LYN, woorden: 'kompensering', valkuilen: ['Die verskil ook afgetrek → "Het jy te veel of te min afgetrek?"'], concreter: 'Met geld: jy betaal die ronde bedrag in plaas van die regte een.' }),
+  'optel.1c': K('Voltooi tot die volgende 1 000', ['Spring eers na die volgende honderd.', 'Dan na die volgende duisend.', 'Tel die spronge bymekaar.'], { model: LYN, valkuilen: ['Na die verkeerde duisend gespring.'], concreter: 'Eers ’n kleiner voorbeeld, dan terug na die som.' }),
   'optel.2a': K('Woordsom: kolomoptelling (groot getalle)', ['Wat word gevra? Altesaam.', 'Kolomoptelling: ene onder ene, begin by die ene, dra oor.'], { model: KOLOM, valkuilen: ['Kolomme verskuif → skryf in ’n plekwaardetabel.'], concreter: 'Begin met kleiner getalle.' }),
   'optel.2b': K('Kolomaftrekking met omruil', ['Skryf onder mekaar; begin by die ene.', 'Die onderste syfer word altyd afgetrek.', 'Gaan dit nie? Ruil 1 van die kolom links om vir 10.'], { model: KOLOM + '; base-tien-blokke', woorden: 'omruil (nie "leen" nie)', valkuilen: ['Kleinste syfer van die grootste afgetrek → "Die onderste syfer word altyd afgetrek."', 'Vergeet dat die kolom links nou 1 minder het.'], concreter: 'Base-tien-blokke: ruil ’n tien om vir 10 ene.' }),
   'optel.2c': K('Kolomoptelling (groot getalle)', ['Ene onder ene; begin by die ene.', 'Dra oor as dit 10 of meer is.'], { model: KOLOM, valkuilen: ['Oordra vergeet.'], concreter: 'Plekwaardetabel.' }),
-  'optel.3a': K('Woordsom: getallesin met twee bewerkings', ['Skryf ’n getallesin (4 460 − 1 297 + 366 = □).', 'Werk van links na regs.'], { woorden: 'getallesin', valkuilen: ['Alles opgetel → "Verkoop hy of koop hy?"'], concreter: 'Klein getalle: 10 skape, verkoop 3, koop 2.' }),
+  'optel.3a': K('Woordsom: getallesin met twee bewerkings', ['Skryf ’n getallesin.', 'Werk van links na regs.'], { woorden: 'getallesin', valkuilen: ['Alles opgetel → "Verkoop hy of koop hy?"'], concreter: 'Klein getalle: 10 skape, verkoop 3, koop 2.' }),
   'optel.3b': K('Woordsom: uitgawes en wat oorbly', ['Wat word gevra? Hoeveel bly oor.', 'Tel eers die uitgawes bymekaar.', 'Trek dit van die totaal af.'], { valkuilen: ['Net een uitgawe afgetrek.'], concreter: 'Met R100 en twee aankope.' }),
   'optel.3c': K('Kolomaftrekking met groot getalle', ['Onder mekaar; begin by die ene.', 'Onderste syfer word afgetrek; ruil om as dit nie gaan nie.'], { model: KOLOM, valkuilen: ['Omruil oor ’n 0 heen.'], concreter: 'Base-tien-blokke.' }),
 
   // ================= VERMENIGVULDIG =================
-  'vermenigvuldig.0a': K('Maaltafel via ’n tafel wat jy ken', ['Gebruik ’n maaltafel wat jy ken (× 2, × 5, × 10).', 'Verdubbel, halveer of een groep meer/minder.'], { model: 'groepe teken of spronge', woorden: 'maal, maaltafel, verdubbel, halveer', valkuilen: ['Opgetel (9 + 5).'], concreter: 'Teken 9 groepe van 5.' }),
-  'vermenigvuldig.0b': K('Woordsom: uitgebreide notasie', ['Wat word gevra? Dosies × potlode per dosie.', 'Skryf die getal in uitgebreide notasie (48 = 40 + 8).', 'Maal elke deel en tel die deelprodukte op.'], { woorden: 'uitgebreide notasie, deelprodukte', valkuilen: ['Net die tiene gemaal.'], concreter: 'Eers 10 dosies.' }),
-  'vermenigvuldig.0c': K('2-syfer × 1-syfer: uitgebreide notasie', ['Skryf 47 as 40 + 7.', 'Maal elke deel.', 'Tel die deelprodukte op.'], { valkuilen: ['40 × 6 + 7.'], concreter: 'Geld: 4 note van R10 en 7 munte, 6 keer.' }),
-  'vermenigvuldig.1a': K('3-syfer × 1-syfer: uitgebreide notasie', ['Skryf die getal in uitgebreide notasie (700 + 80 + 3).', 'Maal elke deel.', 'Tel die deelprodukte op.'], { valkuilen: ['’n Deel vergeet.'], concreter: GELD }),
+  'vermenigvuldig.0a': K('Maaltafel via ’n tafel wat jy ken', ['Gebruik ’n maaltafel wat jy ken (× 2, × 5, × 10).', 'Verdubbel, halveer of een groep meer/minder.'], { model: 'groepe teken of spronge', woorden: 'maal, maaltafel, verdubbel, halveer', valkuilen: ['Opgetel.'], concreter: 'Teken 9 groepe van 5.' }),
+  'vermenigvuldig.0b': K('Woordsom: uitgebreide notasie', ['Wat word gevra? Dosies × potlode per dosie.', 'Skryf die getal in uitgebreide notasie.', 'Maal elke deel en tel die deelprodukte op.'], { woorden: 'uitgebreide notasie, deelprodukte', valkuilen: ['Net die tiene gemaal.'], concreter: 'Eers 10 dosies.' }),
+  'vermenigvuldig.0c': K('2-syfer × 1-syfer: uitgebreide notasie', ['Skryf die getal as tiene + ene.', 'Maal elke deel.', 'Tel die deelprodukte op.'], { valkuilen: ['Net die tiene gemaal en die ene bygetel.'], concreter: 'Geld: R10-note en R1-munte, soveel keer as die ander getal.' }),
+  'vermenigvuldig.1a': K('3-syfer × 1-syfer: uitgebreide notasie', ['Skryf die getal in uitgebreide notasie.', 'Maal elke deel.', 'Tel die deelprodukte op.'], { valkuilen: ['’n Deel vergeet.'], concreter: GELD }),
   'vermenigvuldig.1b': K('2-syfer × 2-syfer: breek op', ['Breek die tweede getal op in tiene en ene.', 'Maal eers met die tiene, dan met die ene.', 'Tel op.'], { model: 'die area-model (reghoek in dele)', valkuilen: ['Tiene × tiene en ene × ene.'], concreter: 'Area-model teken.' }),
-  'vermenigvuldig.1c': K('× 10, 100, 1000', ['× 10: elke syfer skuif een plek na links; daar kom ’n nul agter.'], { model: 'plekwaardetabel', valkuilen: ['Nul vergeet.'], concreter: 'R40 × 10.' }),
-  'vermenigvuldig.2a': K('4-syfer × 1-syfer: uitgebreide notasie', ['Uitgebreide notasie.', 'Maal elke deel.', 'Tel op.'], { valkuilen: ['Nulle vergeet by 2 000 × 8.'], concreter: GELD }),
-  'vermenigvuldig.2b': K('3-syfer × 2-syfer: breek op', ['Breek die 2-syfergetal op (23 = 20 + 3).', 'Maal met die tiene en met die ene.', 'Tel op; beraam om te kontroleer.'], { model: 'area-model', valkuilen: ['Nul vergeet by × 20.'], concreter: 'Eers × 3.' }),
+  'vermenigvuldig.1c': K('× 10, 100, 1000', ['× 10: elke syfer skuif een plek na links; daar kom ’n nul agter.'], { model: 'plekwaardetabel', valkuilen: ['Nul vergeet.'], concreter: 'Geld: tien keer soveel rand.' }),
+  'vermenigvuldig.2a': K('4-syfer × 1-syfer: uitgebreide notasie', ['Uitgebreide notasie.', 'Maal elke deel.', 'Tel op.'], { valkuilen: ['Nulle vergeet by duisende × die getal.'], concreter: GELD }),
+  'vermenigvuldig.2b': K('3-syfer × 2-syfer: breek op', ['Breek die 2-syfergetal op.', 'Maal met die tiene en met die ene.', 'Tel op; beraam om te kontroleer.'], { model: 'area-model', valkuilen: ['Nul vergeet by × die tiene.'], concreter: 'Eers × 3.' }),
   'vermenigvuldig.2c': K('Woordsom: 3-syfer × 2-syfer', ['Wat word gevra? Bokse × tamaties per boks.', 'Breek op en maal.', 'Tel op.'], { valkuilen: ['Opgetel.'], concreter: 'Eers 10 bokse.' }),
   'vermenigvuldig.3a': K('Beraam, dan breek op', ['Beraam eers (rond af).', 'Breek die 2-syfergetal op en maal.', 'Tel op en vergelyk met die beraming.'], { woorden: 'beraam (omtrent uitreken met ronde getalle)', valkuilen: ['Antwoord ver van die beraming.'], concreter: 'Begin met die beraming.' }),
 
   // ================= DELING =================
-  'deling.0a': K('Deling met die maaltafel', ['Dink aan die maaltafel: 7 × ? = 35.', 'Begin by ’n maklike een en tel verder.'], { model: 'groepe maak; spronge', woorden: 'deel, maaltafel, res', valkuilen: ['Afgetrek.'], concreter: 'Deel 35 lekkers tussen 7 kinders.' }),
+  'deling.0a': K('Deling met die maaltafel', ['Dink aan die maaltafel: deler × ? = die getal.', 'Begin by ’n maklike een en tel verder.'], { model: 'groepe maak; spronge', woorden: 'deel, maaltafel, res', valkuilen: ['Afgetrek.'], concreter: 'Deel die lekkers gelyk tussen die kinders (met die getalle van die som).' }),
   'deling.0b': K('Deling met res (woordsom)', ['Watter getal in die tafel is die naaste aan die getal, maar nie meer nie?', 'Dit is hoeveel elkeen kry; wat oorbly is die res.'], { valkuilen: ['Afgerond na bo.'], concreter: 'Met lekkers.' }),
   'deling.0c': K('Die res vind', ['Maal: deler × kwosiënt.', 'Trek af van die getal: dit is die res.'], { woorden: 'res (wat oorbly)', valkuilen: ['Kwosiënt as res gegee.'], concreter: 'Met lekkers.' }),
   'deling.1a': K('Deelbaarheidsreël (2, 5, 10)', ['Kyk na die laaste syfer.', '2: ewe; 5: 0 of 5; 10: 0.'], { valkuilen: ['Na die hele getal gekyk.'], concreter: 'Klein getalle.' }),
-  'deling.1b': K('Deling deur opbreek', ['Breek die getal op in dele wat maklik deelbaar is (630 + 49).', 'Deel elke deel.', 'Tel die antwoorde op.'], { valkuilen: ['Dele wat nie maklik deel nie.'], concreter: 'Met geld.' }),
+  'deling.1b': K('Deling deur opbreek', ['Breek die getal op in dele wat maklik deelbaar is.', 'Deel elke deel.', 'Tel die antwoorde op.'], { valkuilen: ['Dele wat nie maklik deel nie.'], concreter: 'Met geld.' }),
   'deling.2a': K('Deelbaarheidsreël (3, 9)', ['Tel die syfers op.', 'Is die som deelbaar deur 3 (of 9)?'], { valkuilen: ['Laaste syfer gebruik.'], concreter: 'Met 12.' }),
   'deling.2b': K('Langdeling', ['Werk van links na regs: hoeveel keer gaan die deler in die eerste syfers?', 'Maal en trek die deelproduk af.', 'Bring die volgende syfer af; herhaal.', 'Kontroleer met maal.'], { model: 'die langdeling-uitleg (soos in die werkboek)', woorden: 'Deel, maal, trek af, bring af', valkuilen: ['Afbring vergeet.', 'Deelproduk groter as die getal.'], concreter: 'Eers met ’n klein getal.' }),
   'deling.2c': K('Langdeling met res (vol bokse)', ['Langdeling.', 'Net vol bokse tel: die res bly oor.'], { valkuilen: ['Res as ekstra boks getel.'], concreter: 'Met eiers.' }),
@@ -54,21 +54,21 @@ export const KAARTEN = {
   'getalbegrip.0c': K('Afronding tot die naaste 10', ['Tussen watter twee tiene lê die getal?', 'Kyk na die ene: 5 of meer, rond op.'], { model: 'getallelyn', valkuilen: ['Na die tiene gekyk.'], concreter: 'Op die getallelyn.' }),
   'getalbegrip.0d': K('Getalle vergelyk', ['Vergelyk eers die duisende, dan die honderde, dan die tiene.'], { model: 'plekwaardetabel', valkuilen: ['Na die laaste syfer gekyk.'], concreter: 'Met geld.' }),
   'getalbegrip.1a': K('Afronding tot die naaste 100', ['Tussen watter twee honderde lê die getal?', 'Die middel: op of verby die middel, rond op.'], { model: 'getallelyn', valkuilen: ['Na die ene gekyk.'], concreter: 'Getallelyn.' }),
-  'getalbegrip.1b': K('Faktore', ['Soek pare wat saam die getal gee (1 × 12, 2 × 6, …).', 'Tel al die faktore.'], { woorden: 'faktore (getalle wat sonder res in die getal deel)', valkuilen: ['1 en die getal self vergeet.'], concreter: 'Maak reghoeke met 12 blokkies.' }),
+  'getalbegrip.1b': K('Faktore', ['Soek pare wat saam die getal gee.', 'Tel al die faktore.'], { woorden: 'faktore (getalle wat sonder res in die getal deel)', valkuilen: ['1 en die getal self vergeet.'], concreter: 'Maak reghoeke met 12 blokkies.' }),
   'getalbegrip.1c': K('Getal skryf uit plekwaarde', ['Plekwaardetabel: D, H, T, E.', 'Elke plek kry ’n syfer, ook 0.'], { valkuilen: ['0 vergeet.'], concreter: GELD }),
-  'getalbegrip.2a': K('Priemgetalle', ['’n Priemgetal het net twee faktore: 1 en homself.', 'Toets of die getal deur 2, 3, 5 of 7 deelbaar is.'], { valkuilen: ['Elke onewe getal as priem.'], concreter: 'Probeer 9: 3 × 3.' }),
+  'getalbegrip.2a': K('Priemgetalle', ['’n Priemgetal het net twee faktore: 1 en homself.', 'Toets of die getal deur 2, 3, 5 of 7 deelbaar is.'], { valkuilen: ['Elke onewe getal as priem.'], concreter: 'Eers ’n klein voorbeeld: 9 = 3 × 3, dus nie priem nie.' }),
   'getalbegrip.2b': K('Afronding tot die naaste 1 000', ['Onderstreep die duisende.', 'Kyk na die honderde: 5 of meer, rond op.'], { valkuilen: ['Syfers regs nie 0 gemaak nie.'], concreter: 'Getallelyn.' }),
   'getalbegrip.2c': K('Veelvoude', ['Die veelvoude is die getalle in die maaltafel.', 'Soek die eerste een wat groter is.'], { valkuilen: ['Kleiner een gekies.'], concreter: 'Sê die tafel op.' }),
   'getalbegrip.3a': K('GGF', ['Skryf die faktore van albei.', 'Die grootste een wat in albei voorkom.'], { woorden: 'GGF (grootste gemene faktor)', valkuilen: ['KGV gesoek.'], concreter: 'Klein getalle: 6 en 9.' }),
   'getalbegrip.3b': K('KGV', ['Skryf die veelvoude van albei.', 'Die kleinste een wat in albei voorkom.'], { woorden: 'KGV (kleinste gemene veelvoud)', valkuilen: ['Die getalle net gemaal.'], concreter: '4 en 6.' }),
-  'getalbegrip.3c': K('Kwadraat', ['12² beteken 12 × 12.'], { valkuilen: ['12 × 2.'], concreter: '3² = 3 × 3: ’n vierkant van 3 by 3.' }),
+  'getalbegrip.3c': K('Kwadraat', ['’n Getal kwadraat beteken die getal maal homself.'], { valkuilen: ['Maal 2 in plaas van maal homself.'], concreter: 'Eers ’n klein voorbeeld: 3² = 3 × 3, ’n vierkant van 3 by 3.' }),
   'getalbegrip.3d': K('Negatiewe getalle (temperatuur)', ['Begin by die negatiewe getal op die getallelyn.', 'Spring tot by 0, dan verder.'], { model: 'termometer', valkuilen: ['Afgetrek.'], concreter: 'Teken ’n termometer.' }),
 
   // ================= BREUKE =================
-  'breuke.0a': K('Breuk van ’n getal (1/5 van 25)', ['Verdeel die getal in soveel ewe groot groepe as die noemer.', 'Een groep is die antwoord.'], { model: STROOK + ' of groepe voorwerpe', woorden: 'teller (die getal bo die streep), noemer (die getal onder die streep)', valkuilen: ['Gemaal.'], concreter: 'Deel 25 lekkers tussen 5 kinders.' }),
+  'breuke.0a': K('Breuk van ’n getal', ['Verdeel die getal in soveel ewe groot groepe as die noemer.', 'Een groep is die antwoord.'], { model: STROOK + ' of groepe voorwerpe', woorden: 'teller (die getal bo die streep), noemer (die getal onder die streep)', valkuilen: ['Gemaal.'], concreter: 'Deel 25 lekkers tussen 5 kinders.' }),
   'breuke.0b': K('Breuk aflees (sirkel)', ['Noemer: in hoeveel ewe groot dele.', 'Teller: hoeveel dele ingekleur.'], { model: 'sirkeldiagram', valkuilen: ['Teller en noemer omgeruil.'], concreter: 'Teken en kleur.' }),
   'breuke.0c': K('Breuke vergelyk (dieselfde noemer)', ['Is die dele ewe groot? (dieselfde noemer)', 'Meer dele = groter.'], { model: STROOK, valkuilen: ['Na die noemer gekyk.'], concreter: 'Breukstroke.' }),
-  'breuke.1a': K('Breuk van ’n getal (2/3 van 9)', ['Eers 1/3: deel deur die noemer.', 'Dan maal met die teller.'], { model: STROOK, valkuilen: ['Net gedeel.'], concreter: 'Met lekkers.' }),
+  'breuke.1a': K('Breuk van ’n getal', ['Eers 1/3: deel deur die noemer.', 'Dan maal met die teller.'], { model: STROOK, valkuilen: ['Net gedeel.'], concreter: 'Met lekkers.' }),
   'breuke.1b': K('Ekwivalente breuke (□)', ['Met hoeveel is die noemer gemaal?', 'Maal die teller met dieselfde getal.'], { model: STROOK, woorden: 'ekwivalente breuke', valkuilen: ['Bygetel in plaas van gemaal.'], concreter: 'Breukstroke onder mekaar.' }),
   'breuke.1c': K('Breuke optel (dieselfde noemer)', ['Die dele is ewe groot: tel net die tellers op.', 'Die noemer bly dieselfde.'], { model: STROOK, valkuilen: ['Noemers ook opgetel.'], concreter: 'Pizza.' }),
   'breuke.2a': K('Breuke optel (een noemer is ’n veelvoud)', ['Maak die noemers dieselfde: verander die breuk met die kleiner noemer.', 'Tel die tellers op.', 'Vereenvoudig.'], { model: STROOK, valkuilen: ['Tellers én noemers opgetel.'], concreter: 'Breukstroke.' }),
@@ -82,15 +82,15 @@ export const KAARTEN = {
   // ================= DESIMALE BREUKE =================
   'desimale.0a': K('Rande na sent', ['R1 = 100 sent.', 'Rande × 100, plus die sent.'], { valkuilen: ['Komma weggelaat sonder om te maal.'], concreter: GELD }),
   'desimale.0b': K('Geld optel (rande en sent)', ['Tel die rande op.', 'Tel die sent op (100 sent = R1).'], { valkuilen: ['Sent oor 100.'], concreter: GELD }),
-  'desimale.1a': K('Breuk na desimale breuk (tiendes)', ['Tiendes staan op die eerste plek ná die komma.'], { model: 'plekwaardetabel met komma', valkuilen: ['5,10.'], concreter: 'R0,50.' }),
-  'desimale.1b': K('Gemengde getal na desimale breuk', ['Heelgetalle voor die komma.', 'Honderdstes: twee plekke ná die komma.'], { valkuilen: ['1,013.'], concreter: 'R1,13.' }),
+  'desimale.1a': K('Breuk na desimale breuk (tiendes)', ['Tiendes staan op die eerste plek ná die komma.'], { model: 'plekwaardetabel met komma', valkuilen: ['Teller en noemer met ’n komma tussen.'], concreter: 'Geld: tiendes is 10 sent-stukke.' }),
+  'desimale.1b': K('Gemengde getal na desimale breuk', ['Heelgetalle voor die komma.', 'Honderdstes: twee plekke ná die komma.'], { valkuilen: ['Honderdstes op die verkeerde plek.'], concreter: 'Geld: rande en sent.' }),
   'desimale.1c': K('Desimale breuke vergelyk', ['Maak die aantal syfers ná die komma gelyk.', 'Vergelyk soos sent.'], { valkuilen: ['Langste getal = grootste.'], concreter: 'Geld.' }),
   'desimale.2a': K('Desimale optel (kolomme)', ['Kommas onder mekaar; maak ewe lank met nulle.', 'Tel op soos gewone getalle.'], { valkuilen: ['Kommas nie onder mekaar.'], concreter: 'Geld.' }),
-  'desimale.2b': K('Desimale aftrek (kolomme)', ['Kommas onder mekaar; vul aan met nulle.', 'Trek af.'], { valkuilen: ['3,3 as 3,03.'], concreter: 'Geld.' }),
-  'desimale.2c': K('× 10, 100, 1000 (desimaal)', ['× 100: elke syfer skuif twee plekke na links.'], { model: 'plekwaardetabel', valkuilen: ['Verkeerde kant.'], concreter: 'R4,92 × 100.' }),
+  'desimale.2b': K('Desimale aftrek (kolomme)', ['Kommas onder mekaar; vul aan met nulle.', 'Trek af.'], { valkuilen: ['Tiendes as honderdstes gelees.'], concreter: 'Geld.' }),
+  'desimale.2c': K('× 10, 100, 1000 (desimaal)', ['× 100: elke syfer skuif twee plekke na links.'], { model: 'plekwaardetabel', valkuilen: ['Verkeerde kant.'], concreter: 'Geld: honderd keer soveel rand.' }),
   'desimale.2e': K('Waarde van ’n syfer ná die komma', ['Eerste plek: tiendes; tweede plek: honderdstes.'], { valkuilen: ['Plekke omgeruil.'], concreter: 'Geld: sent.' }),
-  'desimale.3a': K('Desimaal × heelgetal (tiendes)', ['0,4 is 4 tiendes.', '4 tiendes × 9 = 36 tiendes.', '36 tiendes = 3,6.'], { valkuilen: ['Komma verkeerd (36).'], concreter: 'Geld: 40 sent × 9.' }),
-  'desimale.3b': K('Desimaal × heelgetal (uitgebreide notasie)', ['Uitgebreide notasie: (4 × 40) + (0,1 × 40) + (0,02 × 40).', 'Tel op.'], { valkuilen: ['Komma vergeet.'], concreter: 'Geld.' }),
+  'desimale.3a': K('Desimaal × heelgetal (tiendes)', ['Lees die desimale getal as tiendes.', 'Maal die tiendes met die heelgetal.', 'Skryf die tiendes terug as desimale getal.'], { valkuilen: ['Komma verkeerd.'], concreter: 'Geld: sent maal die getal.' }),
+  'desimale.3b': K('Desimaal × heelgetal (uitgebreide notasie)', ['Uitgebreide notasie: + +.', 'Tel op.'], { valkuilen: ['Komma vergeet.'], concreter: 'Geld.' }),
   'desimale.3c': K('Desimaal ÷ heelgetal (woordsom)', ['Hoeveel mense deel?', 'Dink in tiendes en deel.'], { valkuilen: ['Komma vergeet.'], concreter: 'Geld.' }),
   'desimale.3d': K('Afronding tot een desimale plek', ['Kyk na die tweede syfer ná die komma.', '5 of meer: op.'], { valkuilen: ['Verkeerde syfer.'], concreter: 'Geld.' }),
 
@@ -103,8 +103,8 @@ export const KAARTEN = {
   'persentasie.2a': K('Persentasie as breuk (vereenvoudig)', ['Persent = /100.', 'Vereenvoudig.'], { concreter: '100-blokkie.' }),
   'persentasie.2b': K('50% van ’n bedrag', ['50% = 1/2.', 'Halveer.'], { concreter: 'Geld.' }),
   'persentasie.3a': K('Afslag: nuwe prys', ['Begin by 10% en bou die persentasie op.', 'Dit is die afslag.', 'Nuwe prys = prys − afslag.'], { woorden: 'afslag, nuwe prys', valkuilen: ['Afslag as antwoord.'], concreter: 'Winkeltjie.' }),
-  'persentasie.3b': K('Punte as persentasie', ['Skryf as breuk.', 'Maak die noemer 100.'], { valkuilen: ['14%.'], concreter: '1 uit 10 = 10%.' }),
-  'persentasie.3c': K('Prysverhoging', ['Bereken die persentasie (via 10%, 25% = 1/4).', 'Tel dit by die prys.'], { valkuilen: ['Net die toename.'], concreter: 'Geld.' }),
+  'persentasie.3b': K('Punte as persentasie', ['Skryf as breuk.', 'Maak die noemer 100.'], { valkuilen: ['Die punte as persentasie gegee.'], concreter: 'Eers ’n klein voorbeeld: 1 uit 10 = 10%.' }),
+  'persentasie.3c': K('Prysverhoging', ['Bereken die persentasie.', 'Tel dit by die prys.'], { valkuilen: ['Net die toename.'], concreter: 'Geld.' }),
 
   // ================= FINANSIES =================
   'finansies.0a': K('Kleingeld (optel tot)', ['Tel op van die prys tot die noot.'], { model: 'getallelyn; geld', valkuilen: ['Prys plus noot.'], concreter: GELD }),
@@ -113,7 +113,7 @@ export const KAARTEN = {
   'finansies.2a': K('Wins', ['Wins = verkoopprys − kosprys.'], { woorden: 'wins, kosprys, verkoopprys', valkuilen: ['Opgetel.'], concreter: 'Klein bedrae.' }),
   'finansies.2b': K('Verdeel in ’n verhouding', ['Hoeveel dele altesaam?', 'Een deel = totaal ÷ dele.', 'Maal met die aantal dele.'], { model: STROOK, valkuilen: ['Totaal ÷ 3.'], concreter: 'Teken die dele.' }),
   'finansies.3a': K('Enkelvoudige rente', ['Rente vir een jaar: persentasie van die bedrag.', 'Maal met die aantal jare.'], { valkuilen: ['Net een jaar.'], concreter: 'R100 teen 10%.' }),
-  'finansies.3b': K('Wisselkoers', ['$1 = R16.', 'Maal: aantal dollar × koers (breek op).'], { model: VTABEL, valkuilen: ['Gedeel.'], concreter: 'Tabel.' }),
+  'finansies.3b': K('Wisselkoers', ['Kyk na die koers: $1 = soveel rand.', 'Maal: aantal dollar × koers (breek op).'], { model: VTABEL, valkuilen: ['Gedeel.'], concreter: 'Tabel.' }),
   'finansies.3c': K('Spoed (km per uur)', ['Koers: km in 1 uur.', 'Maal met die ure.'], { model: VTABEL, valkuilen: ['Opgetel.'], concreter: 'Tabel.' }),
 
   // ================= PATRONE =================
@@ -126,9 +126,9 @@ export const KAARTEN = {
   'patrone.2b': K('Hakies eerste', ['Hakies eerste.', 'Dan die res.'], { woorden: 'volgorde van bewerkings', valkuilen: ['Van links na regs sonder hakies.'], concreter: 'Klein getalle.' }),
   'patrone.2c': K('Volgorde van bewerkings', ['× en ÷ voor + en −.'], { valkuilen: ['Van links na regs.'], concreter: 'Klein getalle.' }),
   'patrone.2d': K('Patroon: 10de term', ['Wat is die verskil?', 'Van term 1 na term 10 is 9 spronge.', 'Eerste term + 9 × verskil.'], { valkuilen: ['10 spronge.'], concreter: 'Skryf die terme uit.' }),
-  'patrone.3a': K('Reël met n (3n + 2)', ['Vervang n met die posisie.', 'Eers maal, dan optel.'], { valkuilen: ['32 + 2.'], concreter: 'n = 1.' }),
-  'patrone.3b': K('Vergelyking oplos (8x + 15 = 103)', ['Werk terug met omgekeerde bewerkings.', 'Kontroleer.'], { valkuilen: ['Opgetel.'], concreter: 'Raai en toets.' }),
-  'patrone.3c': K('Magte eerste', ['Magte eerste.', 'Dan × en ÷, dan + en −.'], { valkuilen: ['4² = 8.'], concreter: '4² = 4 × 4.' }),
+  'patrone.3a': K('Reël met n (3n + 2)', ['Vervang n met die posisie.', 'Eers maal, dan optel.'], { valkuilen: ['Die posisie langs die getal geskryf in plaas van gemaal.'], concreter: 'n = 1.' }),
+  'patrone.3b': K('Vergelyking oplos', ['Werk terug met omgekeerde bewerkings.', 'Kontroleer.'], { valkuilen: ['Opgetel.'], concreter: 'Raai en toets.' }),
+  'patrone.3c': K('Magte eerste', ['Magte eerste.', 'Dan × en ÷, dan + en −.'], { valkuilen: ['Mag as maal 2 gelees.'], concreter: '’n Kwadraat is die getal maal homself.' }),
 
   // ================= MEETKUNDE =================
   'meetkunde.0a': K('Hoekpunte van vorms tel', ['Hoeveel hoekpunte het een vorm?', 'Maal met die aantal vorms.', 'Tel die groepe op.'], { valkuilen: ['Vorms opgetel.'], concreter: 'Teken een vorm.' }),
@@ -147,11 +147,11 @@ export const KAARTEN = {
   // ================= METING =================
   'meting.0a': K('g na kg', ['1 000 g = 1 kg.', 'Deel deur 1 000.'], { valkuilen: ['Gemaal.'], concreter: 'Pak suiker van 1 kg.' }),
   'meting.0b': K('ℓ na mℓ', ['1 ℓ = 1 000 mℓ.', 'Maal met 1 000.'], { valkuilen: ['Gedeel.'], concreter: 'Bottel van 1 ℓ.' }),
-  'meting.1a': K('kg en g na g', ['kg × 1 000.', 'Tel die g by.'], { valkuilen: ['7 909 as 7 000 + 9.'], concreter: 'Geld.' }),
+  'meting.1a': K('kg en g na g', ['kg × 1 000.', 'Tel die g by.'], { valkuilen: ['Plekwaarde van die gram verkeerd.'], concreter: 'Geld.' }),
   'meting.1b': K('Gemengde getal ℓ na mℓ', ['Heel ℓ × 1 000.', '1/2 ℓ = 500 mℓ.', 'Tel op.'], { concreter: 'Bottels.' }),
-  'meting.2a': K('Desimaal km na m', ['1 km = 1 000 m.', '× 1 000: syfers skuif 3 plekke.'], { valkuilen: ['475 m.'], concreter: 'Eers 4 km.' }),
+  'meting.2a': K('Desimaal km na m', ['1 km = 1 000 m.', '× 1 000: syfers skuif 3 plekke.'], { valkuilen: ['Komma verkeerd geskuif.'], concreter: 'Eers 4 km.' }),
   'meting.2b': K('mℓ na ℓ', ['Klein na groot eenheid: deel deur 1 000.'], { valkuilen: ['Gemaal.'], concreter: 'Bottels.' }),
-  'meting.3a': K('Glase uit ’n kan (eenhede)', ['Skakel om na dieselfde eenheid.', 'Deel.'], { valkuilen: ['8 ÷ 100.'], concreter: 'Bottel.' }),
+  'meting.3a': K('Glase uit ’n kan (eenhede)', ['Skakel om na dieselfde eenheid.', 'Deel.'], { valkuilen: ['Nie eers na dieselfde eenheid omgeskakel nie.'], concreter: 'Bottel.' }),
   'meting.3b': K('Stukke uit ’n lint (eenhede, res)', ['Skakel om na cm.', 'Deel; net hele stukke tel.'], { valkuilen: ['Afgerond na bo.'], concreter: 'Meetlint.' }),
 
   // ================= OMTREK, OPPERVLAKTE, VOLUME =================
@@ -166,7 +166,7 @@ export const KAARTEN = {
 
   // ================= TYD =================
   'klokLees.a': K('Horlosie lees', ['Na watter getal wys die lang wyser? Elke getal is 5 minute.', 'Watter uur is die kort wyser verby?', 'Sê die tyd.'], { model: KLOK, woorden: 'lang wyser (minute), kort wyser (ure), kwart oor, half, kwart voor', valkuilen: ['Wysers omgeruil.'], concreter: 'Tel in spronge van 5.' }),
-  'klokWoorde.a': K('Tyd in woorde', ['Hoeveel minute ná die heel uur?', 'Tot by half sê jy "oor" die uur wat verby is; ná half "voor" die volgende uur.'], { model: KLOK, woorden: 'half (Afrikaans: half vyf = 4:30)', valkuilen: ['"Half vyf" as 5:30.'], concreter: 'Wys op die horlosie.' }),
+  'klokWoorde.a': K('Tyd in woorde', ['Hoeveel minute ná die heel uur?', 'Tot by half sê jy "oor" die uur wat verby is; ná half "voor" die volgende uur.'], { model: KLOK, woorden: 'half', valkuilen: ['"Half vyf" as 5:30 gelees (dit is 4:30).'], concreter: 'Wys op die horlosie.' }),
   'digiWoorde.a': K('Digitale tyd in woorde', ['Bo 12: trek 12 af.', 'Sê die minute in woorde; vm/nm.'], { model: KLOK, concreter: 'Wysers.' }),
   'oondSom.a': K('Hoe laat klaar (oond)', ['Tel eers tot by die heel uur.', 'Hoeveel minute nog?', 'Tel dit by.'], { model: 'tydlyn met die heel uur as stop', valkuilen: ['Uur as 100 minute.'], concreter: 'Tydlyn.' }),
   'tydBasis.0a': K('Hoe laat ná … minute', ['Tel die minute by.', 'Oor die heel uur: 60 minute.'], { model: KLOK, valkuilen: ['100 minute.'], concreter: 'Draai die lang wyser.' }),
@@ -175,7 +175,7 @@ export const KAARTEN = {
   'tydBasis.1b': K('Tydsduur met ’n tydlyn', ['Van die begin tot die heel uur.', 'Van die heel uur tot die einde.', 'Tel op.'], { model: 'tydlyn', valkuilen: ['Tye soos getalle afgetrek.'], concreter: 'Tydlyn.' }),
   'tydBasis.2a': K('Minute en sekondes na sekondes', ['1 minuut = 60 sekondes.', 'Maal en tel die sekondes by.'], { valkuilen: ['× 100.'], concreter: 'Stophorlosie.' }),
   'tydBasis.2b': K('Lang tydsduur (werkdag)', ['Tot by die heel uur.', 'Hele ure × 60.', 'Laaste minute.', 'Tel op.'], { model: 'tydlyn', concreter: 'Tydlyn.' }),
-  'tydBasis.3a': K('Desimale ure na minute', ['1 uur = 60 minute.', 'Deel ná die komma × 60 (0,5 uur = 30 minute).'], { valkuilen: ['1,5 uur = 1 uur 50 min.'], concreter: 'Horlosie in kwarte.' }),
+  'tydBasis.3a': K('Desimale ure na minute', ['1 uur = 60 minute.', 'Deel ná die komma × 60.'], { valkuilen: ['Die deel ná die komma as minute gelees.'], concreter: 'Horlosie in kwarte.' }),
   'tydBasis.3b': K('Eindtyd (ure en minute by)', ['Eers die ure by.', 'Dan die minute.'], { model: 'tydlyn', valkuilen: ['Minute oor 60.'], concreter: 'Tydlyn.' }),
 
   // ================= DATA =================
