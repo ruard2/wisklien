@@ -36,7 +36,7 @@ export function loginPage(err = '', noPin = false) {
 
 export function listPage(jobs, { ai, model, judge }) {
   const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
-    <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}</td></tr>`).join('');
+    <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}${j.kid_model ? ` · kind ${esc(j.kid_model)}` : ''}</td></tr>`).join('');
   return page('Max-test', `<h1>🧪 Max-test</h1>
     <p class="muted">De échte Meester Max (zelfde prompts en model als in de app) krijgt een stapel sommen: "Hoe begin ik?", een fout antwoord met een kort gesprek, en vastlopen bij een tussenstap. Alles wordt bewaard en door een AI-beoordelaar nagekeken. Kinderen en ouders zien hier niets van.</p>
     <div class="card"><form method="post" action="/audit/start">
@@ -44,7 +44,16 @@ export function listPage(jobs, { ai, model, judge }) {
       Taal <select name="lang"><option value="nl">Nederlands</option><option value="af">Afrikaans</option></select>
       &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option></select>
       &nbsp; Aantal <select name="n">${[10, 25, 50, 100, 150, 200].map((n) => `<option ${n === 100 ? 'selected' : ''}>${n}</option>`).join('')}</select>
-      &nbsp; <button ${ai ? '' : 'disabled'}>Start</button>
+      <details style="margin-top:10px"><summary class="small"><b>Modellen</b> (goedkoper testen)</summary>
+        <div class="small" style="display:grid;gap:6px;margin-top:8px;grid-template-columns:auto 1fr;align-items:center">
+          <span>Max</span><input name="max" list="modellen" placeholder="leeg = ${esc(model || 'model van de app')}">
+          <span>Beoordelaar</span><input name="judge" list="modellen" placeholder="leeg = ${esc(judge || 'zelfde als Max')}">
+          <span>Gespeeld kind</span><input name="kid" list="modellen" placeholder="leeg = zelfde als Max">
+        </div>
+        <datalist id="modellen">${['gpt-5.4-mini', 'gpt-5-mini', 'gpt-4.1-mini', 'gpt-4o-mini', 'gpt-5.5', 'gpt-6-luna'].map((m) => `<option value="${m}">`).join('')}</datalist>
+        <p class="small muted">Max op een ander model testen verandert niets in de app: zo zie je op de meetlat of een goedkoper model goed genoeg uitlegt, vóór je het in de app zet (OPENAI_MODEL op Railway).</p>
+      </details>
+      <br><button ${ai ? '' : 'disabled'}>Start</button>
       <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist.</p>
       <p class="small muted">Model: ${esc(model || 'AI staat uit')}${judge ? ` · beoordelaar: ${esc(judge)}` : ''}. Per som ± 7 AI-aanroepen; 100 sommen duurt ± 20-40 minuten. Je kunt deze pagina sluiten: de test loopt door op de server.</p>
     </form></div>

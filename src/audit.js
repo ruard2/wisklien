@@ -30,9 +30,12 @@ const versie = () => (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMM
 
 const KID = { nl: { kid: 999990, name: 'Sam', cur: 'nl', lang: 'nl', country: 'NL' }, af: { kid: 999991, name: 'Sam', cur: 'za', lang: 'af', country: 'ZA' } };
 const NAME = 'Sam';
-const JUDGE_MODEL = () => process.env.AUDIT_MODEL || null; // leeg = zelfde model als Max
-const KID_MODEL = () => process.env.AUDIT_KID_MODEL || null;
-const inCtx = (lang, fn) => kidStore.run(KID[lang] || KID.nl, fn);
+// Modellen per test (in te stellen op /audit; anders de omgevingsvariabelen, anders het gewone model van de app):
+//   max = het model van Max zelf (leeg = hetzelfde als in de app; een ander model test je zo zonder de app te veranderen)
+//   judge = de beoordelaar, kid = het gespeelde kind
+const JUDGE_MODEL = () => kidStore.getStore()?.judgeModel || process.env.AUDIT_MODEL || null;
+const KID_MODEL = () => kidStore.getStore()?.kidModel || process.env.AUDIT_KID_MODEL || null;
+const inCtx = (lang, fn, m = {}) => kidStore.run({ ...(KID[lang] || KID.nl), aiModel: m.max || null, judgeModel: m.judge || null, kidModel: m.kid || null }, fn);
 
 const rnd = (n) => Math.floor(Math.random() * n);
 const pickOne = (a) => a[rnd(a.length)];
@@ -103,7 +106,7 @@ import { checkArithmetic } from './kwaliteit.js';
 
 // ---------- één som uitproberen ----------
 // p = { cat, level } (willekeurige som) of een bevroren meetlat-geval { id, cat, level, q, fout, bedoeling, step }
-export async function auditOne(lang, p) {
+export async function auditOne(lang, p, models = {}) {
   const { cat, level } = p;
   return inCtx(lang, async () => {
     const q = p.q ? structuredClone(p.q) : generate(cat, level);
@@ -176,7 +179,7 @@ export async function auditOne(lang, p) {
     for (const [waar, t] of texts) for (const f of checkArithmetic(t)) item.rekencontrole.push({ waar, ...f });
     item._card = [kaartTekst(lang, q.tpl), card].filter(Boolean).join('\n\n');
     return item;
-  });
+  }, models);
 }
 
 // ---------- beoordelen ----------
@@ -229,11 +232,11 @@ function itemForJudge(it) {
   L.push(`\nDIDACTIEKKAART:\n${it._card || '(geen)'}`);
   return L.join('\n');
 }
-export async function judgeOne(it) {
+export async function judgeOne(it, models = {}) {
   return inCtx(it.lang, async () => {
     const v = await auditCall(RUBRIC(it.lang), [{ role: 'user', content: itemForJudge(it) }], { json: true, maxTokens: 3000, model: JUDGE_MODEL() });
     return v && typeof v === 'object' ? v : { fout: 'geen oordeel' };
-  });
+  }, models);
 }
 
 // Een "lage" score per som, om de slechtste bovenaan te zetten
@@ -245,7 +248,7 @@ export function itemScore(it) {
 }
 
 // ---------- samenvatting over alle sommen ----------
-export async function summarize(lang, items) {
+export async function summarize(lang, items, models = {}) {
   const probs = items.flatMap((it) => (it.verdict?.problemen || []).map((p) => `[${it.label} ${it.levelName}] ${p.waar} · ${p.soort} · ernst ${p.ernst}: ${p.uitleg} ${p.citaat ? `(“${String(p.citaat).slice(0, 120)}”)` : ''}`));
   const rek = items.flatMap((it) => (it.verdict?.rekenfouten || []).map((r) => `[${it.label} ${it.levelName}] ${r.waar}: ${r.uitleg} (“${String(r.citaat || '').slice(0, 120)}”)`));
   if (!probs.length && !rek.length) return null;
@@ -257,7 +260,7 @@ export async function summarize(lang, items) {
  "onderdelen_slechtst": [{"onderdeel": "...", "waarom": "..."}],
  "wat_goed_gaat": ["..."]}
 Maximaal 10 verbeterpunten, belangrijkste eerst.`,
-  }], { json: true, maxTokens: 5000, model: JUDGE_MODEL() }));
+  }], { json: true, maxTokens: 5000, model: JUDGE_MODEL() }), models);
 }
 
 // Kleine wachtrij: maximaal `conc` tegelijk
@@ -280,6 +283,8 @@ export async function migrateAudit() {
     );
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS soort text NOT NULL DEFAULT 'willekeurig';
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS versie text;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS kid_model text;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS max_model text;
     CREATE TABLE IF NOT EXISTS public.max_audit_items (
       audit_id int NOT NULL REFERENCES public.max_audit(id) ON DELETE CASCADE, idx int NOT NULL,
       cat text NOT NULL, level int NOT NULL, item jsonb NOT NULL, verdict jsonb, score real,
@@ -288,14 +293,16 @@ export async function migrateAudit() {
 }
 const running = new Set();
 // soort: 'willekeurig' (n willekeurige sommen) of 'meetlat' (alle vaste gevallen; vergelijkbaar tussen versies)
-export async function startAudit(lang, n, soort = 'willekeurig') {
+export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   if (!aiEnabled()) throw new Error('De AI staat uit: zet OPENAI_API_KEY (of ANTHROPIC_API_KEY).');
   lang = lang === 'af' ? 'af' : 'nl';
   soort = soort === 'meetlat' ? 'meetlat' : 'willekeurig';
   const plan = soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
   n = plan.length;
-  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [lang, n, JSON.stringify(plan), aiModel(), JUDGE_MODEL() || aiModel(), soort, versie()])).rows[0];
+  const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
+  const maxM = clean(m.max), judgeM = clean(m.judge) || process.env.AUDIT_MODEL || null, kidM = clean(m.kid) || process.env.AUDIT_KID_MODEL || null;
+  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
@@ -307,6 +314,7 @@ async function runAudit(id) {
   running.add(id);
   try {
     const job = (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0];
+    const models = { max: job.max_model || null, judge: job.judge_model && job.judge_model !== (job.max_model || job.model) ? job.judge_model : (process.env.AUDIT_MODEL || null), kid: job.kid_model || null };
     const done = new Set((await pool.query(`SELECT idx FROM public.max_audit_items WHERE audit_id=$1 AND verdict IS NOT NULL AND NOT (verdict ? 'fout')`, [id])).rows.map((r) => r.idx));
     const todo = job.plan.map((p, idx) => ({ ...p, idx })).filter((p) => !done.has(p.idx));
     console.log(`[audit] #${id}: ${todo.length} van ${job.n} sommen te gaan (${job.lang})`);
@@ -315,18 +323,18 @@ async function runAudit(id) {
       // één som die misgaat, mag nooit de hele test stoppen
       let it;
       const geval = p.geval ? meetlat(job.lang).cases.find((c) => c.id === p.geval) : null;
-      try { it = await auditOne(job.lang, geval || p); } catch (e) {
+      try { it = await auditOne(job.lang, geval || p, models); } catch (e) {
         console.error('[audit] som mislukt', p, e);
         it = { lang: job.lang, cat: p.cat, level: p.level, label: p.cat, levelName: String(p.level), som: '(mislukt)', stappenplan: [], hints: [], tussenstappen: [], gesprekken: {}, rekencontrole: [], fouten: [`som: ${e.message}`] };
       }
-      it.verdict = it.som === '(mislukt)' ? { fout: 'som mislukt' } : await judgeOne(it).catch((e) => ({ fout: e.message }));
+      it.verdict = it.som === '(mislukt)' ? { fout: 'som mislukt' } : await judgeOne(it, models).catch((e) => ({ fout: e.message }));
       const score = itemScore(it);
       await pool.query(`INSERT INTO public.max_audit_items(audit_id, idx, cat, level, item, verdict, score) VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (audit_id, idx) DO UPDATE SET item=$5, verdict=$6, score=$7`, [id, p.idx, p.cat, p.level, JSON.stringify(it), JSON.stringify(it.verdict), score]);
     });
     if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
     const items = await auditItems(id);
-    const summary = await summarize(job.lang, items).catch(() => null);
+    const summary = await summarize(job.lang, items, models).catch(() => null);
     await pool.query(`UPDATE public.max_audit SET status='klaar', finished_at=now(), summary=$2 WHERE id=$1`, [id, summary ? JSON.stringify(summary) : null]);
     console.log(`[audit] #${id} klaar`);
   } catch (e) {
@@ -363,7 +371,7 @@ export function splitParts(items, maxBytes = 100_000) {
 export async function stopAudit(id) { await pool.query(`UPDATE public.max_audit SET status='gestopt' WHERE id=$1 AND status='bezig'`, [id]); }
 export async function deleteAudit(id) { await pool.query('DELETE FROM public.max_audit WHERE id=$1', [id]); }
 export async function auditJobs() {
-  return (await pool.query(`SELECT a.id, a.created_at, a.finished_at, a.lang, a.n, a.status, a.model, a.judge_model, a.error, a.soort, a.versie,
+  return (await pool.query(`SELECT a.id, a.created_at, a.finished_at, a.lang, a.n, a.status, a.model, a.judge_model, a.error, a.soort, a.versie, a.kid_model,
       (SELECT COUNT(*)::int FROM public.max_audit_items i WHERE i.audit_id=a.id) AS done FROM public.max_audit a ORDER BY a.id DESC LIMIT 50`)).rows;
 }
 // Twee meetlat-runs vergelijken: per dimensie gemiddeld A en B, en per geval wat beter of slechter werd

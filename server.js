@@ -1419,7 +1419,7 @@ audit.use((req, res, next) => (parentScope(req)?.all ? next() : res.status(401).
 audit.post('/logout', (req, res) => { res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0'); res.redirect(303, '/audit'); });
 audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null }))));
 audit.post('/start', wrap(async (req, res) => {
-  try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n, req.body.soort)}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
+  try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n, req.body.soort, { max: req.body.max, judge: req.body.judge, kid: req.body.kid })}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
 }));
 audit.get('/vergelijk', wrap(async (req, res) => {
   const [A, B] = await Promise.all([auditJob(Number(req.query.a)), auditJob(Number(req.query.b))]);

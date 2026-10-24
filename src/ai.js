@@ -138,7 +138,8 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
   }
   try {
     if (openai) {
-      const model = forceModel || await openaiModel();
+      // forceModel (bijv. beoordelaar) > model van een Max-test-run (kidStore.aiModel) > het gewone model
+      const model = forceModel || kidStore.getStore()?.aiModel || await openaiModel();
       // denkende modellen (gpt-5, gpt-6, o-serie): extra ruimte, anders gaat alles op aan nadenken en blijft het antwoord leeg
       const reasoning = /^(gpt-[5-9]|o\d)/.test(model);
       const res = await openai.chat.completions.create({
@@ -160,7 +161,7 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
     }
     if (anthropic) {
       const res = await anthropic.beta.messages.create({
-        model: forceModel || process.env.AI_MODEL || 'claude-opus-5-5',
+        model: forceModel || kidStore.getStore()?.aiModel || process.env.AI_MODEL || 'claude-opus-5-5',
         max_tokens: 4000,
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
