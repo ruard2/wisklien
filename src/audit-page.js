@@ -35,18 +35,24 @@ export function loginPage(err = '', noPin = false) {
 }
 
 export function listPage(jobs, { ai, model, judge }) {
-  const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td>
+  const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
     <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}</td></tr>`).join('');
   return page('Max-test', `<h1>🧪 Max-test</h1>
     <p class="muted">De échte Meester Max (zelfde prompts en model als in de app) krijgt een stapel sommen: "Hoe begin ik?", een fout antwoord met een kort gesprek, en vastlopen bij een tussenstap. Alles wordt bewaard en door een AI-beoordelaar nagekeken. Kinderen en ouders zien hier niets van.</p>
     <div class="card"><form method="post" action="/audit/start">
       <b>Nieuwe test</b><br><br>
       Taal <select name="lang"><option value="nl">Nederlands</option><option value="af">Afrikaans</option></select>
-      &nbsp; Aantal sommen <select name="n">${[10, 25, 50, 100, 150, 200].map((n) => `<option ${n === 100 ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option></select>
+      &nbsp; Aantal <select name="n">${[10, 25, 50, 100, 150, 200].map((n) => `<option ${n === 100 ? 'selected' : ''}>${n}</option>`).join('')}</select>
       &nbsp; <button ${ai ? '' : 'disabled'}>Start</button>
-      <p class="small muted">Model: ${esc(model || 'AI staat uit')}${judge ? ` · beoordelaar: ${esc(judge)}` : ''}. Per som ± 6 AI-aanroepen; 100 sommen duurt ± 20-40 minuten. Je kunt deze pagina sluiten: de test loopt door op de server.</p>
+      <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist.</p>
+      <p class="small muted">Model: ${esc(model || 'AI staat uit')}${judge ? ` · beoordelaar: ${esc(judge)}` : ''}. Per som ± 7 AI-aanroepen; 100 sommen duurt ± 20-40 minuten. Je kunt deze pagina sluiten: de test loopt door op de server.</p>
     </form></div>
-    ${jobs.length ? `<div class="card"><table><tr><th>Test</th><th>Gestart</th><th>Taal</th><th class="num">Klaar</th><th>Status</th><th>Model</th></tr>${rows}</table></div>` : ''}
+    ${jobs.filter((j) => j.soort === 'meetlat' && j.status === 'klaar').length >= 2 ? `<div class="card"><form method="get" action="/audit/vergelijk"><b>Twee meetlat-runs vergelijken</b><br><br>
+      Oud <select name="a">${jobs.filter((j) => j.soort === 'meetlat').map((j, i) => `<option value="${j.id}" ${i === 1 ? 'selected' : ''}>#${j.id} ${j.lang.toUpperCase()} ${esc(j.versie || '')}</option>`).join('')}</select>
+      &nbsp; Nieuw <select name="b">${jobs.filter((j) => j.soort === 'meetlat').map((j, i) => `<option value="${j.id}" ${i === 0 ? 'selected' : ''}>#${j.id} ${j.lang.toUpperCase()} ${esc(j.versie || '')}</option>`).join('')}</select>
+      &nbsp; <button>Vergelijk</button></form></div>` : ''}
+    ${jobs.length ? `<div class="card"><table><tr><th>Test</th><th>Gestart</th><th>Taal</th><th>Soort</th><th class="num">Klaar</th><th>Status</th><th>Model</th></tr>${rows}</table></div>` : ''}
     <p class="small"><form class="inline" method="post" action="/audit/logout"><button style="background:var(--line);color:var(--ink)">Uitloggen</button></form></p>`);
 }
 
@@ -101,7 +107,8 @@ export function reportPage(job, items, nParts = 0) {
   const running = job.status === 'bezig';
   const sorted = [...items].map((it, i) => ({ it, i })).sort((a, b) => itemScore(a.it) - itemScore(b.it));
   const body = `<p><a href="/audit">‹ Alle tests</a></p>
-    <h1>🧪 Max-test #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'}</h1>
+    <h1>🧪 Max-test #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'} · ${job.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}</h1>
+    ${job.versie ? `<p class="small muted">Versie van de app: ${esc(job.versie)}</p>` : ''}
     <p class="muted">${new Date(job.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })} · ${esc(job.model || '')}${job.judge_model && job.judge_model !== job.model ? ` · beoordelaar ${esc(job.judge_model)}` : ''} · status: <b>${esc(job.status)}</b>
       ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : `${job.status !== 'klaar' ? ` · <form class="inline" method="post" action="/audit/${job.id}/verder"><button style="padding:2px 10px">Verder</button></form>` : ''} · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Test verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
     ${job.error ? `<div class="card"><b class="s1">Gestopt door een fout:</b> ${esc(job.error)}<br><span class="small muted">Met "Verder" gaat de test door; sommen die al klaar zijn, blijven staan.</span></div>` : ''}
@@ -129,4 +136,25 @@ export function reportPage(job, items, nParts = 0) {
     <h2>Alle sommen <span class="muted small">(slechtste eerst, klik om te openen)</span></h2>
     ${sorted.map(({ it, i }) => itemHTML(it, i)).join('')}`;
   return page(`Max-test #${job.id}`, body, running ? 20 : 0);
+}
+
+// Twee meetlat-runs naast elkaar: wat werd beter, wat slechter?
+export function comparePage(A, B, v) {
+  const L = { som: 'Som', stappenplan: 'Stappenplan', tussenstappen: 'Tussenstappen', tips: 'Tips', max_begin: 'Max vooraf', max_na_fout: 'Max na fout', max_stap: 'Max bij stap', samenhang: 'Samenhang', taal: 'Taal' };
+  const fmt = (x) => (x == null ? '–' : x.toFixed(2));
+  const delta = (a, b, lagerBeter = false) => { if (a == null || b == null) return ''; const d = b - a; const goed = lagerBeter ? d < 0 : d > 0; return Math.abs(d) < 0.05 ? '<span class="muted">=</span>' : `<b class="${goed ? 's5' : 's1'}">${d > 0 ? '+' : ''}${Number.isInteger(d) ? d : fmt(d)}</b>`; };
+  const rij = (x) => `<tr><td>${x.goud ? '⭐ ' : ''}<b>${esc(x.label)}</b> <span class="muted">${esc(x.levelName)}</span><div class="small muted">${esc(String(x.som).replace(/^Som: /, '').slice(0, 110))}</div>
+    <div class="small">A: ${esc(x.oordeelA || '')}</div><div class="small">B: ${esc(x.oordeelB || '')}</div></td><td class="num">${fmt(x.a)}</td><td class="num">${fmt(x.b)}</td><td class="num">${delta(x.a, x.b)}</td></tr>`;
+  const body = `<p><a href="/audit">‹ Alle tests</a></p><h1>📏 Meetlat: #${A.id} → #${B.id}</h1>
+    <p class="muted">${A.lang === B.lang ? (A.lang === 'af' ? 'Afrikaans' : 'Nederlands') : '⚠️ verschillende talen'} · ${v.n} gevallen in allebei · A: ${esc(A.versie || '?')} (${esc(A.model || '')}) · B: ${esc(B.versie || '?')} (${esc(B.model || '')})</p>
+    <div class="card"><table><tr><th></th><th class="num">A (oud)</th><th class="num">B (nieuw)</th><th class="num">verschil</th></tr>
+      ${Object.entries(v.dims).map(([k, d]) => `<tr><td>${L[k]}</td><td class="num">${fmt(d.a)}</td><td class="num">${fmt(d.b)}</td><td class="num">${delta(d.a, d.b)}</td></tr>`).join('')}
+      <tr><td>Sommen met een rekenfout</td><td class="num">${v.tellers.rekenfout.a}</td><td class="num">${v.tellers.rekenfout.b}</td><td class="num">${delta(v.tellers.rekenfout.a, v.tellers.rekenfout.b, true)}</td></tr>
+      <tr><td>Antwoord verklapt</td><td class="num">${v.tellers.verklapt.a}</td><td class="num">${v.tellers.verklapt.b}</td><td class="num">${delta(v.tellers.verklapt.a, v.tellers.verklapt.b, true)}</td></tr>
+      <tr><td>Fout niet herkend</td><td class="num">${v.tellers.nietHerkend.a}</td><td class="num">${v.tellers.nietHerkend.b}</td><td class="num">${delta(v.tellers.nietHerkend.a, v.tellers.nietHerkend.b, true)}</td></tr></table>
+      <p class="small muted">Let op: de beoordelaar is ook een AI en wisselt een beetje per keer. Verschillen kleiner dan ± 0,2 zijn ruis; kijk vooral naar de gevallen hieronder.</p></div>
+    ${v.goud.length ? `<h2>⭐ Gouden gevallen (fouten die we eerder zagen)</h2><div class="card"><table><tr><th>Geval</th><th class="num">A</th><th class="num">B</th><th class="num">±</th></tr>${v.goud.map(rij).join('')}</table></div>` : ''}
+    <h2>Slechter geworden (${v.slechter.length})</h2><div class="card">${v.slechter.length ? `<table><tr><th>Geval</th><th class="num">A</th><th class="num">B</th><th class="num">±</th></tr>${v.slechter.map(rij).join('')}</table>` : '<p class="muted">Niets duidelijk slechter. 🎉</p>'}</div>
+    <h2>Beter geworden (${v.beter.length})</h2><div class="card">${v.beter.length ? `<table><tr><th>Geval</th><th class="num">A</th><th class="num">B</th><th class="num">±</th></tr>${v.beter.map(rij).join('')}</table>` : '<p class="muted">Niets duidelijk beter.</p>'}</div>`;
+  return page(`Meetlat #${A.id} → #${B.id}`, body);
 }

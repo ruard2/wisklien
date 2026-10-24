@@ -15,7 +15,18 @@
 import { kidStore, pool } from './db.js';
 import { generate, hintsFor, detectMisconception, checkAnswer, catById, CATEGORIES, LEVEL_NAMES, didactiekText } from './curriculum.js';
 import { teacherTurn, splitForm, auditCall, describeQuestion, aiEnabled, aiModel } from './ai.js';
+import { kaartTekst } from './uitleg/index.js';
 import { fracStr, hhmm } from './util.js';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+
+// ---------- de vaste meetlat (src/meetlat/*.json.gz, gemaakt met scripts/maak-meetlat.mjs) ----------
+const meetlatCache = {};
+export function meetlat(lang) {
+  lang = lang === 'af' ? 'af' : 'nl';
+  return (meetlatCache[lang] ||= JSON.parse(gunzipSync(readFileSync(new URL(`./meetlat/${lang}.json.gz`, import.meta.url))).toString('utf8')));
+}
+const versie = () => (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 7) || null;
 
 const KID = { nl: { kid: 999990, name: 'Sam', cur: 'nl', lang: 'nl', country: 'NL' }, af: { kid: 999991, name: 'Sam', cur: 'za', lang: 'af', country: 'ZA' } };
 const NAME = 'Sam';
@@ -70,70 +81,36 @@ function wrongStep(step) {
 }
 
 // ---------- het kind (gespeeld door de AI) ----------
-async function kidSays(lang, q, chat) {
+// bedoeling (meetlat): wat het kind deze beurt doet, zodat twee runs vergelijkbaar zijn
+const BEDOELING = {
+  nl: { fout: 'Beantwoord de vraag van de meester, maar FOUT (een fout die een kind echt maakt).', snapniet: 'Zeg dat je het niet snapt, in je eigen woorden (bijv. "huh?" of "snap ik niet").', goed: 'Beantwoord de vraag van de meester GOED, kort.' },
+  af: { fout: 'Antwoord die vraag van Meneer, maar VERKEERD (’n fout wat ’n kind regtig maak).', snapniet: 'Sê jy verstaan dit nie, in jou eie woorde.', goed: 'Antwoord die vraag van Meneer REG, kort.' },
+};
+async function kidSays(lang, q, chat, bedoeling = null) {
   const af = lang === 'af';
   const sys = af
     ? 'Jy speel ’n kind van 11 (graad 6, Suid-Afrika) wat agter is met wiskunde. Antwoord kort (maks 12 woorde) in eenvoudige Afrikaans, soos ’n kind tik. Meestal probeer jy die vraag van Meneer te beantwoord (soms reg, soms verkeerd), soms sê jy "ek verstaan nie".'
     : 'Je speelt een kind van 11 (groep 8) dat achterloopt met rekenen. Antwoord kort (max 12 woorden), in kindertaal zoals een kind typt. Meestal probeer je de vraag van de meester te beantwoorden (soms goed, soms fout), soms zeg je "snap ik niet".';
-  const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
+  const doe = bedoeling ? `\n\n${af ? 'Hierdie keer' : 'Deze keer'}: ${BEDOELING[af ? 'af' : 'nl'][bedoeling]}` : '';
+  const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
   const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL() });
   return String(t || (af ? 'ek verstaan nie' : 'snap ik niet')).replace(/^["“]|["”]$/g, '').trim().slice(0, 200);
 }
 
-// ---------- rekencontrole (code): klopt elk "a op b = c" in een tekst? ----------
-const NUM = String.raw`(?:€\s?|R\s?)?(?:\d{1,3}(?:[.\u00a0\u202f\u2009 ]\d{3})+|\d+)(?:,\d+)?`;
-const OP = String.raw`\s*(?:[+×x·*÷/−–-]|\s:\s)\s*`;
-const EXPR = `${NUM}(?:${OP}${NUM})*`;
-const EQ_RE = new RegExp(String.raw`(?<![\d,./€R+×x·*÷−–-]\s?)(?<![\d,.:/])(?<!\s:\s)${EXPR}(?:\s*=\s*${EXPR})+(?![\d:,]|\s?%)`, 'g');
-function toNumber(tok) {
-  let s = tok.replace(/[€R\s\u00a0\u202f\u2009]/g, '');
-  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '');
-  return Number(s.replace(',', '.'));
-}
-function evalExpr(e) {
-  const toks = [];
-  const re = new RegExp(`(${NUM})|(\\s:\\s|[+×x·*÷/−–-])`, 'g');
-  let m;
-  while ((m = re.exec(e))) toks.push(m[1] ? { n: toNumber(m[1]) } : { op: m[2].trim() });
-  if (!toks.length || toks[0].op) return null;
-  const ops = toks.filter((t) => t.op).length, opsNoFrac = toks.filter((t) => t.op && t.op !== '/').length;
-  // × en : eerst, dan + en −
-  const terms = [];
-  let cur = toks[0].n, sign = 1;
-  for (let i = 1; i < toks.length; i += 2) {
-    const op = toks[i]?.op, n = toks[i + 1]?.n;
-    if (op == null || n == null || !Number.isFinite(n)) return null;
-    if (['×', 'x', '·', '*'].includes(op)) cur *= n;
-    else if ([':', '÷', '/'].includes(op)) { if (n === 0) return null; cur /= n; }
-    else { terms.push(sign * cur); sign = op === '+' ? 1 : -1; cur = n; }
-  }
-  terms.push(sign * cur);
-  return { v: terms.reduce((a, b) => a + b, 0), ops, opsNoFrac };
-}
-const decimalsOf = (e) => Math.max(0, ...[...e.matchAll(/,(\d+)/g)].map((m) => m[1].length));
-export function checkArithmetic(text) {
-  const found = [];
-  for (const m of String(text || '').matchAll(EQ_RE)) {
-    const parts = m[0].split(/\s*=\s*/);
-    for (let i = 0; i + 1 < parts.length; i++) {
-      const L = evalExpr(parts[i]), R = evalExpr(parts[i + 1]);
-      if (!L || !R || (L.ops === 0 && R.ops === 0) || (L.ops === 0 && R.ops > 0)) continue;
-      const d = decimalsOf(parts[i + 1]);
-      const tol = R.ops === 0 && d > 0 ? 0.5 * 10 ** -d + 1e-9 : 1e-6 * Math.max(1, Math.abs(R.v));
-      if (Math.abs(L.v - R.v) > tol) found.push({ expr: `${parts[i]} = ${parts[i + 1]}`, verwacht: fmtNum(L.v), keten: R.opsNoFrac > 0 });
-    }
-  }
-  return found;
-}
+// rekencontrole: zie src/kwaliteit.js
+export { checkArithmetic } from './kwaliteit.js';
+import { checkArithmetic } from './kwaliteit.js';
 
 // ---------- één som uitproberen ----------
-export async function auditOne(lang, { cat, level }) {
+// p = { cat, level } (willekeurige som) of een bevroren meetlat-geval { id, cat, level, q, fout, bedoeling, step }
+export async function auditOne(lang, p) {
+  const { cat, level } = p;
   return inCtx(lang, async () => {
-    const q = generate(cat, level);
+    const q = p.q ? structuredClone(p.q) : generate(cat, level);
     const card = didactiekText(cat, level);
     const base = { name: NAME, profile: '', memory: '', today: '', question: q, levelName: LEVEL_NAMES[level] };
     const item = {
-      lang, cat, level, label: catById[cat].label, levelName: LEVEL_NAMES[level],
+      lang, cat, level, label: catById[cat].label, levelName: LEVEL_NAMES[level], tpl: q.tpl || null, geval: p.id || null, goud: p.goud || null,
       som: describeQuestion(q), type: q.type, antwoord: q.display, opties: q.options || null,
       stappenplan: q.steps || [], hints: hintsFor(q) || [],
       tussenstappen: (q.guide || []).map((s) => ({ vraag: s.ask, antwoord: s.display, tip: s.tip || null, opties: s.options || null })),
@@ -153,7 +130,7 @@ export async function auditOne(lang, { cat, level }) {
     item.gesprekken.begin = { kind: begin, max: b?.text ?? null, vorm: b?.vorm ?? null, ms: b?.ms };
 
     // fout antwoord → gesprek zoals in de app
-    const w = wrongAnswer(q);
+    const w = p.fout ? { raw: p.fout, kind: p.foutSoort || 'meetlat' } : wrongAnswer(q);
     const given = q.type === 'choice' ? q.options[Number(w.raw)] : w.raw;
     const mis = detectMisconception(q, w.raw, checkAnswer);
     item.fout_antwoord = { gegeven: given, soort: w.kind, herkend: mis ? { label: mis.label, wat_helpt: mis.fix } : null, klopt_niet: !checkAnswer(q, w.raw).correct };
@@ -162,7 +139,7 @@ export async function auditOne(lang, { cat, level }) {
     const r1 = await call('fout-1', () => maxSays({ phase: 'wrong', given, chat, misconception: mis }));
     if (r1?.text) {
       chat.push({ role: 'teacher', text: r1.text }); turns.push({ wie: 'max', tekst: r1.text, vorm: r1.vorm, ms: r1.ms });
-      const k1 = await call('kind-1', async () => ({ text: await kidSays(lang, q, chat) }));
+      const k1 = await call('kind-1', async () => ({ text: p.kind1 || await kidSays(lang, q, chat, p.bedoeling || null) }));
       if (k1?.text) {
         chat.push({ role: 'kid', text: k1.text }); turns.push({ wie: 'kind', tekst: k1.text });
         const r2 = await call('fout-2', () => maxSays({ phase: 'wrong', given, chat: [...chat], misconception: mis }));
@@ -179,7 +156,7 @@ export async function auditOne(lang, { cat, level }) {
 
     // vast bij een tussenstap
     if (q.guide?.length) {
-      const si = q.guide.length > 1 ? 1 + rnd(q.guide.length - 1) : 0;
+      const si = p.step != null ? Math.min(p.step, q.guide.length - 1) : q.guide.length > 1 ? 1 + rnd(q.guide.length - 1) : 0;
       const step = q.guide[si];
       const tried = wrongStep(step);
       const shown = step.type === 'choice' ? step.options[Number(tried)] : tried;
@@ -197,7 +174,7 @@ export async function auditOne(lang, { cat, level }) {
       ['max-stap', item.gesprekken.stap?.max],
     ];
     for (const [waar, t] of texts) for (const f of checkArithmetic(t)) item.rekencontrole.push({ waar, ...f });
-    item._card = card;
+    item._card = [kaartTekst(lang, q.tpl), card].filter(Boolean).join('\n\n');
     return item;
   });
 }
@@ -208,7 +185,7 @@ const RUBRIC = (lang) => `Je bent een zeer ervaren rekenspecialist en remedial t
 Je krijgt één som met ALLES wat het kind te zien krijgt:
 - de vaste uitleg van de app: stappenplan (na een fout), hints, tussenstappen ("samen stap voor stap": het kind vult elke stap zelf in, met een tip als het fout gaat) en de uitleg bij een herkende denkfout;
 - gesprekken met de AI-leraar ("Max"): vóór het antwoord ("Hoe begin ik?"), na een fout antwoord, en als het kind vastloopt bij een tussenstap;
-- de DIDACTIEKKAART: de aanpak die de app en Max MOETEN volgen (zoals scholen het aanleren);
+- de UITLEGKAART van deze soort som en de DIDACTIEKKAART van het onderdeel: de aanpak die de app en Max MOETEN volgen (zoals scholen het aanleren). Wijkt de vaste uitleg zelf af van de kaart, of is de kaart zelf onhandig voor deze som, meld dat dan ook (waar: "kaart").;
 - uitkomst van een automatische rekencontrole (kan vals alarm geven, controleer zelf).
 
 Controleer vooral:
@@ -222,7 +199,7 @@ Controleer vooral:
 8. Taal: begrijpelijk voor een kind van 10, geen vakwoorden zonder uitleg, natuurlijk ${lang === 'af' ? 'Afrikaans (geen Nederlands of anglisismes)' : 'Nederlands (geen vertaald Engels)'}; geen LaTeX of markdown-rommel.
 
 Cijfers 1-5 (5 = uitstekend, 3 = matig, 1 = slecht/fout). Gebruik null als iets ontbreekt.
-Noem bij problemen ALTIJD waar (één van: som, stappenplan, hint, tussenstap, tip, denkfout-uitleg, max-begin, max-fout, max-stap), een letterlijk citaat, wat er mis is, en een concreet voorstel (betere tekst of wat er in de prompt/generator moet veranderen). Alleen echte problemen; geen muggenzifterij.
+Noem bij problemen ALTIJD waar (één van: som, stappenplan, hint, tussenstap, tip, denkfout-uitleg, kaart, max-begin, max-fout, max-stap), een letterlijk citaat, wat er mis is, en een concreet voorstel (betere tekst of wat er in de prompt/generator moet veranderen). Alleen echte problemen; geen muggenzifterij.
 
 Antwoord met één JSON-object:
 {"rekenfouten": [{"waar": "...", "citaat": "...", "uitleg": "..."}],
@@ -301,6 +278,8 @@ export async function migrateAudit() {
       lang text NOT NULL, n int NOT NULL, status text NOT NULL DEFAULT 'bezig', model text, judge_model text,
       plan jsonb NOT NULL, summary jsonb, error text
     );
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS soort text NOT NULL DEFAULT 'willekeurig';
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS versie text;
     CREATE TABLE IF NOT EXISTS public.max_audit_items (
       audit_id int NOT NULL REFERENCES public.max_audit(id) ON DELETE CASCADE, idx int NOT NULL,
       cat text NOT NULL, level int NOT NULL, item jsonb NOT NULL, verdict jsonb, score real,
@@ -308,13 +287,15 @@ export async function migrateAudit() {
     );`);
 }
 const running = new Set();
-export async function startAudit(lang, n) {
+// soort: 'willekeurig' (n willekeurige sommen) of 'meetlat' (alle vaste gevallen; vergelijkbaar tussen versies)
+export async function startAudit(lang, n, soort = 'willekeurig') {
   if (!aiEnabled()) throw new Error('De AI staat uit: zet OPENAI_API_KEY (of ANTHROPIC_API_KEY).');
   lang = lang === 'af' ? 'af' : 'nl';
-  n = Math.max(1, Math.min(300, Number(n) || 100));
-  const plan = planSums(lang, n);
-  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [lang, n, JSON.stringify(plan), aiModel(), JUDGE_MODEL() || aiModel()])).rows[0];
+  soort = soort === 'meetlat' ? 'meetlat' : 'willekeurig';
+  const plan = soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
+  n = plan.length;
+  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [lang, n, JSON.stringify(plan), aiModel(), JUDGE_MODEL() || aiModel(), soort, versie()])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
@@ -333,7 +314,8 @@ async function runAudit(id) {
       if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
       // één som die misgaat, mag nooit de hele test stoppen
       let it;
-      try { it = await auditOne(job.lang, p); } catch (e) {
+      const geval = p.geval ? meetlat(job.lang).cases.find((c) => c.id === p.geval) : null;
+      try { it = await auditOne(job.lang, geval || p); } catch (e) {
         console.error('[audit] som mislukt', p, e);
         it = { lang: job.lang, cat: p.cat, level: p.level, label: p.cat, levelName: String(p.level), som: '(mislukt)', stappenplan: [], hints: [], tussenstappen: [], gesprekken: {}, rekencontrole: [], fouten: [`som: ${e.message}`] };
       }
@@ -381,8 +363,21 @@ export function splitParts(items, maxBytes = 100_000) {
 export async function stopAudit(id) { await pool.query(`UPDATE public.max_audit SET status='gestopt' WHERE id=$1 AND status='bezig'`, [id]); }
 export async function deleteAudit(id) { await pool.query('DELETE FROM public.max_audit WHERE id=$1', [id]); }
 export async function auditJobs() {
-  return (await pool.query(`SELECT a.id, a.created_at, a.finished_at, a.lang, a.n, a.status, a.model, a.judge_model, a.error,
+  return (await pool.query(`SELECT a.id, a.created_at, a.finished_at, a.lang, a.n, a.status, a.model, a.judge_model, a.error, a.soort, a.versie,
       (SELECT COUNT(*)::int FROM public.max_audit_items i WHERE i.audit_id=a.id) AS done FROM public.max_audit a ORDER BY a.id DESC LIMIT 50`)).rows;
+}
+// Twee meetlat-runs vergelijken: per dimensie gemiddeld A en B, en per geval wat beter of slechter werd
+const DIMS = ['som', 'stappenplan', 'tussenstappen', 'tips', 'max_begin', 'max_na_fout', 'max_stap', 'samenhang', 'taal'];
+export function vergelijk(itemsA, itemsB) {
+  const byA = Object.fromEntries(itemsA.filter((x) => x.geval && x.verdict?.cijfers).map((x) => [x.geval, x]));
+  const paren = itemsB.filter((x) => x.geval && x.verdict?.cijfers && byA[x.geval]).map((b) => ({ a: byA[b.geval], b }));
+  const gem = (xs) => { const v = xs.filter((x) => typeof x === 'number'); return v.length ? v.reduce((p, q) => p + q, 0) / v.length : null; };
+  const dims = Object.fromEntries(DIMS.map((k) => [k, { a: gem(paren.map((p) => p.a.verdict.cijfers[k])), b: gem(paren.map((p) => p.b.verdict.cijfers[k])) }]));
+  const tel = (sel) => ({ a: paren.filter((p) => sel(p.a)).length, b: paren.filter((p) => sel(p.b)).length });
+  const tellers = { rekenfout: tel((x) => x.verdict.rekenfouten?.length), verklapt: tel((x) => x.verdict.max_verklapt), nietHerkend: tel((x) => x.verdict.max_herkent_fout === false) };
+  const verschil = paren.map((p) => ({ geval: p.b.geval, label: p.b.label, levelName: p.b.levelName, goud: p.b.goud, som: p.b.som, a: itemScore(p.a), b: itemScore(p.b), oordeelA: p.a.verdict.oordeel, oordeelB: p.b.verdict.oordeel }))
+    .map((x) => ({ ...x, d: x.b - x.a })).sort((x, y) => x.d - y.d);
+  return { n: paren.length, dims, tellers, slechter: verschil.filter((x) => x.d <= -0.5), beter: verschil.filter((x) => x.d >= 0.5).reverse(), goud: verschil.filter((x) => x.goud) };
 }
 export async function auditJob(id) { return (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0]; }
 export async function auditItems(id) {

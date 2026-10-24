@@ -195,6 +195,15 @@ Op het startscherm (en op het pincodescherm): **👀 Bekijk de demo**. Of stuur 
 - Demo-kinderen staan niet in de kindlijst of het overzicht, krijgen geen leerlog, maximaal `DEMO_AI_LIMIT` (60) AI-beurten per dag, en worden na `DEMO_KEEP_HOURS` (48) uur opgeruimd. Max. 10 nieuwe demo's per uur per IP, max. `DEMO_MAX` (40) tegelijk.
 - De geschiedenis is een momentopname (`src/demo/nl.json.gz`, `af.json.gz`), gemaakt door een virtueel kind de échte app te laten doorlopen: `scripts/demo-seed.mjs` (zie bovenin dat bestand). Teksten van Max (notities, dossier) en de cadeaus staan in `src/demo/texts.js`.
 
+## Uitleg per soort som: sjablonen, kaarten, poort en meetlat
+Max en de vaste uitleg worden systematisch beter, niet per losse fout:
+- **Sjablonen**: elke som-variant in de generators heeft een vaste id (`tpl('delen.2b', …)`), 160 in het Nederlands en 148 in het Afrikaans. Elke som draagt zijn sjabloon (`q.tpl`).
+- **Uitlegkaart per sjabloon en per taal** (`src/uitleg/nl.js`, `src/uitleg/af.js`): de aanpak in stappen (zoals Nederlandse methodes resp. KABV/DBE-werkboeke het aanleren), het model/plaatje, de woorden, typische fouten met wat helpt, hoe je het concreter maakt, en wat Max níet moet doen. Max krijgt bij elk gesprek de kaart van díe som mee. Nieuw sjabloon zonder kaart → `npm test` faalt.
+- **Kwaliteitspoort** (`src/kwaliteit.js`): regels die elke som moet halen: elk sommetje in stappen/tips klopt, een tip verklapt de uitkomst niet en is niet vaag, geen zinloze stappen (`+ 0`, "van € 5 naar € 5"), geen dubbele stappen, hints noemen het antwoord niet. De generators maken een som opnieuw als hij niet door de poort komt; kinderen zien zo'n som dus nooit. `npm run lint-uitleg` toont per sjabloon hoe vaak dat gebeurt (zwakke plekken). Vage tips worden automatisch concreet gemaakt (`src/tips.js`).
+- **Meetlat** (`src/meetlat/*.json.gz`, `npm run meetlat`): per sjabloon één bevroren testgeval (zelfde som, zelfde fout antwoord, vaste bedoeling van het gespeelde kind) plus ⭐ gouden gevallen (fouten die we echt zagen). Op `/audit` kies je "📏 Meetlat"; twee meetlat-runs vergelijk je op `/audit/vergelijk` (per onderdeel van de uitleg, en welke gevallen beter of slechter werden).
+
+**Zo verbeter je Max**: meetlat draaien → rapport (en "Downloaden voor Claude") → kaarten/prompt/generators aanpassen → opnieuw meetlat → vergelijken. Alleen als het beter wordt (en niets slechter), gaat het erin. Elke fout die je met code kunt vangen, wordt een regel in de poort.
+
 ## Max-test: de uitleg van Max laten nakijken (alleen beheerder)
 Ga naar **`/audit`** (bijv. `https://<jouw-app>/audit`) en log in met de beheerderspincode (`PARENT_PIN`). Kinderen en ouders zien hier niets van.
 - Kies taal en aantal sommen (standaard 100) en druk op Start. De test draait op de server met de **echte Max** (zelfde prompts, zelfde model, zelfde sleutel); je kunt de pagina sluiten. Na een herstart gaat hij vanzelf verder.

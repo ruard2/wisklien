@@ -14,8 +14,8 @@ import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeSc
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { createDemoKid } from './src/demo/index.js';
-import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteAudit, auditJobs, auditJob, auditItems, compactItems, splitParts } from './src/audit.js';
-import { loginPage, listPage, reportPage } from './src/audit-page.js';
+import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteAudit, auditJobs, auditJob, auditItems, compactItems, splitParts, vergelijk } from './src/audit.js';
+import { loginPage, listPage, reportPage, comparePage } from './src/audit-page.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
@@ -1419,7 +1419,12 @@ audit.use((req, res, next) => (parentScope(req)?.all ? next() : res.status(401).
 audit.post('/logout', (req, res) => { res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0'); res.redirect(303, '/audit'); });
 audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null }))));
 audit.post('/start', wrap(async (req, res) => {
-  try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n)}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
+  try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n, req.body.soort)}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
+}));
+audit.get('/vergelijk', wrap(async (req, res) => {
+  const [A, B] = await Promise.all([auditJob(Number(req.query.a)), auditJob(Number(req.query.b))]);
+  if (!A || !B) return res.status(404).send('Niet gevonden');
+  res.send(comparePage(A, B, vergelijk(await auditItems(A.id), await auditItems(B.id))));
 }));
 audit.get('/:id.json', wrap(async (req, res) => {
   const job = await auditJob(Number(req.params.id));

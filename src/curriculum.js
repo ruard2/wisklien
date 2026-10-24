@@ -15,7 +15,7 @@ const PACKS = {
     id: 'nl', lang: 'nl',
     LEVEL_NAMES: NLgen.LEVEL_NAMES, CATEGORIES: NLgen.CATEGORIES, CAT_IDS: NLgen.CAT_IDS, catById: NLgen.catById,
     startLevel: NLgen.startLevelForGroep, gradeLabel: (g) => `groep ${g}`, gradeRange: [3, 8], gradeWord: 'groep',
-    generate: NLgen.generate, generateLike: NLgen.generateLike, hintsFor: NLgen.hintsFor,
+    generate: NLgen.generate, generateRaw: NLgen.generateRaw, generateLike: NLgen.generateLike, hintsFor: NLgen.hintsFor,
     detectMisconception: NLmis.detectMisconception,
     MNEMONICS: NLmne.MNEMONICS, mnemonicsFor: NLmne.mnemonicsFor, mnemonicText: NLmne.mnemonicText,
     DIDACTIEK: NLdid.DIDACTIEK, didactiekText: NLdid.didactiekText, hintAanpak: NLdid.hintAanpak, ALGEMEEN: NLdid.ALGEMEEN,
@@ -26,7 +26,7 @@ const PACKS = {
     id: 'za', lang: 'af',
     LEVEL_NAMES: ZAgen.LEVEL_NAMES, CATEGORIES: ZAgen.CATEGORIES, CAT_IDS: ZAgen.CAT_IDS, catById: ZAgen.catById,
     startLevel: ZAgen.startLevelForGraad, gradeLabel: (g) => `graad ${g}`, gradeRange: [3, 7], gradeWord: 'graad',
-    generate: ZAgen.generate, generateLike: ZAgen.generateLike, hintsFor: ZAgen.hintsFor,
+    generate: ZAgen.generate, generateRaw: ZAgen.generateRaw, generateLike: ZAgen.generateLike, hintsFor: ZAgen.hintsFor,
     detectMisconception: NLmis.detectMisconception, // werk op q.wrong, taalonafhanklik
     MNEMONICS: ZAmne.MNEMONICS, mnemonicsFor: ZAmne.mnemonicsFor, mnemonicText: ZAmne.mnemonicText,
     DIDACTIEK: ZAdid.DIDACTIEK, didactiekText: ZAdid.didactiekText, hintAanpak: ZAdid.hintAanpak, ALGEMEEN: ZAdid.ALGEMEEN,
@@ -54,6 +54,7 @@ export const ALGEMEEN = live('ALGEMEEN', {});
 
 export const startLevelForGroep = (g) => pack().startLevel(g);
 export const generate = (...a) => pack().generate(...a);
+export const generateRaw = (...a) => pack().generateRaw(...a);
 export const generateLike = (...a) => pack().generateLike(...a);
 export const hintsFor = (...a) => pack().hintsFor(...a);
 export const detectMisconception = (...a) => pack().detectMisconception(...a);

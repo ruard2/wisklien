@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum.js';
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
+import { kaartTekst } from './uitleg/index.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
 const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
@@ -128,6 +129,8 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
+    // nep-beoordelaar voor de Max-test (alleen om de schermen te testen)
+    if (json && /DIDACTIEKKAART/.test(last)) { const r = () => 2 + Math.floor(Math.random() * 4); return { rekenfouten: [], cijfers: { som: 5, stappenplan: r(), tussenstappen: r(), tips: r(), max_begin: r(), max_na_fout: r(), max_stap: r(), samenhang: r(), taal: r() }, max_herkent_fout: Math.random() < 0.7, max_verklapt: Math.random() < 0.15, problemen: [], oordeel: '(test) nep-oordeel' }; }
     if (json) return { samenvatting: '(test) Optellen gaat goed, breuken nog lastig.', onderdelen: [{ onderdeel: 'Breuken', denkfouten: ['telt noemers bij elkaar op'], wat_helpt: 'pizza-plaatjes en gelijknamig maken', prioriteit: 'hoog' }], aanpak_tips: ['kleine stapjes'] };
     const turns = messages.filter((m) => m.role === 'assistant').length;
     const klaar = /les over/i.test(messages[0]?.content || '') && turns >= 3 ? '\n[KLAAR]' : '';
@@ -315,6 +318,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
     scratchContext(name, scratch, phase),
+    kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
     didactiekText(question.cat, question.level),
   ].filter(Boolean).join('\n');
 

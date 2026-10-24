@@ -2,8 +2,8 @@
 // "Een gewone tafelsom.", "Tafelsom of splitsen: 24 × 7."): ze herhalen de opdracht maar zeggen niet HOE.
 // Is een tip vaag en is de tussenstap een gewone som (a × b, a : b, a − b, a + b), dan maken we er een concrete
 // aanpak van, zonder de uitkomst te noemen. Goede tips (met een eigen aanpak) blijven staan.
-const NUM = String.raw`(\d{1,3}(?:[ .  ]\d{3})+|\d+)`;
-const toN = (s) => Number(String(s).replace(/[ .  ]/g, ''));
+const NUM = String.raw`(\d{1,3}(?:[ .\u00a0\u202f\u2009]\d{3})+|\d+)`;
+const toN = (s) => Number(String(s).replace(/[ .\u00a0\u202f\u2009]/g, ''));
 
 // Vaag = geen eigen aanpak: kort en zonder getal, of alleen "tafel(som) van …" / "trek af" / "tel op"
 export function isVagueTip(tip) {
@@ -104,7 +104,7 @@ export function improveTips(q, lang = 'nl') {
   for (const s of q.guide || []) {
     if (s.type !== 'number' || !isVagueTip(s.tip)) continue;
     const t = betterTip(s.ask, lang);
-    if (t) s.tip = t;
+    if (t) { s.tip = t; s.tipAuto = true; } // tipAuto: gemaakt door betterTip, noemt nooit een uitkomst
   }
   return q;
 }
