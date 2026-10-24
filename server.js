@@ -14,6 +14,8 @@ import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeSc
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { createDemoKid } from './src/demo/index.js';
+import { migrateAudit, resumeAudits, startAudit, stopAudit, deleteAudit, auditJobs, auditJob, auditItems } from './src/audit.js';
+import { loginPage, listPage, reportPage } from './src/audit-page.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
 
@@ -1403,6 +1405,37 @@ app.post('/api/parent/reset', parent, wrap(async (req, res) => {
 }));
 
 // =====================================================================
+// ---------- Max-test (alleen beheerder, met PARENT_PIN): de echte Max op een stapel sommen, laten beoordelen ----------
+const audit = express.Router();
+audit.use(express.urlencoded({ extended: false }));
+audit.use((req, res, next) => { res.setHeader('X-Robots-Tag', 'noindex'); next(); });
+audit.post('/login', (req, res) => {
+  if (!process.env.PARENT_PIN) return res.send(loginPage('', true));
+  if (!pinOk(req.body.pin, PARENT_PIN)) return setTimeout(() => res.status(401).send(loginPage('Verkeerde pincode')), 800);
+  setCookie(res, 'parent', 30);
+  res.redirect(303, '/audit');
+});
+audit.use((req, res, next) => (parentScope(req)?.all ? next() : res.status(401).send(loginPage('', !process.env.PARENT_PIN))));
+audit.post('/logout', (req, res) => { res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0'); res.redirect(303, '/audit'); });
+audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null }))));
+audit.post('/start', wrap(async (req, res) => {
+  try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n)}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
+}));
+audit.get('/:id.json', wrap(async (req, res) => {
+  const job = await auditJob(Number(req.params.id));
+  if (!job) return res.status(404).send('Niet gevonden');
+  res.setHeader('Content-Disposition', `attachment; filename="max-test-${job.id}-${job.lang}.json"`);
+  res.json({ ...job, items: await auditItems(job.id) });
+}));
+audit.get('/:id', wrap(async (req, res) => {
+  const job = await auditJob(Number(req.params.id));
+  if (!job) return res.status(404).send('Niet gevonden');
+  res.send(reportPage(job, await auditItems(job.id)));
+}));
+audit.post('/:id/stop', wrap(async (req, res) => { await stopAudit(Number(req.params.id)); res.redirect(303, `/audit/${req.params.id}`); }));
+audit.post('/:id/delete', wrap(async (req, res) => { await deleteAudit(Number(req.params.id)); res.redirect(303, '/audit'); }));
+app.use('/audit', audit);
+
 app.get('/healthz', (req, res) => res.send('ok'));
 app.use(express.static('public', {
   setHeaders(res, path) {
@@ -1413,4 +1446,6 @@ app.get('*', (req, res) => res.sendFile('index.html', { root: 'public' }));
 
 await migrate();
 await migrateLeerlog();
+await migrateAudit();
+resumeAudits().catch((e) => console.error('[audit]', e));
 app.listen(PORT, () => console.log(`Rekenapp draait op http://localhost:${PORT}`));

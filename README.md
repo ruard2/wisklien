@@ -195,6 +195,15 @@ Op het startscherm (en op het pincodescherm): **👀 Bekijk de demo**. Of stuur 
 - Demo-kinderen staan niet in de kindlijst of het overzicht, krijgen geen leerlog, maximaal `DEMO_AI_LIMIT` (60) AI-beurten per dag, en worden na `DEMO_KEEP_HOURS` (48) uur opgeruimd. Max. 10 nieuwe demo's per uur per IP, max. `DEMO_MAX` (40) tegelijk.
 - De geschiedenis is een momentopname (`src/demo/nl.json.gz`, `af.json.gz`), gemaakt door een virtueel kind de échte app te laten doorlopen: `scripts/demo-seed.mjs` (zie bovenin dat bestand). Teksten van Max (notities, dossier) en de cadeaus staan in `src/demo/texts.js`.
 
+## Max-test: de uitleg van Max laten nakijken (alleen beheerder)
+Ga naar **`/audit`** (bijv. `https://<jouw-app>/audit`) en log in met de beheerderspincode (`PARENT_PIN`). Kinderen en ouders zien hier niets van.
+- Kies taal en aantal sommen (standaard 100) en druk op Start. De test draait op de server met de **echte Max** (zelfde prompts, zelfde model, zelfde sleutel); je kunt de pagina sluiten. Na een herstart gaat hij vanzelf verder.
+- Per som: de vaste uitleg uit de app (stappenplan, hints, tussenstappen met tips, uitleg bij een herkende denkfout), Max bij "Hoe begin ik?", Max na een fout antwoord (vaak een bekende denkfout) met twee beurten van een gespeeld kind, en Max als het kind vastloopt bij een tussenstap.
+- Een rekencontrole in code zoekt foute sommetjes in alle teksten ("48 : 6 = 9"). Daarna beoordeelt een AI elke som met een vaste rubric (rekenfouten, tussenstappen, aanpak volgens de didactiekkaart, voorzeggen, luistert Max, taal) en noemt problemen met citaat en voorstel. Tot slot een samenvatting met de belangrijkste verbeterpunten.
+- Rapport per test (slechtste sommen eerst) en **download als JSON** voor verdere analyse.
+- `AUDIT_MODEL` = ander (sterker) model voor de beoordelaar, `AUDIT_KID_MODEL` = model voor het gespeelde kind, `AUDIT_CONCURRENCY` (4) = sommen tegelijk. Per som ± 7 AI-aanroepen.
+- Lokaal met je eigen sleutel: `node scripts/max-audit.mjs nl 100` → `max-test/*.html` en `.json`.
+
 ## Bestanden
 - `src/generators.js` — alle sommen, stappenplannen en het nakijken
 - `src/engine.js` — intake, beheersing, verdeling van de dagtaak, "loopt vast"-detectie

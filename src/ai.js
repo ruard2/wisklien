@@ -88,6 +88,9 @@ async function openaiModel() {
   console.log(`[ai] OpenAI-model: ${chosenModel}`);
   return chosenModel;
 }
+// Voor interne controles (Max-test, /audit): een losse aanroep zonder de leraar-prompt.
+// model: ander model (bijv. AUDIT_MODEL) voor de beoordelaar; leeg = hetzelfde model als Max.
+export const auditCall = (system, messages, opts = {}) => completeRaw(system, messages, opts);
 export const aiModel = () => (openai ? chosenModel || PREFER[0] : anthropic ? (process.env.AI_MODEL || 'claude-opus-5-5') : null);
 
 // Eén aanroep. messages: [{role:'user'|'assistant', content}]. json: verwacht een JSON-object terug.
@@ -121,7 +124,7 @@ async function complete(system, messages, opts = {}) {
   return res;
 }
 
-async function completeRaw(system, messages, { json = false, maxTokens = 1200, image = null, user = null } = {}) {
+async function completeRaw(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
@@ -132,7 +135,7 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
   }
   try {
     if (openai) {
-      const model = await openaiModel();
+      const model = forceModel || await openaiModel();
       // denkende modellen (gpt-5, gpt-6, o-serie): extra ruimte, anders gaat alles op aan nadenken en blijft het antwoord leeg
       const reasoning = /^(gpt-[5-9]|o\d)/.test(model);
       const res = await openai.chat.completions.create({
@@ -154,7 +157,7 @@ async function completeRaw(system, messages, { json = false, maxTokens = 1200, i
     }
     if (anthropic) {
       const res = await anthropic.beta.messages.create({
-        model: process.env.AI_MODEL || 'claude-opus-5-5',
+        model: forceModel || process.env.AI_MODEL || 'claude-opus-5-5',
         max_tokens: 4000,
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
@@ -258,7 +261,7 @@ UITLEG-VORM (onzichtbaar label)
 - Alleen een vraag of compliment, zonder uitleg? Dan geen label. Het label wordt weggehaald voordat het kind het ziet.
 ${profile ? `\nLEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : ''}${memory ? `\nJOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : ''}${today ? `\nVANDAAG IN DEZE SESSIE\n${today}` : ''}`;
 
-function describeQuestion(q) {
+export function describeQuestion(q) {
   let s = `Som: ${q.text}`;
   if (q.options) s += `\nKeuzes: ${q.options.join(' | ')}`;
   if (q.visual?.kind === 'bar' || q.visual?.kind === 'line') s += `\nGrafiek "${q.visual.title}": ${q.visual.labels.map((l, i) => `${l}=${q.visual.values[i]}`).join(', ')}`;
