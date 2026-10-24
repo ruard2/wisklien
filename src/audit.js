@@ -326,13 +326,18 @@ async function runAudit(id) {
   running.add(id);
   try {
     const job = (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0];
-    const done = new Set((await pool.query('SELECT idx FROM public.max_audit_items WHERE audit_id=$1 AND verdict IS NOT NULL', [id])).rows.map((r) => r.idx));
+    const done = new Set((await pool.query(`SELECT idx FROM public.max_audit_items WHERE audit_id=$1 AND verdict IS NOT NULL AND NOT (verdict ? 'fout')`, [id])).rows.map((r) => r.idx));
     const todo = job.plan.map((p, idx) => ({ ...p, idx })).filter((p) => !done.has(p.idx));
     console.log(`[audit] #${id}: ${todo.length} van ${job.n} sommen te gaan (${job.lang})`);
     await runPool(todo, Number(process.env.AUDIT_CONCURRENCY || 4), async (p) => {
       if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
-      const it = await auditOne(job.lang, p);
-      it.verdict = await judgeOne(it).catch((e) => ({ fout: e.message }));
+      // één som die misgaat, mag nooit de hele test stoppen
+      let it;
+      try { it = await auditOne(job.lang, p); } catch (e) {
+        console.error('[audit] som mislukt', p, e);
+        it = { lang: job.lang, cat: p.cat, level: p.level, label: p.cat, levelName: String(p.level), som: '(mislukt)', stappenplan: [], hints: [], tussenstappen: [], gesprekken: {}, rekencontrole: [], fouten: [`som: ${e.message}`] };
+      }
+      it.verdict = it.som === '(mislukt)' ? { fout: 'som mislukt' } : await judgeOne(it).catch((e) => ({ fout: e.message }));
       const score = itemScore(it);
       await pool.query(`INSERT INTO public.max_audit_items(audit_id, idx, cat, level, item, verdict, score) VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (audit_id, idx) DO UPDATE SET item=$5, verdict=$6, score=$7`, [id, p.idx, p.cat, p.level, JSON.stringify(it), JSON.stringify(it.verdict), score]);
@@ -346,6 +351,32 @@ async function runAudit(id) {
     await pool.query(`UPDATE public.max_audit SET status='fout', error=$2 WHERE id=$1`, [id, String(e.message || e).slice(0, 500)]).catch(() => {});
     throw e;
   } finally { running.delete(id); }
+}
+// Een gestopte of vastgelopen test verder laten gaan (sommen die al klaar zijn, blijven staan)
+export async function resumeAudit(id) {
+  await pool.query(`UPDATE public.max_audit SET status='bezig', error=NULL WHERE id=$1 AND status <> 'bezig'`, [id]);
+  runAudit(id).catch((e) => console.error('[audit]', e));
+}
+// Compacte versie voor analyse (zonder didactiekkaart en tijden), in delen van ± 100 kB zodat ze als bijlage passen
+export function compactItems(items) {
+  return items.map(({ _card, ...it }) => {
+    const g = it.gesprekken || {};
+    return { ...it, gesprekken: {
+      begin: g.begin ? { kind: g.begin.kind, max: g.begin.max } : undefined,
+      na_fout: (g.na_fout || []).map((t) => ({ wie: t.wie, tekst: t.tekst })),
+      stap: g.stap ? (({ ms, vorm, ...x }) => x)(g.stap) : undefined,
+    } };
+  });
+}
+export function splitParts(items, maxBytes = 100_000) {
+  const parts = [[]];
+  let size = 0;
+  for (const it of items) {
+    const n = Buffer.byteLength(JSON.stringify(it));
+    if (size + n > maxBytes && parts.at(-1).length) { parts.push([]); size = 0; }
+    parts.at(-1).push(it); size += n;
+  }
+  return parts;
 }
 export async function stopAudit(id) { await pool.query(`UPDATE public.max_audit SET status='gestopt' WHERE id=$1 AND status='bezig'`, [id]); }
 export async function deleteAudit(id) { await pool.query('DELETE FROM public.max_audit WHERE id=$1', [id]); }

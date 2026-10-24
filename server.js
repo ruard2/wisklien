@@ -14,7 +14,7 @@ import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeSc
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { createDemoKid } from './src/demo/index.js';
-import { migrateAudit, resumeAudits, startAudit, stopAudit, deleteAudit, auditJobs, auditJob, auditItems } from './src/audit.js';
+import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteAudit, auditJobs, auditJob, auditItems, compactItems, splitParts } from './src/audit.js';
 import { loginPage, listPage, reportPage } from './src/audit-page.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
@@ -1427,11 +1427,24 @@ audit.get('/:id.json', wrap(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="max-test-${job.id}-${job.lang}.json"`);
   res.json({ ...job, items: await auditItems(job.id) });
 }));
+// in delen (± 100 kB per bestand), compact: om als bijlage door te sturen
+audit.get('/:id/deel/:k', wrap(async (req, res) => {
+  const job = await auditJob(Number(req.params.id));
+  if (!job) return res.status(404).send('Niet gevonden');
+  const parts = splitParts(compactItems(await auditItems(job.id)));
+  const k = Number(req.params.k);
+  if (!(k >= 1 && k <= parts.length)) return res.status(404).send('Niet gevonden');
+  res.setHeader('Content-Disposition', `attachment; filename="max-test-${job.id}-${job.lang}-deel${k}van${parts.length}.json"`);
+  const { plan, ...meta } = job;
+  res.json({ ...meta, deel: k, delen: parts.length, items: parts[k - 1] });
+}));
 audit.get('/:id', wrap(async (req, res) => {
   const job = await auditJob(Number(req.params.id));
   if (!job) return res.status(404).send('Niet gevonden');
-  res.send(reportPage(job, await auditItems(job.id)));
+  const items = await auditItems(job.id);
+  res.send(reportPage(job, items, splitParts(compactItems(items)).length));
 }));
+audit.post('/:id/verder', wrap(async (req, res) => { await resumeAudit(Number(req.params.id)); res.redirect(303, `/audit/${req.params.id}`); }));
 audit.post('/:id/stop', wrap(async (req, res) => { await stopAudit(Number(req.params.id)); res.redirect(303, `/audit/${req.params.id}`); }));
 audit.post('/:id/delete', wrap(async (req, res) => { await deleteAudit(Number(req.params.id)); res.redirect(303, '/audit'); }));
 app.use('/audit', audit);

@@ -1166,6 +1166,10 @@ export function generateLike(cat, level, shape, notText) {
 
 export function hintsFor(q) {
   const m = mnemonicsFor(q.cat)[0];
-  return [kid(hintAanpak(q.cat, q.level ?? 2)) + (m ? `\n🧠 Onthou: ${m.kort}` : ''), ...(q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''))].filter(Boolean);
+  // Hints gaan over déze som: de tussenstappen. De algemene aanpak van het onderdeel (en een ezelsbruggetje) alleen als er
+  // geen tussenstappen zijn; die paste vaak niet bij de somvorm (Max-test: bv. afronden-uitleg bij een plaatswaardevraag).
+  const steps = (q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''));
+  if (steps.length) return steps;
+  return [kid(hintAanpak(q.cat, q.level ?? 2)) + (m ? `\n🧠 Onthou: ${m.kort}` : '')].filter(Boolean);
 }
 export const STRATEGY = Object.fromEntries(Object.keys(DIDACTIEK).map((c) => [c, hintAanpak(c, 2)]));

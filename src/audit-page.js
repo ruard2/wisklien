@@ -85,7 +85,7 @@ function itemHTML(it, i) {
   </details>`;
 }
 
-export function reportPage(job, items) {
+export function reportPage(job, items, nParts = 0) {
   const judged = items.filter((it) => it.verdict?.cijfers);
   const byCat = {};
   for (const it of judged) (byCat[it.label] ||= []).push(it);
@@ -103,8 +103,11 @@ export function reportPage(job, items) {
   const body = `<p><a href="/audit">‹ Alle tests</a></p>
     <h1>🧪 Max-test #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'}</h1>
     <p class="muted">${new Date(job.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })} · ${esc(job.model || '')}${job.judge_model && job.judge_model !== job.model ? ` · beoordelaar ${esc(job.judge_model)}` : ''} · status: <b>${esc(job.status)}</b>
-      · <a href="/audit/${job.id}.json">download alles (JSON)</a>
-      ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : ` · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Test verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
+      ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : `${job.status !== 'klaar' ? ` · <form class="inline" method="post" action="/audit/${job.id}/verder"><button style="padding:2px 10px">Verder</button></form>` : ''} · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Test verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
+    ${job.error ? `<div class="card"><b class="s1">Gestopt door een fout:</b> ${esc(job.error)}<br><span class="small muted">Met "Verder" gaat de test door; sommen die al klaar zijn, blijven staan.</span></div>` : ''}
+    ${items.length ? `<div class="card"><b>⬇️ Downloaden voor Claude</b> <span class="small muted">(compact, in delen van ± 100 kB zodat ze als bijlage passen; stuur ze allemaal)</span><br>
+      ${Array.from({ length: nParts }, (_, i) => `<a href="/audit/${job.id}/deel/${i + 1}">deel ${i + 1}</a>`).join(' · ')}
+      <span class="small muted"> · of <a href="/audit/${job.id}.json">alles in één bestand</a></span></div>` : ''}
     ${running ? `<div class="card"><b>Bezig: ${items.length} van ${job.n} sommen</b><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div><p class="small muted">Deze pagina ververst vanzelf.</p></div>` : ''}
     ${S ? `<h2>Samenvatting</h2><div class="card"><p>${esc(S.samenvatting)}</p>
       ${S.wat_goed_gaat?.length ? `<p><b>Wat goed gaat:</b> ${S.wat_goed_gaat.map(esc).join(' · ')}</p>` : ''}</div>

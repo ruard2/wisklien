@@ -264,7 +264,8 @@ ${profile ? `\nLEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : ''}${mem
 export function describeQuestion(q) {
   let s = `Som: ${q.text}`;
   if (q.options) s += `\nKeuzes: ${q.options.join(' | ')}`;
-  if (q.visual?.kind === 'bar' || q.visual?.kind === 'line') s += `\nGrafiek "${q.visual.title}": ${q.visual.labels.map((l, i) => `${l}=${q.visual.values[i]}`).join(', ')}`;
+  if ((q.visual?.kind === 'bar' || q.visual?.kind === 'line') && Array.isArray(q.visual.labels)) s += `\nGrafiek "${q.visual.title}": ${q.visual.labels.map((l, i) => `${l}=${q.visual.values?.[i]}`).join(', ')}`;
+  else if (q.visual?.kind === 'line') s += `\nTekening: getallenlijn van ${q.visual.from} tot ${q.visual.to}${q.visual.ticks ? ` (streepjes bij ${q.visual.ticks.join(', ')})` : ''}${q.visual.mark != null ? `, met een pijltje bij ${q.visual.mark}` : ''}${q.visual.unit ? ` (${q.visual.unit})` : ''}`;
   if (q.visual?.kind === 'pie') s += `\nCirkeldiagram: ${q.visual.labels.map((l, i) => `${l} ${q.visual.values[i]}%`).join(', ')}`;
   if (q.visual?.kind === 'table') s += `\nTabel: ${JSON.stringify({ kop: q.visual.headers, rijen: q.visual.rows })}`;
   if (q.visual?.kind === 'rect' || q.visual?.kind === 'tri') s += `\nTekening: ${q.visual.kind === 'rect' ? 'rechthoek' : 'driehoek'} ${q.visual.w} bij ${q.visual.h} ${q.visual.unit}`;
@@ -301,6 +302,9 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip.` : '',
     phase === 'wrong' ? `${name} antwoordde "${given}". Dat is FOUT.` : '',
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
+    phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Wil je het weten, vraag het dan ("Hoe kwam je op ${given}?"), of begin gewoon samen bij de eerste stap.` : '',
+    phase !== 'right' ? `NIET VOORZEGGEN: noem het eindantwoord (${question.display}) zelf NOOIT zolang ${name} het nog niet zelf heeft gezegd: ook niet als voorbeeld, als controle (zoals "5 × 7 = 35, dus …"), in een opsomming waaruit het meteen volgt, of in een plaatje (geen strook, cirkel of tabel waar het antwoord al in staat). Snapt ${name} het niet: maak het concreter (kleinere getallen, geld, een plaatje van de situatie), maar laat het laatste rekenwerk altijd aan ${name}.` : '',
+    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort ("Ja, precies!") en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan dat ${name} het nu kan invullen.` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
@@ -309,8 +313,10 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   ].filter(Boolean).join('\n');
 
   const opener = {
-    wrong: `Begin het gesprek: zeg in één zin vriendelijk wat er waarschijnlijk misging (kijk naar het antwoord "${given}"). Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`,
-    step: 'Leg deze ene tussenstap heel concreet uit, het liefst met een makkelijker voorbeeld (bijv. met kleinere getallen of met geld). Vraag daarna om het zelf nog eens te proberen.',
+    wrong: misconception
+      ? `Begin het gesprek: zeg in één zin vriendelijk wat er misging (de herkende denkfout, in gewone woorden). Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`
+      : `Begin het gesprek: zeg in één korte zin vriendelijk dat "${given}" nog niet klopt, zonder te raden waarom. Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`,
+    step: 'Leg deze ene tussenstap heel concreet uit, het liefst met een makkelijker voorbeeld (bijv. met kleinere getallen of met geld). Noem de uitkomst van deze stap niet en zet hem ook niet in een plaatje. Vraag daarna om het zelf nog eens te proberen.',
     right: 'Geef een kort compliment over de aanpak en één slimme tip voor dit soort sommen.',
     before: 'Help op weg.',
   }[phase];
