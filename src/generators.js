@@ -1276,7 +1276,7 @@ const meetkunde = {
       const start = pick(RICHTING), r1 = rnd(1, 3), l1 = rnd(1, 3), eind = draai(start, r1 - l1);
       const kw = (k) => (k === 1 ? 'een kwartslag' : `${k} kwartslagen`);
       return tpl('meetkunde.0b', { ...choice(`Je kijkt naar het ${start}en. Je draait ${kw(r1)} naar rechts en daarna ${kw(l1)} naar links. Welke kant kijk je nu op?`, RICHTING, RICHTING.indexOf(eind),
-        ['Rechtsom: noord → oost → zuid → west.', `Eerst ${r1} stap${r1 > 1 ? 'pen' : ''} rechtsom: ${draai(start, r1)}.`, `Dan ${l1} stap${l1 > 1 ? 'pen' : ''} terug (linksom): ${eind}.`]),
+        ['Rechtsom: noord → oost → zuid → west.', `Eerst ${r1} stap${r1 > 1 ? 'pen' : ''} rechtsom: ${draai(start, r1)}.`, `Dan ${l1} stap${l1 > 1 ? 'pen' : ''} terug (linksom): ${Array.from({ length: l1 }, (_, i) => draai(start, r1 - i - 1)).join(' → ')}.`]),
       guide: [stC(`Waar kijk je na ${kw(r1)} naar rechts?`, RICHTING, RICHTING.indexOf(draai(start, r1)), 'Nooit Oorlog Zonder Wapens: N – O – Z – W.')], guideFinal: `Nu ${l1} stap${l1 > 1 ? 'pen' : ''} terug` });
     }
     if (t === 'hoeken') {

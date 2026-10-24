@@ -86,8 +86,8 @@ function wrongStep(step) {
 // ---------- het kind (gespeeld door de AI) ----------
 // bedoeling (meetlat): wat het kind deze beurt doet, zodat twee runs vergelijkbaar zijn
 const BEDOELING = {
-  nl: { fout: 'Beantwoord de vraag van de meester, maar FOUT (een fout die een kind echt maakt).', snapniet: 'Zeg dat je het niet snapt, in je eigen woorden (bijv. "huh?" of "snap ik niet").', goed: 'Beantwoord de vraag van de meester GOED, kort.' },
-  af: { fout: 'Antwoord die vraag van Meneer, maar VERKEERD (’n fout wat ’n kind regtig maak).', snapniet: 'Sê jy verstaan dit nie, in jou eie woorde.', goed: 'Antwoord die vraag van Meneer REG, kort.' },
+  nl: { fout: 'Beantwoord de vraag van de meester, maar FOUT (een fout die een kind echt maakt).', snapniet: 'Zeg dat je het niet snapt, in je eigen woorden (bijv. "huh?" of "snap ik niet").', goed: 'Beantwoord de vraag van de meester GOED, kort. (Vraagt hij hoe je op je eerste antwoord kwam: vertel dan eerlijk je foute manier.)' },
+  af: { fout: 'Antwoord die vraag van Meneer, maar VERKEERD (’n fout wat ’n kind regtig maak).', snapniet: 'Sê jy verstaan dit nie, in jou eie woorde.', goed: 'Antwoord die vraag van Meneer REG, kort. (Vra hy hoe jy by jou eerste antwoord gekom het: vertel eerlik jou verkeerde manier.)' },
 };
 async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
   const af = lang === 'af';
@@ -96,8 +96,8 @@ async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
     : 'Je speelt een kind van 11 (groep 8) dat achterloopt met rekenen. Antwoord kort (max 12 woorden), in kindertaal zoals een kind typt. Meestal probeer je de vraag van de meester te beantwoorden (soms goed, soms fout), soms zeg je "snap ik niet".';
   // het kind weet zelf hoe het aan zijn foute antwoord kwam (Max vraagt daar nu eerst naar)
   const hoe = fout ? (af
-    ? `\n\nJy het eers "${fout.given}" geantwoord (verkeerd).${fout.label ? ` So het jy daarby gekom: ${fout.label}` : ' Bedink self hoe ’n kind by daardie antwoord sou uitkom.'} Vra Meneer hoe jy daarby gekom het, vertel dit kort.`
-    : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort.`) : '';
+    ? `\n\nJy het eers "${fout.given}" geantwoord (verkeerd).${fout.label ? ` So het jy daarby gekom: ${fout.label}` : ' Bedink self hoe ’n kind by daardie antwoord sou uitkom.'} Vra Meneer hoe jy daarby gekom het, vertel dit kort: ’n verduideliking wat regtig by "${fout.given}" uitkom (jou verkeerde manier), NIE die regte manier nie.`
+    : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort: een uitleg die echt op "${fout.given}" uitkomt (jouw foute manier), NIET de goede manier.`) : '';
   const doe = bedoeling ? `\n\n${af ? 'Hierdie keer' : 'Deze keer'}: ${BEDOELING[af ? 'af' : 'nl'][bedoeling]}` : '';
   const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${hoe}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
   const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL() });
@@ -224,7 +224,7 @@ function itemForJudge(it) {
   L.push(`Juiste antwoord: ${it.antwoord}`);
   L.push(`\nSTAPPENPLAN (na een fout):\n${it.stappenplan.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
   L.push(`\nHINTS:\n${it.hints.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
-  L.push(`\nTUSSENSTAPPEN:\n${it.tussenstappen.map((s, i) => `${i + 1}. vraag: "${s.vraag}"${s.opties ? ` (keuzes: ${s.opties.join(' | ')})` : ''} → goed: ${s.antwoord}${s.tip ? ` · tip bij fout: "${s.tip}"` : ''}`).join('\n') || '(geen)'}${it.slot ? `\nSlot: ${it.slot}` : ''}`);
+  L.push(`\nTUSSENSTAPPEN:\n${it.tussenstappen.map((s, i) => `${i + 1}. vraag: "${s.vraag}"${s.opties ? ` (keuzes: ${s.opties.join(' | ')})` : ''} → goed: ${s.antwoord}${s.tip ? ` · tip bij fout: "${s.tip}"` : ''}`).join('\n') || '(geen)'}${it.slot ? `\nSlot (de app toont: "Nu jij: ${it.slot}" + "Vul hieronder het eindantwoord in." Het kind rekent dit laatste stukje bewust zelf uit; dat is geen onaffe stap): ${it.slot}` : ''}`);
   L.push(`\nMAX VÓÓR HET ANTWOORD\nKind: ${it.gesprekken.begin?.kind}\nMax: ${it.gesprekken.begin?.max ?? '(geen antwoord)'}`);
   L.push(`\nFOUT ANTWOORD van het kind: "${it.fout_antwoord.gegeven}"${it.fout_antwoord.herkend ? ` — de app herkende de denkfout: "${it.fout_antwoord.herkend.label}" (uitleg in de app: "${it.fout_antwoord.herkend.wat_helpt}")` : ' — geen bekende denkfout herkend'}`);
   L.push(`GESPREK NA DE FOUT:\n${(it.gesprekken.na_fout || []).map((t) => `${t.wie === 'max' ? 'Max' : 'Kind'}: ${t.tekst}`).join('\n') || '(geen)'}`);

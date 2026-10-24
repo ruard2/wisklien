@@ -25,7 +25,9 @@ export function misconceptionsFor(q) {
   // --- procent van: het percentage zelf, of gedeeld door het procent ---
   if ((m = t.match(/^Hoeveel is (\d+)% van (\d+)\?$/))) {
     const [p, b] = [+m[1], +m[2]];
-    out.push(W(p, 'Je hebt alleen het procent opgeschreven, niet uitgerekend hoeveel dat is.', `${p}% is ${p} van elke 100. Begin met 10%: deel ${b} door 10.`));
+    const route = { 50: `50% is de helft: deel ${b} door 2.`, 25: `25% is een kwart: deel ${b} door 4.`, 75: `75% is drie kwart: eerst een kwart (${b} : 4), dan keer 3.`, 10: `10% is 1 van elke 10: deel ${b} door 10.`, 1: `1% is 1 van elke 100: deel ${b} door 100.`, 100: '100% is het hele getal.' }[p]
+      || (p % 10 === 0 ? `Begin met 10%: deel ${b} door 10, en dan keer ${p / 10}.` : p === 5 ? `5% is de helft van 10%: eerst ${b} : 10, dan de helft.` : `Begin met 1%: deel ${b} door 100, en dan keer ${p}.`);
+    out.push(W(p, 'Je hebt alleen het procent opgeschreven, niet uitgerekend hoeveel dat is.', `${p}% is ${p} van elke 100. ${route}`));
     if (b % p === 0) out.push(W(b / p, `Je hebt ${b} gedeeld door ${p}.`, 'Bij procenten deel je eerst door 100 (of door 10 voor 10%), en dan keer het procent.'));
     out.push(W(b - p, 'Je hebt het procent ervan afgehaald.', 'Een procent is een deel van het getal, geen getal om af te trekken.'));
   }
