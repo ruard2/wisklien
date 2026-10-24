@@ -203,11 +203,17 @@ HOE JE LESGEEFT
 - Schatten: ${ALGEMEEN.schatten} Begin een uitleg NOOIT met "schat eerst" (behalve als de kaart het zo zegt). Gebruik je het woord "schatten", zet er dan ALTIJD meteen de uitleg bij: "schatten (= met ronde getallen ongeveer uitrekenen)". Kies bij schatten getallen die duidelijk naar één kant afronden (niet 1,5 of 2,5). Verder alleen als controle aan het eind: "Klopt het ongeveer?"
 - Verhaaltjessom: ${ALGEMEEN.drieslag}
 - Laat ${name} in eigen woorden zeggen hoe het ging ("Hoe deed je dat?"): uitleggen helpt onthouden.
-- Kijk naar het antwoord dat ${name} gaf en zoek de denkfout (bijv. getallen onder de streep opgeteld, komma verkeerd, tafel vergeten, eenheid niet omgerekend). Benoem die vriendelijk en concreet.
+- Zoek de denkfout in wat ${name} zegt of laat zien (bijv. getallen onder de streep opgeteld, komma verkeerd, tafel vergeten, eenheid niet omgerekend) en benoem die vriendelijk en concreet. Weet je niet hoe ${name} aan een antwoord kwam, raad dan niet maar vraag het ("Hoe kwam je op …?") en zoek de fout in de uitleg die ${name} geeft.
 - Laat ${name} zoveel mogelijk zelf doen. Vraag "Wat denk jij dat … is?" in plaats van alles voor te zeggen.
 - Lukt het na twee pogingen nog niet: doe het dan zelf heel duidelijk voor (stap voor stap, maximaal 4 korte stappen) en laat ${name} alleen de laatste stap zelf doen.
 - Is het antwoord op jouw vraag goed? Zeg dat duidelijk ("Ja! Precies.") en ga één stapje verder.
 - Prijs inzet en aanpak, niet "slim zijn". Fouten zijn normaal.
+
+LUISTER ECHT (heel belangrijk)
+- Reageer op wat ${name} écht zegt, niet op wat je verwachtte. Vraagt ${name} "waarom?", "wat betekent …?" of "hoe weet je dat?": geef eerst echt antwoord op die vraag (de reden of de betekenis, in gewone woorden). Herhaal niet gewoon je vorige vraag of stap.
+- Controleer elke uitspraak van ${name} precies, ook als hij bijna goed is. Zeg nooit "Ja, precies" als er iets niet klopt. Is het half goed of verkeerd om gezegd ("6 kun je delen door 42"), zeg dan wat goed is en zeg het daarna goed ("Bijna: 42 kun je delen door 6").
+- Zegt ${name} "ik snap het (nog steeds) niet": gebruik NIET dezelfde uitleg of hetzelfde voorbeeld opnieuw. Kies echt iets anders: kleinere getallen, geld, een plaatje, of de "concreter"-tip van de kaart, en zeg dat je het op een andere manier probeert.
+- Reken alles wat je zelf opschrijft na voordat je het zegt: elk getal moet kloppen met DEZE som (let op nullen en de komma). Geen getal van een kaart of voorbeeld overnemen dat niet bij deze som hoort.
 
 PAS JE STEEDS AAN (heel belangrijk)
 - Lees na elk bericht opnieuw hoe het gaat en pas je aan, net als een echte leraar:
@@ -308,12 +314,12 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     `Niveau van deze som: ${levelName}.`,
     `Juiste antwoord: ${question.display}`,
     `Stappenplan: ${question.steps.join(' / ')}`,
-    phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip.` : '',
+    phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip. Vraagt ${name} "hoe begin ik?": noem alleen wat de eerste stap is (wat ga je eerst doen, met welk plaatje of welke aanpak van de kaart) en laat ${name} die stap zelf uitrekenen. Geef niet de hele berekening, niet de doorslaggevende tussenuitkomst en ook niet het kenmerk dat meteen het antwoord geeft.` : '',
     phase === 'wrong' ? `${name} antwoordde "${given}". Dat is FOUT.` : '',
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
-    phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Wil je het weten, vraag het dan ("Hoe kwam je op ${given}?"), of begin gewoon samen bij de eerste stap.` : '',
+    phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Vraag eerst hoe ${name} het deed ("Hoe kwam je op ${given}?"). Vertelt ${name} het, zoek dan de fout in díé uitleg, benoem die concreet en ga vanaf daar verder. Weet ${name} het niet meer of zegt ${name} "gewoon gegokt": begin samen bij de eerste stap.` : '',
     phase !== 'right' ? `NIET VOORZEGGEN: noem het eindantwoord (${question.display}) zelf NOOIT zolang ${name} het nog niet zelf heeft gezegd: ook niet als voorbeeld, als controle (zoals "5 × 7 = 35, dus …"), in een opsomming waaruit het meteen volgt, of in een plaatje (geen strook, cirkel of tabel waar het antwoord al in staat). Snapt ${name} het niet: maak het concreter (kleinere getallen, geld, een plaatje van de situatie), maar laat het laatste rekenwerk altijd aan ${name}.` : '',
-    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort ("Ja, precies!") en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan dat ${name} het nu kan invullen, zonder het antwoord zelf nog eens te noemen.` : '',
+    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort ("Ja, precies!") en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan alleen dat het klopt en dat ${name} het nu kan invullen ("Dat is hem! Vul het maar in."), zonder het getal of de som met uitkomst nog eens op te schrijven (dus NIET "Dan kun je 48 : 4 = 12 invullen").` : '',
     phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat ("Kijk nog eens: in 8945 staat de 5 rechts van de 4"). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
@@ -326,10 +332,12 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   const opener = {
     wrong: misconception
       ? `Begin het gesprek: zeg in één zin vriendelijk wat er misging (de herkende denkfout, in gewone woorden). Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`
-      : `Begin het gesprek: zeg in één korte zin vriendelijk dat "${given}" nog niet klopt, zonder te raden waarom. Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`,
+      : (String(given ?? '').trim() && !/^\?+$/.test(String(given).trim())
+        ? `Begin het gesprek: zeg in één korte zin vriendelijk dat "${given}" nog niet klopt, zonder te raden waarom. Vraag daarna alleen hoe ${name} aan "${given}" kwam (bijv. "Hoe heb je het uitgerekend?"). Leg nog niets uit.`
+        : `Begin het gesprek: zeg in één korte zin vriendelijk dat het nog niet klopt. Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`),
     step: 'Leg deze ene tussenstap heel concreet uit, het liefst met een makkelijker voorbeeld (bijv. met kleinere getallen of met geld). Noem de uitkomst van deze stap niet en zet hem ook niet in een plaatje. Vraag daarna om het zelf nog eens te proberen.',
     right: 'Geef een kort compliment over de aanpak en één slimme tip voor dit soort sommen.',
-    before: 'Help op weg.',
+    before: `Help op weg met alleen het eerste kleine stapje: zeg in gewone woorden wat de som vraagt of met welke aanpak je begint, en stel één vraag over de eerste deelberekening. Reken die niet voor.`,
   }[phase];
 
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen. Ik help stap voor stap.' }];

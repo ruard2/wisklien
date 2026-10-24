@@ -89,13 +89,17 @@ const BEDOELING = {
   nl: { fout: 'Beantwoord de vraag van de meester, maar FOUT (een fout die een kind echt maakt).', snapniet: 'Zeg dat je het niet snapt, in je eigen woorden (bijv. "huh?" of "snap ik niet").', goed: 'Beantwoord de vraag van de meester GOED, kort.' },
   af: { fout: 'Antwoord die vraag van Meneer, maar VERKEERD (’n fout wat ’n kind regtig maak).', snapniet: 'Sê jy verstaan dit nie, in jou eie woorde.', goed: 'Antwoord die vraag van Meneer REG, kort.' },
 };
-async function kidSays(lang, q, chat, bedoeling = null) {
+async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
   const af = lang === 'af';
   const sys = af
     ? 'Jy speel ’n kind van 11 (graad 6, Suid-Afrika) wat agter is met wiskunde. Antwoord kort (maks 12 woorde) in eenvoudige Afrikaans, soos ’n kind tik. Meestal probeer jy die vraag van Meneer te beantwoord (soms reg, soms verkeerd), soms sê jy "ek verstaan nie".'
     : 'Je speelt een kind van 11 (groep 8) dat achterloopt met rekenen. Antwoord kort (max 12 woorden), in kindertaal zoals een kind typt. Meestal probeer je de vraag van de meester te beantwoorden (soms goed, soms fout), soms zeg je "snap ik niet".';
+  // het kind weet zelf hoe het aan zijn foute antwoord kwam (Max vraagt daar nu eerst naar)
+  const hoe = fout ? (af
+    ? `\n\nJy het eers "${fout.given}" geantwoord (verkeerd).${fout.label ? ` So het jy daarby gekom: ${fout.label}` : ' Bedink self hoe ’n kind by daardie antwoord sou uitkom.'} Vra Meneer hoe jy daarby gekom het, vertel dit kort.`
+    : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort.`) : '';
   const doe = bedoeling ? `\n\n${af ? 'Hierdie keer' : 'Deze keer'}: ${BEDOELING[af ? 'af' : 'nl'][bedoeling]}` : '';
-  const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
+  const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${hoe}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
   const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL() });
   return String(t || (af ? 'ek verstaan nie' : 'snap ik niet')).replace(/^["“]|["”]$/g, '').trim().slice(0, 200);
 }
@@ -142,7 +146,7 @@ export async function auditOne(lang, p, models = {}) {
     const r1 = await call('fout-1', () => maxSays({ phase: 'wrong', given, chat, misconception: mis }));
     if (r1?.text) {
       chat.push({ role: 'teacher', text: r1.text }); turns.push({ wie: 'max', tekst: r1.text, vorm: r1.vorm, ms: r1.ms });
-      const k1 = await call('kind-1', async () => ({ text: p.kind1 || await kidSays(lang, q, chat, p.bedoeling || null) }));
+      const k1 = await call('kind-1', async () => ({ text: p.kind1 || await kidSays(lang, q, chat, p.bedoeling || null, { given, label: mis?.label || null }) }));
       if (k1?.text) {
         chat.push({ role: 'kid', text: k1.text }); turns.push({ wie: 'kind', tekst: k1.text });
         const r2 = await call('fout-2', () => maxSays({ phase: 'wrong', given, chat: [...chat], misconception: mis }));
@@ -195,7 +199,7 @@ Controleer vooral:
 1. Rekenkundig: klopt elk getal, elke tussenuitkomst en het eindantwoord? Klopt de som zelf (eenduidig, realistisch)? Elke rekenfout is ernstig.
 2. Tussenstappen: logische volgorde, elke stap één klein ding, geen sprong; leidt het écht naar het antwoord; past het bij de aanpak van de kaart; is de tip bij een stap behulpzaam (en niet gewoon het antwoord)?
 3. Stappenplan en hints: duidelijk, juist, volgens de kaart, kindertaal.
-4. Max na een fout: herkent hij wat er misging (kijk naar het gegeven antwoord en de herkende denkfout)? Kleine stap, één vraag, reageert hij echt op wat het kind zei, gaat hij concreter als het kind het niet snapt, geen herhaling, geen lap tekst?
+4. Max na een fout: herkent hij wat er misging (kijk naar het gegeven antwoord en de herkende denkfout)? Is er géén denkfout herkend, dan is eerst vragen hoe het kind eraan kwam GOED (niet afrekenen), mits hij daarna de fout in de uitleg van het kind oppakt. Kleine stap, één vraag, reageert hij echt op wat het kind zei, gaat hij concreter als het kind het niet snapt, geen herhaling, geen lap tekst?
 5. Max bij een tussenstap: legt hij precies díe stap uit, met een makkelijker voorbeeld, zonder het antwoord van de stap te verklappen?
 6. Max vóór het antwoord: helpt op weg zonder het eindantwoord (of een uitkomst waarmee het antwoord direct vastligt) te verklappen.
 7. Samenhang: gebruiken Max, het stappenplan en de tussenstappen dezelfde aanpak en woorden? Of zegt Max iets anders dan de app?
