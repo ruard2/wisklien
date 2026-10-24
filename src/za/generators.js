@@ -5,6 +5,7 @@
 //
 // Vlakke: 0 = graad 4, 1 = graad 5, 2 = graad 6, 3 = graad 7.
 
+import { improveTips } from '../tips.js';
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm } from '../util.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
 import { mnemonicsFor } from './mnemonics.js';
@@ -1064,13 +1065,13 @@ const data = {
     const counts = d.reduce((a, x) => ({ ...a, [x]: (a[x] || 0) + 1 }), {});
     if (Object.values(counts).filter((c) => c >= 3).length > 1) return data[1]();
     return { ...num(`Die span se doele in elke wedstryd: ${list(d)}. Wat is die modus?`, mod, ['Die modus is die waarde wat die meeste voorkom.', `${mod} kom ${counts[mod]} keer voor.`], { wrong: [W(Math.max(...d) === mod ? -1 : Math.max(...d), 'Dit is die grootste getal, nie die modus nie.', 'Modus = die getal wat die meeste kere voorkom.')].filter((w) => w.answer >= 0) }),
-      guide: [st(`Hoeveel keer kom ${mod} voor?`, counts[mod], 'Tel.')], guideFinal: 'Watter getal kom die meeste voor?' };
+      guide: [st(`Hoeveel keer kom ${mod} voor?`, counts[mod], `Gaan die lys van links na regs deur en tik elke ${mod} af terwyl jy tel.`)], guideFinal: 'Watter getal kom die meeste voor?' };
   },
   2() {
     if (Math.random() < 0.55) {
       const d = Array.from({ length: pick([5, 7]) }, () => rnd(10, 60)), s = [...d].sort((a, b) => a - b), med = s[(s.length - 1) / 2];
       return { ...num(`Die lengtes van die sonneblomme (cm): ${list(d)}. Wat is die mediaan?`, med, [`Sorteer: ${list(s)}.`, `Die middelste getal: ${med}.`], { wrong: [W(d[(d.length - 1) / 2] === med ? -1 : d[(d.length - 1) / 2], 'Jy het nie eers gesorteer nie.', 'Sorteer eers van klein na groot.')].filter((w) => w.answer >= 0) }),
-        guide: [st(`Hoeveel getalle is daar?`, d.length, 'Tel.'), st('Wat is die kleinste getal?', s[0], 'Begin by die kleinste getal.')], guideFinal: `Sorteer en kies die ${(d.length + 1) / 2}de getal` };
+        guide: [st(`Hoeveel getalle is daar?`, d.length, 'Tel die getalle een vir een en tik elkeen af.'), st('Wat is die kleinste getal?', s[0], 'Begin by die kleinste getal.')], guideFinal: `Sorteer en kies die ${(d.length + 1) / 2}de getal` };
     }
     const [wat, n] = pick([['\'n dobbelsteen gooi', 6], ['\'n muntstuk opgooi', 2], ['\'n muntstuk opskiet én \'n dobbelsteen gooi', 12]]);
     return { ...num(`Hoeveel moontlike uitkomste is daar as jy ${wat}?`, n, [n === 12 ? 'Munt: 2 uitkomste (kop, munt). Dobbelsteen: 6. Elke munt-uitkoms met elke dobbelsteen-uitkoms: 2 × 6 = 12.' : n === 6 ? 'Die dobbelsteen kan 1, 2, 3, 4, 5 of 6 wys.' : 'Kop of munt.']), guide: n === 12 ? [st('Hoeveel uitkomste het \'n dobbelsteen?', 6, '1 tot 6.')] : [], guideFinal: n === 12 ? 'Maal met die 2 uitkomste van die munt' : 'Lys al die uitkomste' };
@@ -1151,6 +1152,7 @@ export function generate(cat, level) {
   q.id = `${Date.now().toString(36)}z${(counter++).toString(36)}`;
   if (!q.guide || !q.guide.length) { q.guide = []; q.guideFinal = null; }
   q.shape = shapeOf(q.text);
+  improveTips(q, 'af'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = (q.wrong || []).filter((w) => w && w.label && w.answer != null && !(typeof w.answer === 'number' && (Number.isNaN(w.answer) || Math.abs(w.answer - q.answer) < 1e-9)));
   return kidify(q);
 }

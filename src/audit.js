@@ -81,12 +81,12 @@ async function kidSays(lang, q, chat) {
 }
 
 // ---------- rekencontrole (code): klopt elk "a op b = c" in een tekst? ----------
-const NUM = String.raw`(?:€\s?|R\s?)?(?:\d{1,3}(?:[.\u00a0 ]\d{3})+|\d+)(?:,\d+)?`;
+const NUM = String.raw`(?:€\s?|R\s?)?(?:\d{1,3}(?:[.\u00a0\u202f\u2009 ]\d{3})+|\d+)(?:,\d+)?`;
 const OP = String.raw`\s*(?:[+×x·*÷/−–-]|\s:\s)\s*`;
 const EXPR = `${NUM}(?:${OP}${NUM})*`;
 const EQ_RE = new RegExp(String.raw`(?<![\d,./€R+×x·*÷−–-]\s?)(?<![\d,.:/])(?<!\s:\s)${EXPR}(?:\s*=\s*${EXPR})+(?![\d:,]|\s?%)`, 'g');
 function toNumber(tok) {
-  let s = tok.replace(/[€R\s\u00a0]/g, '');
+  let s = tok.replace(/[€R\s\u00a0\u202f\u2009]/g, '');
   if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '');
   return Number(s.replace(',', '.'));
 }

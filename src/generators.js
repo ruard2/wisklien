@@ -13,6 +13,7 @@
 //   guide — invulbare tussenstappen ("samen stap voor stap"): het kind rekent
 //           elke tussenstap zelf uit, daarna het eindantwoord.
 
+import { improveTips } from './tips.js';
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
@@ -1464,6 +1465,7 @@ export function generate(cat, level) {
   q.id = `${Date.now().toString(36)}${(counter++).toString(36)}`;
   if (!q.guide || !q.guide.length) { q.guide = []; q.guideFinal = null; }
   q.shape = shapeOf(q.text);
+  improveTips(q, 'nl'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = misconceptionsFor(q);
   addVisual(q);
   return kidify(q);

@@ -269,8 +269,13 @@ export function describeQuestion(q) {
   if (q.visual?.kind === 'pie') s += `\nCirkeldiagram: ${q.visual.labels.map((l, i) => `${l} ${q.visual.values[i]}%`).join(', ')}`;
   if (q.visual?.kind === 'table') s += `\nTabel: ${JSON.stringify({ kop: q.visual.headers, rijen: q.visual.rows })}`;
   if (q.visual?.kind === 'rect' || q.visual?.kind === 'tri') s += `\nTekening: ${q.visual.kind === 'rect' ? 'rechthoek' : 'driehoek'} ${q.visual.w} bij ${q.visual.h} ${q.visual.unit}`;
-  if (q.visual?.kind === 'clock') s += `
-Tekening: ${q.visual.look === 'alarm' ? 'wekker' : q.visual.look === 'watch' ? 'horloge' : 'klok'} met wijzers op ${q.visual.time}${q.visual.label ? ` (${q.visual.label})` : ''}`;
+  if (q.visual?.kind === 'clock') {
+    // wijzerstand erbij: Max zei eens "grote wijzer op de 2" bij 4:40 (Max-test)
+    const [hh, mm] = String(q.visual.time).split(':').map(Number);
+    const pos = Number.isFinite(mm) ? (mm === 0 ? 12 : mm / 5) : null;
+    s += `
+Tekening: ${q.visual.look === 'alarm' ? 'wekker' : q.visual.look === 'watch' ? 'horloge' : 'klok'} met wijzers op ${q.visual.time}${q.visual.label ? ` (${q.visual.label})` : ''}${pos != null && Number.isInteger(pos) ? `: de grote wijzer staat op de ${pos} (${mm} minuten), de kleine wijzer ${mm === 0 ? 'precies op' : 'tussen de ' + (hh % 12 || 12) + ' en de'} ${mm === 0 ? hh % 12 || 12 : (hh % 12) + 1}` : ''}`;
+  }
   if (q.visual?.kind === 'digital') s += `
 Tekening: digitale ${q.visual.look === 'oven' ? 'oven' : q.visual.look === 'phone' ? 'telefoon' : 'wekker'} die ${q.visual.time} aangeeft`;
   if (q.visual?.kind === 'clocks') s += `
@@ -304,7 +309,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
     phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Wil je het weten, vraag het dan ("Hoe kwam je op ${given}?"), of begin gewoon samen bij de eerste stap.` : '',
     phase !== 'right' ? `NIET VOORZEGGEN: noem het eindantwoord (${question.display}) zelf NOOIT zolang ${name} het nog niet zelf heeft gezegd: ook niet als voorbeeld, als controle (zoals "5 × 7 = 35, dus …"), in een opsomming waaruit het meteen volgt, of in een plaatje (geen strook, cirkel of tabel waar het antwoord al in staat). Snapt ${name} het niet: maak het concreter (kleinere getallen, geld, een plaatje van de situatie), maar laat het laatste rekenwerk altijd aan ${name}.` : '',
-    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort ("Ja, precies!") en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan dat ${name} het nu kan invullen.` : '',
+    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort ("Ja, precies!") en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan dat ${name} het nu kan invullen, zonder het antwoord zelf nog eens te noemen.` : '',
+    phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat ("Kijk nog eens: in 8945 staat de 5 rechts van de 4"). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',

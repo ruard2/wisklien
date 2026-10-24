@@ -41,10 +41,17 @@ export function misconceptionsFor(q) {
   }
   // --- maten omrekenen: verkeerde factor of verkeerde kant op ---
   if (/^[\d,\s ]+ (meter|km|m|mm|cm|gram|kg|kilo|ml|liter|dl|cl|m²|cm³|m³|hectare) = \.\.\. /.test(t) && typeof q.answer === 'number') {
-    const A = q.answer;
-    for (const [w, why] of [[A * 10, 'Je bent één trede te ver gegaan op de trap.'], [A / 10, 'Je bent één trede te kort gegaan op de trap.'], [A * 100, 'Je ging de verkeerde kant op de trap op, of 2 treden te ver.'], [A / 100, 'Je ging de verkeerde kant op de trap op, of 2 treden te kort.']]) {
-      out.push(W(round(w, 6), why, 'Kan Het Dametje Met De Centimeter Meten: tel de treden. Naar beneden = keer, naar boven = delen.'));
-    }
+    // De uitleg hangt af van de richting: naar een grotere maat deel je, naar een kleinere maat doe je keer.
+    // (Max-test: "één trede te ver" bij 128 mm → 1,28 m klopte niet; het kind had juist één keer te weinig gedeeld.)
+    const A = q.answer, v = Number(t.match(/^([\d,\s ]+)/)[1].replace(/[\s ]/g, '').replace(',', '.'));
+    const delen = A < v;
+    const lab = delen
+      ? [[A * 10, 'Je hebt één keer te weinig door 10 gedeeld: je antwoord is 10 keer te groot.'], [A / 10, 'Je hebt één keer te veel door 10 gedeeld: je antwoord is 10 keer te klein.'],
+        [A * 100, 'Je hebt twee keer te weinig door 10 gedeeld: je antwoord is 100 keer te groot.'], [A / 100, 'Je hebt twee keer te veel door 10 gedeeld: je antwoord is 100 keer te klein.']]
+      : [[A * 10, 'Je hebt één keer te veel keer 10 gedaan: je antwoord is 10 keer te groot.'], [A / 10, 'Je hebt één keer te weinig keer 10 gedaan: je antwoord is 10 keer te klein.'],
+        [A * 100, 'Je hebt twee keer te veel keer 10 gedaan: je antwoord is 100 keer te groot.'], [A / 100, 'Je hebt twee keer te weinig keer 10 gedaan: je antwoord is 100 keer te klein.']];
+    if (v > 0 && v !== A) lab.unshift([(v * v) / A, delen ? 'Je ging de verkeerde kant op de trap: je deed keer, maar naar een grotere maat moet je delen.' : 'Je ging de verkeerde kant op de trap: je deelde, maar naar een kleinere maat moet je keer doen.']);
+    for (const [w, why] of lab) out.push(W(round(w, 6), why, 'Kan Het Dametje Met De Centimeter Meten: tel de treden. Naar beneden = keer, naar boven = delen.'));
   }
   // --- uren naar minuten: een uur als 100 minuten ---
   if ((m = t.match(/^([\d,]+) uur = \.\.\. minuten$/))) {
