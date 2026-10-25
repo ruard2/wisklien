@@ -227,9 +227,14 @@ export function kaartSjablonen(lang) {
     for (const c of CATEGORIES) for (let lv = 0; lv < 4; lv++) for (let i = 0; i < 150; i++) {
       const q = generate(c.id, lv);
       const x = (m[q.tpl] ||= { tpl: q.tpl, cat: c.id, level: lv, sommen: [] });
-      if (x.sommen.length < 3 && !x.sommen.some((y) => y.text === q.text)) x.sommen.push({ text: q.text, antwoord: q.display, steps: q.steps, guide: (q.guide || []).map((g) => ({ vraag: g.ask, goed: g.display, tip: g.tip || null })), slot: q.guideFinal || null, hints: hintsFor(q) });
+      // liefst 3 verschillende VORMEN van de som (bijv. afronden op tientallen én op honderdtallen), dan pas herhalingen
+      const vorm = String(q.text).split('\n')[0].replace(/\d+(?:[  ,.:]\d+)*/g, '#').replace(/\b[A-Z][a-zë]+\b/g, 'N').slice(0, 80);
+      const nieuweVorm = !x.vormen?.has(vorm);
+      (x.vormen ||= new Set()).add(vorm);
+      if (x.sommen.length >= 3 && nieuweVorm && x.sommen.filter((y) => y.dubbel).length) { x.sommen.splice(x.sommen.findIndex((y) => y.dubbel), 1); }
+      if (x.sommen.length < 3 && !x.sommen.some((y) => y.text === q.text)) x.sommen.push({ dubbel: !nieuweVorm, ...({ text: q.text, antwoord: q.display, steps: q.steps, guide: (q.guide || []).map((g) => ({ vraag: g.ask, goed: g.display, tip: g.tip || null })), slot: q.guideFinal || null, hints: hintsFor(q) }) });
     }
-    return Object.values(m).sort((a, b) => a.tpl.localeCompare(b.tpl));
+    return Object.values(m).map(({ vormen, ...x }) => ({ ...x, sommen: x.sommen.map(({ dubbel, ...y }) => y) })).sort((a, b) => a.tpl.localeCompare(b.tpl));
   });
 }
 const KAARTCHECK = (lang) => `Je bent een ervaren rekendidacticus (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV/CAPS; schrijf voorstellen in het Afrikaans' : 'Nederlandse basisschool, groep 5-8; schrijf voorstellen in het Nederlands'}). Je krijgt de UITLEGKAART van één soort som (sjabloon) uit een reken-app en 3 voorbeeldsommen met de vaste uitleg die de app toont (stappenplan na een fout, tussenstappen met tip, slot, hints).
@@ -244,11 +249,21 @@ Antwoord als JSON:
 {"past": true/false, "problemen": [{"waar": "kaart"|"stappenplan"|"tussenstap"|"tip"|"slot"|"hint", "wat": "kort wat er mis is", "voorstel": "concrete betere tekst of aanpak"}],
  "nieuwe_kaart": null of {"naam": "...", "aanpak": ["stap 1", "stap 2", ...], "model": "...", "valkuilen": ["fout → wat helpt", ...], "concreter": "..."}}
 Geef "nieuwe_kaart" alleen als de kaart echt beter moet; houd hem dan kort, generiek (geldt voor alle sommen van dit sjabloon) en in dezelfde stijl.`;
+// Het model antwoordt in het Afrikaans soms met Afrikaanse sleutels ("probleme", "nuwe_kaart", "aanpak", "voorstel" blijven)
+export function normKaartOordeel(r) {
+  if (!r || typeof r !== 'object') return r;
+  const o = { past: r.past ?? r.pas, problemen: r.problemen || r.probleme || [], nieuwe_kaart: r.nieuwe_kaart ?? r.nuwe_kaart ?? null };
+  o.problemen = o.problemen.map((p) => ({ waar: p.waar, wat: p.wat, voorstel: p.voorstel || p.voorstelle }));
+  const k = o.nieuwe_kaart;
+  if (k) o.nieuwe_kaart = { naam: k.naam, aanpak: k.aanpak, model: k.model, valkuilen: k.valkuilen || k.slaggate, concreter: k.concreter || k.konkreter };
+  return o;
+}
 export async function kaartOordeel(lang, s, models = {}) {
   return inCtx(lang, async () => {
-    const user = [`SJABLOON: ${s.tpl} (onderdeel ${s.cat}, niveau ${s.level})`, kaartTekst(lang, s.tpl) || '(geen kaart)', '',
+    const user = [`SJABLOON: ${s.tpl} — onderdeel "${catById[s.cat]?.label || s.cat}", niveau ${s.level}. (De naam van het sjabloon en het onderdeel zeggen niets over wat de som vraagt; kijk naar de sommen zelf. Eén onderdeel kan omtrek, oppervlakte én volume bevatten.)`, kaartTekst(lang, s.tpl) || '(geen kaart)', '',
       ...s.sommen.map((x, i) => `VOORBEELDSOM ${i + 1}: ${x.text}\nAntwoord: ${x.antwoord}\nStappenplan: ${(x.steps || []).map((y, j) => `${j + 1}. ${y}`).join(' ')}\nTussenstappen: ${x.guide.map((g, j) => `${j + 1}. "${g.vraag}" → ${g.goed}${g.tip ? ` (tip: "${g.tip}")` : ''}`).join(' ') || '(geen)'}${x.slot ? `\nSlot (kind rekent zelf): ${x.slot}` : ''}\nHints: ${(x.hints || []).join(' / ')}`)].join('\n');
-    return auditCall(KAARTCHECK(lang), [{ role: 'user', content: user }], { json: true, maxTokens: 2500, model: JUDGE_MODEL() });
+    const r = await auditCall(KAARTCHECK(lang), [{ role: 'user', content: user }], { json: true, maxTokens: 2500, model: JUDGE_MODEL() });
+    return normKaartOordeel(r);
   }, models);
 }
 

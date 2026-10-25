@@ -23,17 +23,17 @@ const TXT = {
     tafel9: (b) => `9 × ${b} is 10 × ${b} min één keer ${b}.`,
     splits: (a, b, t, e) => `Splits ${a} in ${t} en ${e}: reken ${t} × ${b} en ${e} × ${b}, en tel die twee op.`,
     nul: (a, b, k) => `Reken eerst ${a} × ${b}, en zet er dan ${k === 1 ? 'een nul' : `${k} nullen`} achter.`,
-    deel: (a, b) => `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op: ${b}, ${2 * b}, ${3 * b}, … tot je bij ${a} bent.`,
+    deel: (a, b) => (a / b > 4 ? `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op: ${b}, ${2 * b}, ${3 * b}, … tot je bij ${a} bent, en tel hoeveel stappen dat zijn.` : `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op tot je bij ${a} bent, en tel hoeveel stappen dat zijn.`),
     deelGroot: (a, b) => `Welk getal keer ${b} is ${a}? Probeer eerst 10 × ${b} = ${10 * b}: is dat te veel of te weinig?`,
-    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: eerst ${a} − ${t}, dan daar nog ${e} af.` : `Spring terug op de getallenlijn: vanaf ${a} ${b} terug.`),
-    minBrug: (a, b) => `Vul aan: van ${b} naar ${a}, hoeveel is dat? Spring eerst naar een rond getal.`,
-    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${a} + ${t}, dan daar nog ${e} bij.` : `Spring vooruit op de getallenlijn: vanaf ${a} ${b} verder.`),
-    een: 'Iets 1 keer is gewoon dat getal zelf.',
+    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: eerst ${a} − ${t}, dan daar nog ${e} af.` : `Begin op de getallenlijn bij ${a} en spring ${b} terug.`),
+    minBrug: (a, b) => (b % 10 === 0 || Math.ceil(b / 10) * 10 >= a ? `Tel verder vanaf ${b} tot ${a}. Hoeveel stapjes is dat?` : `Vul aan: van ${b} naar ${a}. Spring eerst naar ${Math.ceil(b / 10) * 10}, dan verder tot ${a}. Tel de sprongen op.`),
+    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${a} + ${t}, dan daar nog ${e} bij.` : `Begin op de getallenlijn bij ${a} en spring ${b} vooruit.`),
+    een: 'Wat verandert er als je maar één groepje hebt?',
     tijdZelfde: (a, b) => `${a} en ${b} zijn in hetzelfde uur: kijk alleen naar de minuten en tel van de ene naar de andere.`,
     tijdOver: (a, h, b) => `Tel eerst van ${a} tot het hele uur ${h}, en dan verder tot ${b}. Tel de stukjes op.`,
     desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en schrijf dat dan als kommagetal.`,
     desPlus: (op) => (op === '+' ? 'Komma onder komma: tel eerst de hele getallen op, dan wat achter de komma staat. Samen meer dan een hele achter de komma? Dan komt er 1 bij de helen.' : 'Komma onder komma: haal eerst de hele getallen eraf, dan wat achter de komma staat. Lukt dat niet? Wissel dan 1 hele in voor 10 tienden of 100 honderdsten.'),
-    alles: 'Je haalt er precies evenveel af als er is. Hoeveel blijft er dan over?',
+    alles: 'Vergelijk wat je eraf haalt met wat er is: blijft er nog iets over?',
     sprong: (p, op) => (p % 1000 === 0 ? `Spring in sprongen van 1000: ${p / 1000} ${p === 1000 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : p % 100 === 0 ? `Spring in sprongen van 100: ${p / 100} ${p === 100 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : p % 10 === 0 ? `Spring in sprongen van 10: ${p / 10} ${p === 10 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : `Spring ${op === '+' ? 'vooruit' : 'terug'} op de getallenlijn.`),
   },
   af: {
@@ -44,17 +44,17 @@ const TXT = {
     tafel9: (b) => `9 × ${b} is 10 × ${b} min een keer ${b}.`,
     splits: (a, b, t, e) => `Breek ${a} op in ${t} en ${e}: reken ${t} × ${b} en ${e} × ${b}, en tel die twee op.`,
     nul: (a, b, k) => `Reken eers ${a} × ${b}, en sit dan ${k === 1 ? '’n nul' : `${k} nulle`} agter.`,
-    deel: (a, b) => `Watter getal maal ${b} is ${a}? Sê die tafel van ${b}: ${b}; ${2 * b}; ${3 * b}; … tot jy by ${a} kom.`,
+    deel: (a, b) => (a / b > 4 ? `Watter getal maal ${b} is ${a}? Sê die tafel van ${b}: ${b}; ${2 * b}; ${3 * b}; … tot jy by ${a} kom, en tel hoeveel stappe dit is.` : `Watter getal maal ${b} is ${a}? Sê die tafel van ${b} op tot jy by ${a} kom, en tel hoeveel stappe dit is.`),
     deelGroot: (a, b) => `Watter getal maal ${b} is ${a}? Probeer eers 10 × ${b} = ${10 * b}: is dit te veel of te min?`,
-    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: eers ${a} − ${t}, dan daarvan nog ${e} af.` : `Spring terug op die getallelyn: van ${a} af ${b} terug.`),
-    minBrug: (a, b) => `Tel aan: van ${b} tot ${a}, hoeveel is dit? Spring eers na ’n ronde getal.`,
-    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${a} + ${t}, dan daarby nog ${e}.` : `Spring vorentoe op die getallelyn: van ${a} af ${b} verder.`),
-    een: 'Iets 1 keer is net daardie getal self.',
+    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: eers ${a} − ${t}, dan daarvan nog ${e} af.` : `Begin op die getallelyn by ${a} en spring ${b} terug.`),
+    minBrug: (a, b) => (b % 10 === 0 || Math.ceil(b / 10) * 10 >= a ? `Tel verder van ${b} tot ${a}. Hoeveel treetjies is dit?` : `Tel aan: van ${b} tot ${a}. Spring eers na ${Math.ceil(b / 10) * 10}, dan verder tot ${a}. Tel die spronge bymekaar.`),
+    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${a} + ${t}, dan daarby nog ${e}.` : `Begin op die getallelyn by ${a} en spring ${b} vorentoe.`),
+    een: 'Wat verander as jy net een groepie het?',
     tijdZelfde: (a, b) => `${a} en ${b} is in dieselfde uur: kyk net na die minute en tel van die een na die ander.`,
     tijdOver: (a, h, b) => `Tel eers van ${a} tot by die heel uur ${h}, en dan verder tot ${b}. Tel die stukkies bymekaar.`,
     desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en skryf dit dan as ’n desimale getal.`,
     desPlus: (op) => (op === '+' ? 'Kommas onder mekaar: tel eers die heelgetalle op, dan wat ná die komma staan. Is dit saam meer as een heel ná die komma? Dan kom daar 1 by die heelgetalle.' : 'Kommas onder mekaar: trek eers die heelgetalle af, dan wat ná die komma staan. Gaan dit nie? Ruil dan 1 heel om vir 10 tiendes of 100 honderdstes.'),
-    alles: 'Jy trek presies soveel af as wat daar is. Hoeveel bly dan oor?',
+    alles: 'Vergelyk wat jy aftrek met wat daar is: bly daar nog iets oor?',
     sprong: (p, op) => (p % 1000 === 0 ? `Spring in spronge van 1000: ${p / 1000} ${p === 1000 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : p % 100 === 0 ? `Spring in spronge van 100: ${p / 100} ${p === 100 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : p % 10 === 0 ? `Spring in spronge van 10: ${p / 10} ${p === 10 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : `Spring ${op === '+' ? 'vorentoe' : 'terug'} op die getallelyn.`),
   },
 };
@@ -69,12 +69,18 @@ export function betterTip(ask, lang = 'nl') {
   // kommagetallen (meetlat AF #7: "0,6 × 20 = ?" kreeg als tip het antwoord in tiendes)
   const dm = ask.match(/(\d+,(\d{1,2}))\s*[×x·]\s*(\d+)\s*=\s*\?/);
   if (dm) { const d = dm[2].length, n = Math.round(Number(dm[1].replace(',', '.')) * 10 ** d); return T.desMaal(dm[1], dm[3], n, lang === 'af' ? (d === 1 ? 'tiendes' : 'honderdstes') : (d === 1 ? 'tienden' : 'honderdsten')); }
+  // een rij optellingen ("21 + 21 + 15 + 15 = ?", "3 + 8 + 1 = ?"): één voor één, ronde paren eerst
+  const rij = ask.match(new RegExp(`(${NUM}(?:\\s*\\+\\s*${NUM}){2,})\\s*=\\s*\\?`));
+  if (rij) { const xs = rij[1].split('+').map((x) => x.trim()); return lang === 'af' ? `Tel een vir een: eers ${xs[0]} + ${xs[1]}, tel dan ${xs.slice(2).join(', dan ')} by. Kyk of twee getalle saam ’n ronde getal maak.` : `Tel één voor één: eerst ${xs[0]} + ${xs[1]}, tel daar dan ${xs.slice(2).join(', dan ')} bij. Kijk of twee getallen samen een rond getal maken.`; }
+  const dd = ask.match(/(\d+),(\d{1,2})\s*[:÷]\s*(\d+)\s*=\s*\?/);
+  if (dd) { const n = Number(dd[1] + dd[2].padEnd(2, '0')); return lang === 'af' ? `Reken in sent (sonder die komma): ${n} ÷ ${dd[3]}. Sit dan die komma terug: 100 sent = R1.` : `Reken in centen (zonder komma): ${n} : ${dd[3]}. Zet daarna de komma terug: 100 cent = 1 euro.`; }
   const dp = ask.match(/(\d+,\d+)\s*([+−–-])\s*(\d+,\d+)\s*=\s*\?/);
   if (dp) return T.desPlus(dp[2] === '+' ? '+' : '−');
   // "3 × ? = 12": welk getal keer 3 is 12?
   const miss = String(ask).match(new RegExp(`${NUM}\\s*[×x·]\\s*\\?\\s*=\\s*${NUM}`));
   if (miss) { const a = toN(miss[1]), c = toN(miss[2]); return a > 0 && c > 0 ? T.deel(c, a) : null; }
-  const m = String(ask).match(new RegExp(`${NUM}\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:=\\s*\\?|\\?\\s*$)`));
+  const m = String(ask).match(new RegExp(`(?<![\\d,.]|[\\d]\\s*[×x·:÷−–+-]\\s*)${NUM}\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:=\\s*\\?|\\?\\s*$)`));
+  // geen kommagetal-staart ("5,60 : 4" is niet "60 : 4") en geen deel van een langere som ("3 + 8 + 1"; kaartcheck NL)
   if (!m) return null;
   let a = toN(m[1]), b = toN(m[3]);
   const op = m[2];

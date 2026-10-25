@@ -214,6 +214,8 @@ Max en de vaste uitleg worden systematisch beter, niet per losse fout:
 
 - **Kaartcheck** (/audit → soort "Kaartcheck"): één AI-oordeel per sjabloon met 3 voorbeeldsommen: past de uitlegkaart bij alle sommen van die soort, en volgen stappenplan en tussenstappen de kaart? Geeft per sjabloon problemen + een voorgestelde kaart. Zonder Max en gespeeld kind (± 150 aanroepen per taal). Download → Claude past kaarten en generators in één keer aan.
 
+- **Kaarten overnemen uit een Kaartcheck**: `node scripts/neem-kaarten-over.mjs max-test-N-xx.json` zet goedgekeurde kaarten in `src/uitleg/kaartcheck-<taal>.json` (die gaan vóór de handgeschreven kaart; woorden en "niet doen" blijven). Een voorgestelde kaart moet door de regels: geen getallen van één som, gemaakt op alle vormen van de som (bijv. tientallen én honderdtallen), en over hetzelfde begrip als de sommen (geen omtrek-kaart bij oppervlaktesommen).
+
 **Zo verbeter je Max**: meetlat draaien → rapport (en "Downloaden voor Claude") → kaarten/prompt/generators aanpassen → opnieuw meetlat → vergelijken. Alleen als het beter wordt (en niets slechter), gaat het erin. Elke fout die je met code kunt vangen, wordt een regel in de poort.
 
 ## Max-test: de uitleg van Max laten nakijken (alleen beheerder)

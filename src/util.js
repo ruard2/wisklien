@@ -117,8 +117,8 @@ export function metZaad(seed, fn) {
 // Enkelvoud na "1" (meetlat #6/#7: "1 dele is ingekleur", "1 honderdtallen", "1 tiendes"). Op alle teksten van een som
 // toegepast, zodat sjablonen gewoon `${n} tienden` mogen schrijven en het toch klopt bij n = 1.
 const EV = {
-  nl: { tienden: 'tiende', honderdsten: 'honderdste', duizendsten: 'duizendste', delen: 'deel', stukken: 'stuk', kinderen: 'kind', groepjes: 'groepje', eenheden: 'eenheid', tientallen: 'tiental', honderdtallen: 'honderdtal', duizendtallen: 'duizendtal', tienduizendtallen: 'tienduizendtal' },
-  af: { dele: 'deel', tiendes: 'tiende', honderdstes: 'honderdste', duisendstes: 'duisendste', tiene: 'tien', honderde: 'honderd', duisende: 'duisend', tienduisende: 'tienduisend', stukke: 'stuk', groepe: 'groep', kinders: 'kind' },
+  nl: { graden: 'graad', kwartslagen: 'kwartslag', stappen: 'stap', sprongen: 'sprong', minuten: 'minuut', uren: 'uur', meters: 'meter', tienden: 'tiende', honderdsten: 'honderdste', duizendsten: 'duizendste', delen: 'deel', stukken: 'stuk', kinderen: 'kind', groepjes: 'groepje', eenheden: 'eenheid', tientallen: 'tiental', honderdtallen: 'honderdtal', duizendtallen: 'duizendtal', tienduizendtallen: 'tienduizendtal' },
+  af: { grade: 'graad', kwartdraaie: 'kwartdraai', stappe: 'stap', spronge: 'sprong', minute: 'minuut', ure: 'uur', heelgetalle: 'heelgetal', dele: 'deel', tiendes: 'tiende', honderdstes: 'honderdste', duisendstes: 'duisendste', tiene: 'tien', honderde: 'honderd', duisende: 'duisend', tienduisende: 'tienduisend', stukke: 'stuk', groepe: 'groep', kinders: 'kind' },
 };
 export function enkelvoud(text, lang = 'nl') {
   if (typeof text !== 'string') return text;
@@ -147,5 +147,22 @@ export function zonderEenKeer(q) {
   const triviaal = (s) => s.type === 'number' && new RegExp(`(?<![\\d,.])1 × ${G}\\s*=\\s*\\?|(?<![\\d,.])${G} × 1\\s*=\\s*\\?`).test(s.ask);
   if ((q.guide || []).some(triviaal)) { q.guide = q.guide.filter((s) => !triviaal(s)); if (!q.guide.length) q.guideFinal = null; }
   if (typeof q.guideFinal === 'string') q.guideFinal = q.guideFinal.replace(new RegExp(`\\s*[:=]\\s*(?:1 × ${G}|${G} × 1)\\s*$`), '');
+  return q;
+}
+
+// Breuk-sommen: eindigt het stappenplan op een breuk die nog kleiner kan, terwijl het antwoord vereenvoudigd is, dan komt
+// er een stap "Vereenvoudig" bij (kaartcheck AF: "6/9" terwijl het antwoord 2/3 is). Gemengde getallen ook ("3 2/4").
+export function vereenvoudigStap(q, lang = 'nl') {
+  if (q.type !== 'fraction' || !(q.steps || []).length) return q;
+  const last = q.steps.at(-1);
+  if (/vereenvoudig|zo klein|eenvoudig|allebei goed|albei is reg|hetzelfde als|dieselfde as/i.test(last)) return q;
+  const m = [...String(last).matchAll(/(?:(\d+)\s+)?(\d+)\/(\d+)/g)].at(-1);
+  if (!m) return q;
+  const w = m[1] ? Number(m[1]) : 0, a = Number(m[2]), b = Number(m[3]), g = gcd(a, b);
+  if (g <= 1) return q;
+  const kort = `${w ? `${w} ` : ''}${a / g}/${b / g}`.replace(/ 1\/1$/, '').replace(/^(\d+)\/1$/, '$1');
+  q.steps.push(lang === 'af'
+    ? `Vereenvoudig: deel teller en noemer deur ${g}: ${m[0]} = ${b / g === 1 ? w + a / g : kort}.`
+    : `Maak de breuk zo klein mogelijk: deel boven en onder door ${g}: ${m[0]} = ${b / g === 1 ? w + a / g : kort}.`);
   return q;
 }

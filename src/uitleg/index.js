@@ -5,9 +5,16 @@
 import { KAARTEN as NL } from './nl.js';
 import { KAARTEN as AF } from './af.js';
 
-const BY = { nl: NL, af: AF };
+import { readFileSync, existsSync } from 'node:fs';
+
+// Verbeterde kaarten uit de Kaartcheck (/audit → Kaartcheck → scripts/neem-kaarten-over.mjs). Ze vervangen naam, aanpak,
+// model, valkuilen en concreter van de handgeschreven kaart; woorden en "niet doen" blijven van de handgeschreven kaart.
+const laad = (lang) => { const f = new URL(`./kaartcheck-${lang}.json`, import.meta.url); try { return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')).kaarten || {} : {}; } catch { return {}; } };
+const samen = (basis, extra) => Object.fromEntries(Object.entries(basis).map(([id, k]) => [id, extra[id] ? { ...k, ...Object.fromEntries(Object.entries(extra[id]).filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length))) } : k]));
+const BY = { nl: samen(NL, laad('nl')), af: samen(AF, laad('af')) };
 export const kaartVoor = (lang, tpl) => (tpl ? BY[lang === 'af' ? 'af' : 'nl'][tpl] || null : null);
 export const alleKaarten = (lang) => BY[lang === 'af' ? 'af' : 'nl'];
+export const handKaarten = (lang) => (lang === 'af' ? AF : NL);
 
 // Tekst voor Max (in de context van een gesprek over deze som)
 export function kaartTekst(lang, tpl) {

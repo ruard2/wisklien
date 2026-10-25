@@ -95,6 +95,8 @@ export function problemen(q, { hints = null } = {}) {
     const d = String(s.display).replace(/^(€\s?|R)/, '');
     // ook "1 liter vult 10 bekertjes" (meetlat #6): het antwoord staat gewoon in de tip en niet in de vraag
     if (s.type !== 'choice' && s.tip && !s.tipAuto && (zegtUitkomst(s.tip, d) || (d.replace(/\D/g, '').length >= 2 && numRe(d).test(String(s.tip).replace(/[\d,]+\s*[×x:÷]\s*[\d,]+(\s*=\s*[\d,]+)?/g, ' ')) && !/\?|\b(bijv|bv)\./.test(s.tip))) && !numRe(d).test(s.ask)) add('tip-verklapt', `"${s.ask}" → tip "${s.tip}"`);
+    // "… met 8." / "… ook × 2." terwijl 8 of 2 het antwoord van de stap is (kaartcheck: teller 1 → factor = antwoord)
+    if (s.type !== 'choice' && s.tip && !s.tipAuto && new RegExp(`(?:\\bmet|×|\\bkeer)\\s*${esc(d)}\\s*\\.?\\s*$`).test(String(s.tip).trim()) && !numRe(d).test(s.ask)) add('tip-verklapt', `"${s.ask}" → tip "${s.tip}"`);
     if (isVagueTip(s.tip)) add('tip-vaag', `"${s.ask}" → tip "${s.tip}"`);
   }
   for (const [waar, t] of [...(q.steps || []).map((s) => ['stappenplan', s]), ...(q.guide || []).map((s) => ['tussenstap', s.ask]), ['slot', q.guideFinal || '']]) {
