@@ -205,6 +205,8 @@ Max en de vaste uitleg worden systematisch beter, niet per losse fout:
 - **Hints zonder tussenstappen** komen uit de uitlegkaart van het sjabloon, niet meer uit de algemene aanpak van het onderdeel. Max krijgt de tussenstappen en tips van de app mee, zodat hij dezelfde route volgt.
 - `npm run kaartgetallen`: toont getallen op kaarten die in de meeste sommen van dat sjabloon niet voorkomen (zo vind je kaarten met getallen van één voorbeeldsom).
 
+- **Hergebruik** (vinkje bij Start, standaard aan): elke AI-aanroep van de Max-test (Max, gespeeld kind, beoordelaar) wordt bewaard in `public.ai_cache`, met als sleutel model + volledige vraag. Is er sinds een vorige test niets veranderd aan een geval (som, kaart, prompt, gesprek, model), dan komt het antwoord uit de opslag en kost het niets; alleen wat veranderd is, wordt opnieuw gevraagd. Het rapport toont hoeveel aanroepen nieuw en hergebruikt waren. Echte kinderen krijgen altijd een vers antwoord. Ongebruikte antwoorden worden na 120 dagen opgeruimd.
+
 **Zo verbeter je Max**: meetlat draaien → rapport (en "Downloaden voor Claude") → kaarten/prompt/generators aanpassen → opnieuw meetlat → vergelijken. Alleen als het beter wordt (en niets slechter), gaat het erin. Elke fout die je met code kunt vangen, wordt een regel in de poort.
 
 ## Max-test: de uitleg van Max laten nakijken (alleen beheerder)

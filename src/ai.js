@@ -23,7 +23,7 @@ const ONDERWIJS = () => (isAF() ? 'Suid-Afrikaanse laerskool-onderwijs (KABV, In
 const TAALREGEL = () => (isAF() ? `
 
 TAAL (heel belangrijk): Antwoord ALTIJD in eenvoudig, correct Afrikaans zoals in Suid-Afrika gepraat wordt — nooit Nederlands. Gebruik de Suid-Afrikaanse schoolwoorden (KABV): somme, gewone breuke, teller, noemer, desimale breuke, tiendes, honderdstes, persentasie, plekwaarde (ene, tiene, honderde, duisende), kolomme, langdeling, oordra, getallesin, getallelyn, verdubbel en halveer, afronding, skatting, omtrek, area, volume. Geld in rand en sent (R12,50). Deel met ÷. Getallen in een rij met ; ertussen. Spreek een leraar aan als "Meneer".` : '');
-import { kidStore } from './db.js';
+import { kidStore, pool } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
 // Op de server heet het kind gewoon "Christo"; naar de AI gaat een vaste schuilnaam (bijv. "Leerling-4821").
@@ -126,7 +126,24 @@ async function complete(system, messages, opts = {}) {
   return res;
 }
 
-async function completeRaw(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
+// Hergebruik (alleen in de Max-test, niet voor echte kinderen): exact dezelfde vraag aan hetzelfde model → het opgeslagen
+// antwoord uit public.ai_cache in plaats van een nieuwe (betaalde) aanroep. Verandert er iets aan de som, de kaart, de prompt
+// of het gesprek, dan is de vraag anders en wordt er gewoon opnieuw gevraagd. kidStore.cache = { nieuw, hergebruikt } telt mee.
+async function completeRaw(system, messages, opts = {}) {
+  const st = kidStore.getStore();
+  if (!st?.cache) return completeAI(system, messages, opts);
+  const model = opts.model || st.aiModel || (mock ? 'mock' : openai ? await openaiModel() : process.env.AI_MODEL || 'claude-opus-5-5');
+  const key = crypto.createHash('sha256').update(JSON.stringify([openai ? 'openai' : 'anthropic', model, system, messages, !!opts.json, opts.maxTokens || 1200, opts.image ? crypto.createHash('sha256').update(opts.image).digest('hex') : null])).digest('hex');
+  try {
+    const r = await pool.query('UPDATE public.ai_cache SET gebruikt = gebruikt + 1, laatst = now() WHERE sleutel = $1 RETURNING antwoord', [key]);
+    if (r.rows.length) { st.cache.hergebruikt++; return r.rows[0].antwoord.v; }
+  } catch (e) { console.warn('[ai-cache]', e.message); }
+  const out = await completeAI(system, messages, opts);
+  st.cache.nieuw++;
+  if (out != null) await pool.query('INSERT INTO public.ai_cache(sleutel, model, antwoord) VALUES ($1,$2,$3) ON CONFLICT (sleutel) DO NOTHING', [key, model, JSON.stringify({ v: out })]).catch((e) => console.warn('[ai-cache]', e.message));
+  return out;
+}
+async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');

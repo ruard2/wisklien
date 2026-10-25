@@ -35,7 +35,7 @@ const NAME = 'Sam';
 //   judge = de beoordelaar, kid = het gespeelde kind
 const JUDGE_MODEL = () => kidStore.getStore()?.judgeModel || process.env.AUDIT_MODEL || null;
 const KID_MODEL = () => kidStore.getStore()?.kidModel || process.env.AUDIT_KID_MODEL || null;
-const inCtx = (lang, fn, m = {}) => kidStore.run({ ...(KID[lang] || KID.nl), aiModel: m.max || null, judgeModel: m.judge || null, kidModel: m.kid || null }, fn);
+const inCtx = (lang, fn, m = {}) => kidStore.run({ ...(KID[lang] || KID.nl), aiModel: m.max || null, judgeModel: m.judge || null, kidModel: m.kid || null, cache: m.cache || null }, fn);
 
 const rnd = (n) => Math.floor(Math.random() * n);
 const pickOne = (a) => a[rnd(a.length)];
@@ -293,7 +293,15 @@ export async function migrateAudit() {
       audit_id int NOT NULL REFERENCES public.max_audit(id) ON DELETE CASCADE, idx int NOT NULL,
       cat text NOT NULL, level int NOT NULL, item jsonb NOT NULL, verdict jsonb, score real,
       PRIMARY KEY (audit_id, idx)
-    );`);
+    );
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS hergebruik boolean NOT NULL DEFAULT true;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_nieuw int NOT NULL DEFAULT 0;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_hergebruikt int NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS public.ai_cache (
+      sleutel text PRIMARY KEY, model text, antwoord jsonb NOT NULL,
+      gemaakt timestamptz NOT NULL DEFAULT now(), laatst timestamptz NOT NULL DEFAULT now(), gebruikt int NOT NULL DEFAULT 0
+    );
+    DELETE FROM public.ai_cache WHERE laatst < now() - interval '120 days';`);
 }
 const running = new Set();
 // soort: 'willekeurig' (n willekeurige sommen) of 'meetlat' (alle vaste gevallen; vergelijkbaar tussen versies)
@@ -304,9 +312,10 @@ export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   const plan = soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
   n = plan.length;
   const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
+  const hergebruik = m.hergebruik !== false;
   const maxM = clean(m.max), judgeM = clean(m.judge) || process.env.AUDIT_MODEL || null, kidM = clean(m.kid) || process.env.AUDIT_KID_MODEL || null;
-  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM])).rows[0];
+  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
@@ -319,6 +328,10 @@ async function runAudit(id) {
   try {
     const job = (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0];
     const models = { max: job.max_model || null, judge: job.judge_model && job.judge_model !== (job.max_model || job.model) ? job.judge_model : (process.env.AUDIT_MODEL || null), kid: job.kid_model || null };
+    // hergebruik: tellers per test (nieuw = betaalde aanroep, hergebruikt = uit public.ai_cache)
+    const teller = { nieuw: 0, hergebruikt: 0 };
+    if (job.hergebruik !== false) models.cache = teller;
+    const bewaarTeller = () => pool.query('UPDATE public.max_audit SET ai_nieuw = ai_nieuw + $2, ai_hergebruikt = ai_hergebruikt + $3 WHERE id=$1', [id, teller.nieuw, teller.hergebruikt]).then(() => { teller.nieuw = 0; teller.hergebruikt = 0; }).catch(() => {});
     const done = new Set((await pool.query(`SELECT idx FROM public.max_audit_items WHERE audit_id=$1 AND verdict IS NOT NULL AND NOT (verdict ? 'fout')`, [id])).rows.map((r) => r.idx));
     const todo = job.plan.map((p, idx) => ({ ...p, idx })).filter((p) => !done.has(p.idx));
     console.log(`[audit] #${id}: ${todo.length} van ${job.n} sommen te gaan (${job.lang})`);
@@ -335,10 +348,12 @@ async function runAudit(id) {
       const score = itemScore(it);
       await pool.query(`INSERT INTO public.max_audit_items(audit_id, idx, cat, level, item, verdict, score) VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (audit_id, idx) DO UPDATE SET item=$5, verdict=$6, score=$7`, [id, p.idx, p.cat, p.level, JSON.stringify(it), JSON.stringify(it.verdict), score]);
+      await bewaarTeller();
     });
     if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
     const items = await auditItems(id);
     const summary = await summarize(job.lang, items, models).catch(() => null);
+    await bewaarTeller();
     await pool.query(`UPDATE public.max_audit SET status='klaar', finished_at=now(), summary=$2 WHERE id=$1`, [id, summary ? JSON.stringify(summary) : null]);
     console.log(`[audit] #${id} klaar`);
   } catch (e) {
