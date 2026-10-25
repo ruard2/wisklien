@@ -15,7 +15,7 @@ import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
-import { stapPlan, getallenRegel, getallen as getallenIn } from './stapgesprek.js';
+import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag } from './stapgesprek.js';
 import { makkelijker } from './tips.js';
 import { vasteBeurt } from './vast.js';
 
@@ -385,7 +385,8 @@ async function stapBeurt({ name, profile, memory, today, question, step, given, 
     plan.eerdereZetten.length ? `Wat je eerder in dit gesprek deed: ${plan.eerdereZetten.join(' → ')}.` : '',
   ].filter(Boolean).join('\n');
   const opdracht = `[app, onzichtbaar voor het kind] OPDRACHT: ${plan.doel} Kies zelf één manier: ${plan.opties.join(' OF ')}. ${plan.regels}${verboden.length ? ` Deze getallen komen NIET in je bericht: ${verboden.join(', ')}.` : ''}
-STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals een goede bijlesjuf of -meester praat. Reageer eerst op wat ${name} net zei (gebruik de woorden of het getal van ${name}). Begin anders dan je vorige bericht. Hooguit één vraag, aan het eind. Gebruik soms de naam.`;
+STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals een goede bijlesjuf of -meester praat. Reageer eerst op wat ${name} net zei (gebruik de woorden of het getal van ${name}); klopt het getal maar de uitleg erbij niet, zeg dat vriendelijk. Begin anders dan je vorige bericht. Hooguit één vraag, aan het eind. Gebruik soms de naam. Reken alles wat je zegt na: elk getal in je voorbeeld moet kloppen en mag elkaar niet tegenspreken.${plan.zet === 'klaar' ? '' : `
+Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt met het juiste antwoord: [VB: <je vraag kort, als som als dat kan> = <het juiste antwoord>] (bijv. [VB: 30 − 10 = 20], [VB: 66 × 20 = 1320] of [VB: plek van de 4 in 345 = tientallen]). De app kijkt daarmee het antwoord van ${name} na.`}`;
   const hist = chat.slice(-10);
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
   hist.forEach((m, i) => messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: i === hist.length - 1 ? `${m.text}\n\n${opdracht}` : m.text }));
@@ -400,12 +401,12 @@ STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals e
     const hit = verboden.find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
     if (hit != null) f.push(`Het getal ${String(hit).replace('.', ',')} mag niet in je bericht (dat moet ${name} zelf vinden).`);
     else if (plan.zet !== 'klaar' && verklaptAntwoord(zicht, plan.goedStap, { som: `${question.text}\n${step.ask}`, kind: kindTekst })) f.push(`In je bericht staat de uitkomst van de stap (${plan.goedStap}). Laat die weg.`);
-    if (ZETTEN_VB.has(plan.zet)) {
-      if (!eigen) f.push('Zet op de allerlaatste regel je voorbeeld met uitkomst: [VB: <vraag> = <uitkomst>].');
-      else {
-        if (checkArithmetic(`${eigen.som} = ${eigen.uitkomst}`).length) f.push(`Je voorbeeld klopt niet: ${eigen.som} is niet ${eigen.uitkomst}. Kies een voorbeeld en reken het goed uit.`);
-        const u = getallenIn(eigen.uitkomst)[0];
-        if (u != null && [...getallenIn(plan.goedStap), ...getallenIn(question.display)].some((g) => Math.abs(g - u) < 1e-9)) f.push('Je voorbeeld heeft dezelfde uitkomst als de echte stap of de som. Kies andere getallen.');
+    if (plan.zet !== 'klaar') {
+      if (!eigen && ZETTEN_VB.has(plan.zet)) f.push('Zet op de allerlaatste regel je vraag met het juiste antwoord: [VB: <vraag> = <antwoord>].');
+      if (eigen) {
+        const juist = rekenVraag(eigen.som), u = getallenIn(eigen.uitkomst)[0];
+        if ((juist != null && u != null && Math.abs(juist - u) > 1e-6) || checkArithmetic(`${eigen.som} = ${eigen.uitkomst}`).length) f.push(`Je vraag en antwoord kloppen niet: ${eigen.som} is niet ${eigen.uitkomst}${juist != null ? ` (maar ${String(juist).replace('.', ',')})` : ''}. Reken je voorbeeld goed uit, ook in de tekst.`);
+        if (u != null && plan.fase === 'voorbeeld' && [...getallenIn(plan.goedStap), ...getallenIn(question.display)].some((g) => Math.abs(g - u) < 1e-9)) f.push('Je voorbeeld heeft dezelfde uitkomst als de echte stap of de som. Kies andere getallen.');
       }
     }
     if (vorig && /snap|verstaan|weet/i.test(chat.at(-1)?.text || '') && zelfdeVraag(vorig.text, zicht)) f.push('Je stelt bijna dezelfde vraag als in je vorige bericht. Kies een ándere, kleinere of concretere vraag.');
@@ -423,8 +424,10 @@ STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals e
     const f2 = fouten(out);
     console.log(`[max-plan] ${plan.zet}: ${f1.map((x) => x.slice(0, 40)).join(' | ')} → herschreven${f2.length ? ' (nog niet helemaal)' : ''}`);
     // een voorbeeld dat nog steeds niet klopt, gebruikt het plan niet (dan kan het het antwoord van het kind niet nakijken)
-    if (f2.some((x) => /voorbeeld/i.test(x))) out = out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim();
+    if (f2.some((x) => /kloppen niet|voorbeeld heeft/i.test(x))) out = out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim();
   }
+  // het voorbeeld van de app: dat kent de app al, ook als Max het label vergat
+  if (plan.zet === 'voorbeeld' && vb && !/\[VB:/i.test(out)) out = `${out}\n[VB: ${vb.som.replace(/\s*=\s*\?\s*$/, '')} = ${vb.uitkomst}]`;
   return out;
 }
 const ZETTEN_VB = new Set(['eigen_voorbeeld']);

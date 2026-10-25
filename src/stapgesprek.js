@@ -60,8 +60,14 @@ export const ZETTEN = {
     vbUitkomst: true,
   },
   brug: {
-    doel: 'Het kind rekende het voorbeeld GOED uit. Zeg dat het klopt (kort, gemeend), en leg dan de brug: de echte stap gaat precies zo. Noem welke getallen nu op de plek van de voorbeeld-getallen komen, en vraag de echte stap.',
+    doel: 'Het kind rekende het voorbeeld GOED uit. Zeg dat het klopt (kort, gemeend), en leg dan de brug: de echte stap gaat precies zo. Laat zien welke getallen nu op de plek van de voorbeeld-getallen komen (zet voorbeeld en echte stap kort naast elkaar). Bestaat de echte stap volgens de tip uit stukjes (bijv. eerst × 20 en dan × 8), vraag dan alleen het eerste stukje; anders de hele stap.',
     opties: ['"Bij het voorbeeld deed je …, nu doe je hetzelfde met …"', 'zet voorbeeld en echte stap onder elkaar'],
+    regels: 'Noem de uitkomst van de echte stap niet.',
+    vbUitkomst: true,
+  },
+  deel_goed: {
+    doel: 'Het kind had het stukje dat je vroeg GOED. Zeg kort dat het klopt, en ga één stukje verder richting de echte stap (volgens de tip): vraag het volgende stukje, of de hele stap als alle stukjes er nu zijn.',
+    opties: ['"Klopt! En nu …"', 'zet de stukjes onder elkaar en vraag wat er nog mist'],
     regels: 'Noem de uitkomst van de echte stap niet.',
     vbUitkomst: true,
   },
@@ -92,43 +98,67 @@ export const ZETTEN = {
 };
 
 // Speelt het gesprek af en geeft de zet voor deze beurt, of null (dan antwoordt de gewone Max, bijv. op een eigen vraag).
-// chat: [{role:'kid'|'teacher', text, vb?}]  · vb: het voorbeeld dat Max eerder zelf gaf ({som, uitkomst}) staat op zijn bericht.
+// chat: [{role:'kid'|'teacher', text, vb?}]. vb op een bericht van Max = de vraag die hij stelde met het juiste antwoord
+// ([VB: vraag = antwoord], onzichtbaar voor het kind, door de app nagerekend). Zo kijkt de app élk antwoord van het kind
+// na tegen de vraag die er écht gesteld werd (Tussenstappen #19: "2" op het voorbeeld werd als goed antwoord op de echte
+// stap gezien; "67 + 103 = 170" op een deelvraag als fout, omdat het niet de hele stap was).
 export function stapPlan({ question: q, step, chat = [] }) {
   if (!step || step.type === 'choice' && !step.options) return null;
   const appVb = step.type !== 'choice' ? makkelijker(step.ask, step.answer, [q.answer]) : null;
   const s = { fase: 'start', vb: appVb ? { som: appVb.vraag || appVb.som.includes('?') ? appVb.som : `${appVb.som} = ?`, uitkomst: appVb.uitkomst, vanApp: true } : null, snap: 0, foutVb: 0, foutStap: 0, zetten: [] };
   const goedStap = step.type === 'choice' ? step.options[step.answer] : step.display;
-  let zet = null;
   const kindBeurten = [];
   chat.forEach((m, i) => { if (m.role !== 'teacher') kindBeurten.push(i); });
   if (!kindBeurten.length || chat.at(-1)?.role === 'teacher') return null;
+  let zet = null, vorigeZet = null;
   for (const i of kindBeurten) {
     const tekst = chat[i].text;
-    // een voorbeeld dat Max zelf bedacht (eerdere beurt) wordt het voorbeeld
     const vorigeMax = [...chat.slice(0, i)].reverse().find((m) => m.role === 'teacher');
-    if (!s.vb?.vanApp && vorigeMax?.vb) s.vb = vorigeMax.vb;
+    // het voorbeeld dat Max zelf bedacht (zijn vraag bij de zet eigen_voorbeeld) wordt hét voorbeeld
+    if (vorigeZet === 'eigen_voorbeeld' && vorigeMax?.vb) s.vb = vorigeMax.vb;
+    const verwacht = vorigeMax?.vb || (s.fase === 'voorbeeld' ? s.vb : s.fase === 'stap' ? { som: step.ask, uitkomst: goedStap } : null);
+    const heeftAntwoord = antwoordVan(tekst) != null || (verwacht && isZelfde(tekst, verwacht.uitkomst)) || isZelfde(tekst, goedStap);
     if (s.fase === 'start') zet = s.vb ? 'voorbeeld' : 'eigen_voorbeeld';
-    else if (isZelfde(tekst, goedStap) && !(s.fase === 'voorbeeld' && s.vb && isZelfde(tekst, s.vb.uitkomst))) zet = 'klaar';
     else if (s.fase === 'klaar') zet = null;
-    else if (/\b(ik snap het|ek verstaan dit)\b(?!\s*(nog\s*)?(niet|nie))/i.test(tekst) && !/niet|nie\b/i.test(tekst)) zet = null; // "Ik snap het!": de gewone Max
-    else if (snaptNiet(tekst) || WEET_NIET.test(tekst)) {
+    else if (/\b(ik snap het|ek verstaan dit)\b/i.test(tekst) && !/\b(niet|nie)\b/i.test(tekst)) zet = null; // "Ik snap het!": de gewone Max
+    else if (!heeftAntwoord && (snaptNiet(tekst) || WEET_NIET.test(tekst))) {
       s.snap++;
       if (s.fase === 'voorbeeld') zet = s.snap >= 2 || s.foutVb >= 1 ? 'vb_voordoen' : 'vb_concreter';
       else zet = s.snap >= 3 || s.foutStap >= 1 ? 'stap_samen' : 'stap_concreter';
-    } else if (s.fase === 'voorbeeld' && s.vb && antwoordVan(tekst) != null || s.fase === 'voorbeeld' && s.vb && isZelfde(tekst, s.vb.uitkomst)) {
-      if (isZelfde(tekst, s.vb.uitkomst)) zet = 'brug';
-      else { s.foutVb++; zet = s.foutVb >= 2 ? 'vb_voordoen' : 'vb_fout'; }
-    } else if (s.fase === 'stap' && antwoordVan(tekst) != null) {
-      s.foutStap++; zet = s.foutStap >= 2 ? 'stap_samen' : 'stap_fout';
-    } else zet = null; // eigen vraag of iets anders: de gewone Max (de fase blijft)
+    } else if (heeftAntwoord && verwacht) {
+      const goed = isZelfde(tekst, verwacht.uitkomst);
+      if (goed && s.fase === 'stap' && isZelfde(verwacht.uitkomst, goedStap)) zet = 'klaar';
+      else if (goed && s.fase === 'voorbeeld') zet = 'brug';
+      else if (goed) zet = 'deel_goed';
+      else if (s.fase === 'voorbeeld') { s.foutVb++; zet = s.foutVb >= 2 ? 'vb_voordoen' : 'vb_fout'; }
+      else { s.foutStap++; zet = s.foutStap >= 2 ? 'stap_samen' : 'stap_fout'; }
+    } else zet = null; // eigen vraag, of een antwoord dat de app niet kan nakijken: de gewone Max (de fase blijft)
     if (zet) {
       s.zetten.push(zet);
       s.fase = ['voorbeeld', 'eigen_voorbeeld', 'vb_fout', 'vb_concreter'].includes(zet) ? 'voorbeeld' : zet === 'klaar' ? 'klaar' : 'stap';
-      if (zet === 'eigen_voorbeeld' && !s.vb) s.vb = null; // pas na het antwoord van Max bekend ([VB: …])
     }
+    vorigeZet = zet;
   }
   if (!zet) return null;
-  return { zet, ...ZETTEN[zet], voorbeeld: s.vb, goedStap, eerdereZetten: s.zetten.slice(0, -1) };
+  return { zet, ...ZETTEN[zet], voorbeeld: s.vb, goedStap, fase: s.fase, eerdereZetten: s.zetten.slice(0, -1) };
+}
+
+// Kan de app de vraag van Max narekenen? "30% van 12", "de helft van 18", "een kwart van 20", of een gewone som.
+// Geeft het juiste getal, of null als het geen rekensom is (bijv. "op welke plek staat de 4").
+export function rekenVraag(som) {
+  const t = String(som || '').toLowerCase().replace(/(\d)[  ](?=\d{3}\b)/g, '$1').replace(/€\s?|\br\s?(?=\d)/g, '');
+  const n = (x) => Number(String(x).replace(',', '.'));
+  let m;
+  if ((m = t.match(/(\d+(?:[.,]\d+)?)\s*%\s*(?:van|of)\s*(\d+(?:[.,]\d+)?)/))) return (n(m[1]) * n(m[2])) / 100;
+  if ((m = t.match(/\b(helft|helfte)\s+van\s+(\d+(?:[.,]\d+)?)/))) return n(m[2]) / 2;
+  if ((m = t.match(/\b(kwart)\s+van\s+(\d+(?:[.,]\d+)?)/))) return n(m[2]) / 4;
+  if ((m = t.match(/\b(derde)\s+van\s+(\d+(?:[.,]\d+)?)/))) return n(m[2]) / 3;
+  if ((m = t.match(/^\s*(?:wat is\s*)?(-?\d+(?:[.,]\d+)?(?:\s*[+−\-×x·:÷]\s*-?\d+(?:[.,]\d+)?)+)\s*(?:=\s*\??)?\s*\??\s*$/))) {
+    const expr = m[1].replace(/,/g, '.').replace(/−/g, '-').replace(/[×x·]/g, '*').replace(/[:÷]/g, '/');
+    if (!/^[\d.\s+\-*/]+$/.test(expr)) return null;
+    try { const v = Function(`"use strict";return (${expr})`)(); return Number.isFinite(v) ? Math.round(v * 1e6) / 1e6 : null; } catch { return null; }
+  }
+  return null;
 }
 
 // Getallen die Max in deze zet mag gebruiken. Alles wat het kind zelf ziet of zei mag, kleine getallen voor een verhaaltje
