@@ -38,8 +38,8 @@ const gebruikKaart = (g = []) => {
   if (!g.length) return '';
   const n = (x) => Number(x).toLocaleString('nl-NL'), d = (x) => (x == null ? '?' : `$${x.toFixed(x < 1 ? 3 : 2)}`);
   return `<div class="card"><b>AI-gebruik, laatste 7 dagen</b> <span class="small muted">(app = echte kinderen, test = Max-test)</span>
-    <table class="small" style="margin-top:6px"><tr><th>Bron</th><th>Model</th><th class="num">Aanroepen</th><th class="num">Invoer</th><th class="num">Uit cache</th><th class="num">Uitvoer</th><th class="num">Kosten</th><th class="num">Zonder cache</th></tr>
-    ${g.map((x) => `<tr><td>${esc(x.bron)}</td><td>${esc(x.model)}</td><td class="num">${n(x.aanroepen)}</td><td class="num">${n(x.invoer)}</td><td class="num">${x.invoer ? Math.round((100 * x.cache) / x.invoer) : 0}%</td><td class="num">${n(x.uitvoer)}</td><td class="num">${d(x.kosten)}</td><td class="num">${d(x.zonderCache)}</td></tr>`).join('')}</table>
+    <table class="small" style="margin-top:6px"><tr><th>Bron</th><th>Model</th><th class="num">Aanroepen</th><th class="num">Invoer</th><th class="num">Uit cache</th><th class="num">Uitvoer</th><th class="num">waarvan denken</th><th class="num">Kosten</th><th class="num">Zonder cache</th></tr>
+    ${g.map((x) => `<tr><td>${esc(x.bron)}</td><td>${esc(x.model)}</td><td class="num">${n(x.aanroepen)}</td><td class="num">${n(x.invoer)}</td><td class="num">${x.invoer ? Math.round((100 * x.cache) / x.invoer) : 0}%</td><td class="num">${n(x.uitvoer)}</td><td class="num">${x.uitvoer ? Math.round((100 * (x.denk || 0)) / x.uitvoer) : 0}%</td><td class="num">${d(x.kosten)}</td><td class="num">${d(x.zonderCache)}</td></tr>`).join('')}</table>
     <p class="small muted">Tokens zoals OpenAI ze telt. "Uit cache" = invoer die OpenAI al kende (90% goedkoper). Kosten met de prijs per model (gpt-6-luna: $0,10 / $0,01 / $0,50 per miljoen; ander model: zet AI_PRIJS="invoer,cache,uitvoer").</p></div>`;
 };
 export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
@@ -57,9 +57,11 @@ export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
         <div class="small" style="display:grid;gap:6px;margin-top:8px;grid-template-columns:auto 1fr;align-items:center">
           <span>Max</span><input name="max" list="modellen" placeholder="leeg = ${esc(model || 'model van de app')}">
           <span>Beoordelaar</span><input name="judge" list="modellen" placeholder="leeg = ${esc(judge || 'zelfde als Max')}">
-          <span>Gespeeld kind</span><input name="kid" list="modellen" placeholder="leeg = zelfde als Max">
+          <span>Gespeeld kind</span><input name="kid" list="modellen" placeholder="leeg = zelfde als Max (tip: gpt-6-luna, veel goedkoper dan gpt-5.4-mini)">
+          <span>Max denkt</span><select name="effort"><option value="">laag (zoals in de app)</option><option value="none">niet (goedkoper, sneller)</option><option value="medium">middel (duurder)</option></select>
         </div>
         <datalist id="modellen">${['gpt-5.4-mini', 'gpt-5-mini', 'gpt-4.1-mini', 'gpt-4o-mini', 'gpt-5.5', 'gpt-6-luna'].map((m) => `<option value="${m}">`).join('')}</datalist>
+        <p class="small muted">Denkwerk ("reasoning") betaal je als uitvoer: bij "niet" denkt Max niet eerst na en schrijft hij meteen, dat is veel goedkoper. Tests lopen via flex (± half geld, iets trager). Het gespeelde kind denkt nooit na.</p>
         <p class="small muted">Max op een ander model testen verandert niets in de app: zo zie je op de meetlat of een goedkoper model goed genoeg uitlegt, vóór je het in de app zet (OPENAI_MODEL op Railway).</p>
       </details>
       <label class="small" style="display:block;margin-top:10px"><input type="checkbox" name="hergebruik" value="1" checked> ♻️ <b>Hergebruik eerdere AI-antwoorden</b> (goedkoper): wat sinds een vorige test niet veranderd is (zelfde som, kaart, prompt, gesprek en model), wordt niet opnieuw gevraagd en kost niets. Uitvinken = alles vers (om te zien hoeveel Max van keer tot keer verschilt).</label>

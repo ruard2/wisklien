@@ -37,7 +37,7 @@ const NAME = 'Sam';
 //   judge = de beoordelaar, kid = het gespeelde kind
 const JUDGE_MODEL = () => kidStore.getStore()?.judgeModel || process.env.AUDIT_MODEL || null;
 const KID_MODEL = () => kidStore.getStore()?.kidModel || process.env.AUDIT_KID_MODEL || null;
-const inCtx = (lang, fn, m = {}) => kidStore.run({ ...(KID[lang] || KID.nl), aiModel: m.max || null, judgeModel: m.judge || null, kidModel: m.kid || null, cache: m.cache || null }, fn);
+const inCtx = (lang, fn, m = {}) => kidStore.run({ ...(KID[lang] || KID.nl), aiModel: m.max || null, judgeModel: m.judge || null, kidModel: m.kid || null, cache: m.cache || null, maxEffort: m.effort || null }, fn);
 
 const rnd = (n) => Math.floor(Math.random() * n);
 const pickOne = (a) => a[rnd(a.length)];
@@ -115,7 +115,7 @@ async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
     : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort: een uitleg die echt op "${fout.given}" uitkomt (jouw foute manier), NIET de goede manier. Je weet het goede antwoord NIET: noem ${q.display} niet, tenzij de meester je er stap voor stap naartoe heeft geholpen.`) : '';
   const doe = bedoeling ? `\n\n${af ? 'Hierdie keer' : 'Deze keer'}: ${BEDOELING[af ? 'af' : 'nl'][bedoeling]}` : '';
   const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${hoe}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
-  const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL() });
+  const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL(), effortVast: 'none' }); // een kind speelt: geen denkwerk nodig
   return String(t || (af ? 'ek verstaan nie' : 'snap ik niet')).replace(/^["“]|["”]$/g, '').trim().slice(0, 200);
 }
 
@@ -565,10 +565,12 @@ export async function migrateAudit() {
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS meetlat_versie text;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_nieuw int NOT NULL DEFAULT 0;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_hergebruikt int NOT NULL DEFAULT 0;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS max_effort text;
     CREATE TABLE IF NOT EXISTS public.ai_gebruik (
       dag date NOT NULL, bron text NOT NULL, model text NOT NULL, aanroepen int NOT NULL DEFAULT 0,
       invoer bigint NOT NULL DEFAULT 0, cache bigint NOT NULL DEFAULT 0, uitvoer bigint NOT NULL DEFAULT 0, PRIMARY KEY (dag, bron, model)
     );
+    ALTER TABLE public.ai_gebruik ADD COLUMN IF NOT EXISTS denk bigint NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS public.ai_cache (
       sleutel text PRIMARY KEY, model text, antwoord jsonb NOT NULL,
       gemaakt timestamptz NOT NULL DEFAULT now(), laatst timestamptz NOT NULL DEFAULT now(), gebruikt int NOT NULL DEFAULT 0
@@ -586,8 +588,9 @@ export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
   const hergebruik = m.hergebruik !== false;
   const maxM = clean(m.max), judgeM = clean(m.judge) || process.env.AUDIT_MODEL || null, kidM = clean(m.kid) || process.env.AUDIT_KID_MODEL || null;
-  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik, meetlat_versie) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik, soort === 'meetlat' || soort === 'stappen' || soort === 'fouten' ? `${meetlat(lang).versie || 1}/${meetlat(lang).gemaakt}` : null])).rows[0];
+  const effort = ['none', 'low', 'medium'].includes(m.effort) ? m.effort : null;
+  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik, max_effort, meetlat_versie) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik, effort, soort === 'meetlat' || soort === 'stappen' || soort === 'fouten' ? `${meetlat(lang).versie || 1}/${meetlat(lang).gemaakt}` : null])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
@@ -599,7 +602,7 @@ async function runAudit(id) {
   running.add(id);
   try {
     const job = (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0];
-    const models = { max: job.max_model || null, judge: job.judge_model && job.judge_model !== (job.max_model || job.model) ? job.judge_model : (process.env.AUDIT_MODEL || null), kid: job.kid_model || null };
+    const models = { effort: job.max_effort || null, max: job.max_model || null, judge: job.judge_model && job.judge_model !== (job.max_model || job.model) ? job.judge_model : (process.env.AUDIT_MODEL || null), kid: job.kid_model || null };
     // hergebruik: tellers per test (nieuw = betaalde aanroep, hergebruikt = uit public.ai_cache)
     const teller = { nieuw: 0, hergebruikt: 0, lezen: job.hergebruik !== false };
     models.cache = teller;

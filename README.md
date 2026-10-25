@@ -253,7 +253,7 @@ brug terug, of bij "snap het niet" concreter → voordoen → samen doen; fout a
 "vul maar in") en welke getallen er niet in mogen. Max verwoordt de zet (toon, woorden, verhaaltje of plaatje kiest hij
 zelf). Heeft de app geen makkelijker voorbeeld, dan bedenkt Max er een en zet het onzichtbaar als `[VB: vraag = uitkomst]`
 erbij; de app rekent het na en kijkt daarmee het antwoord van het kind na. Een eigen vraag van het kind gaat naar de gewone
-Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het voor beide talen aan of uit. Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).
+Max. Aan voor NL (Tussenstappen #20) en AF (#31); `MAX_STAPPLAN=0` zet het uit. Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).
 
 ### Betere input naar de AI (alles wat de app zeker weet, rekent de app uit)
 - **Denkfouten** (`src/denkfouten.js`, NL en AF): bij kale sommen de gebruikelijke foute manieren (onthouden vergeten,
@@ -276,3 +276,7 @@ Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het v
 - **Na een fout: bewaking staat aan** (NL en AF; Na een fout #29/#30): de vrije Max met alleen de harde getallenbewaking.
   Didactiek gelijk aan de vrije Max, objectief voorzeggen 22–24 → 2 van de ± 150 gesprekken, ± 7% duurder.
   `MAX_FOUTPLAN=uit|strak|advies|bewaking`. Plus: "komma weggelaten" (445 bij R44,50) als eigen denkfout in plaats van "10 keer te groot".
+- **Goedkoper testen en draaien**: per Max-test het denkniveau van Max (`none`/laag/middel; denktokens worden als uitvoer
+  betaald), tests via flex (± half geld, valt terug op gewoon), het gespeelde kind denkt nooit na. In de app: `MAX_EFFORT=none`
+  voor Max (na een meetlat die het goedkeurt). /audit toont nu ook hoeveel van de uitvoer denkwerk was.
+- **Telrijtjes nagerekend** (`telrijFouten`): "2, 4, 6, 10" → Max schrijft opnieuw.

@@ -186,3 +186,19 @@ export function plaatjeFouten(text) {
   }
   return f;
 }
+
+// Telrijtje dat niet klopt (Tussenstappen AF #31: "2, 4, 6, 10" — de 8 overgeslagen; eerder "80, 70, 60, 50, 40, 30, 20"
+// bij 6 sprongen): een rij van minstens 4 getallen die op één plek na steeds evenveel verschilt.
+export function telrijFouten(t) {
+  const fouten = [];
+  const tekst = String(t || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/(\d)[  ](?=\d{3}\b)/g, '$1');
+  for (const m of tekst.matchAll(/(-?\d+(?:,\d+)?)(?:\s*(?:,|;|→|->|…)\s*(-?\d+(?:,\d+)?)){3,}/g)) {
+    const xs = m[0].split(/\s*(?:,(?!\d)|;|→|->|…)\s*/).map((x) => Number(x.replace(',', '.'))).filter((x) => Number.isFinite(x));
+    if (xs.length < 4) continue;
+    const d = xs.slice(1).map((x, i) => Math.round((x - xs[i]) * 1000) / 1000);
+    const tel = {}; for (const x of d) tel[x] = (tel[x] || 0) + 1;
+    const [meest, n] = Object.entries(tel).sort((a, b) => b[1] - a[1])[0];
+    if (Number(meest) !== 0 && n === d.length - 1) fouten.push(`het rijtje ${m[0]} klopt niet (steeds ${meest > 0 ? '+' : ''}${meest}, maar één sprong is anders)`);
+  }
+  return fouten;
+}

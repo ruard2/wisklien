@@ -16,7 +16,7 @@ import { taalgidsText } from './didactiek.js';
 import { taalgidsAF } from './za/didactiek.js';
 import { LERAAR_AF } from './za/leraar.js';
 import { kaartTekst } from './uitleg/index.js';
-import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
+import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic, telrijFouten } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
 import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF, foutAdvies } from './foutgesprek.js';
 import { makkelijker } from './tips.js';
@@ -145,7 +145,8 @@ async function completeRaw(system, messages, opts = {}) {
   const uit = (r) => { if (st?.meter && r != null) st.meter.uitvoer += Math.round(JSON.stringify(r).length / 4); return r; };
   if (!st?.cache) return uit(await completeAI(system, messages, opts));
   const model = opts.model || st.aiModel || (mock ? 'mock' : openai ? await openaiModel() : process.env.AI_MODEL || 'claude-opus-5-5');
-  const key = crypto.createHash('sha256').update(JSON.stringify([openai ? 'openai' : 'anthropic', model, system, messages, !!opts.json, opts.maxTokens || 1200, opts.image ? crypto.createHash('sha256').update(opts.image).digest('hex') : null])).digest('hex');
+  const eff = opts.effortVast || (!opts.model && st.maxEffort) || opts.effort || null; // ander denkniveau = andere vraag
+  const key = crypto.createHash('sha256').update(JSON.stringify([openai ? 'openai' : 'anthropic', model, system, messages, !!opts.json, opts.maxTokens || 1200, opts.image ? crypto.createHash('sha256').update(opts.image).digest('hex') : null, ...(eff ? [eff] : [])])).digest('hex');
   // lezen: false = alles vers vragen (vinkje uit), maar wel opslaan, zodat een volgende test het kan hergebruiken
   if (st.cache.lezen !== false) try {
     const r = await pool.query('UPDATE public.ai_cache SET gebruikt = gebruikt + 1, laatst = now() WHERE sleutel = $1 RETURNING antwoord', [key]);
@@ -158,26 +159,28 @@ async function completeRaw(system, messages, opts = {}) {
 }
 // ---------- echt AI-gebruik bijhouden (tokens, uit cache, kosten) ----------
 // Per dag × bron (app = echte kinderen, test = Max-test) × model. Zo zien we wat de vaste prompt echt bespaart.
-const PRIJS = { 'gpt-6-luna': [0.10, 0.01, 0.50] }; // $ per miljoen: invoer, invoer uit cache, uitvoer
+// $ per miljoen: invoer, invoer uit cache, uitvoer (denktokens tellen als uitvoer). Max-test met flex: de helft.
+const PRIJS = { 'gpt-6-luna': [0.10, 0.01, 0.50], 'gpt-5.6-luna': [0.20, 0.02, 1.20], 'gpt-5.4-mini': [0.75, 0.075, 4.50], 'gpt-5.4-nano': [0.20, 0.02, 1.25], 'gpt-6-sol': [2.00, 0.20, 10.00] };
 export const ZONDER_AI = 'zonder AI (vaste beurt)';
 const prijsVan = (m) => m === ZONDER_AI ? [0, 0, 0] : PRIJS[m] || (process.env.AI_PRIJS ? process.env.AI_PRIJS.split(',').map(Number) : null);
 function telGebruik(model, u) {
   if (!u) return;
   const cache = u.prompt_tokens_details?.cached_tokens || 0, bron = kidStore.getStore()?.cache ? 'test' : 'app';
-  pool.query(`INSERT INTO public.ai_gebruik(dag, bron, model, aanroepen, invoer, cache, uitvoer) VALUES (CURRENT_DATE, $1, $2, 1, $3, $4, $5)
-    ON CONFLICT (dag, bron, model) DO UPDATE SET aanroepen = ai_gebruik.aanroepen + 1, invoer = ai_gebruik.invoer + $3, cache = ai_gebruik.cache + $4, uitvoer = ai_gebruik.uitvoer + $5`,
-    [bron, model, u.prompt_tokens || 0, cache, u.completion_tokens || 0]).catch(() => {});
+  const denk = u.completion_tokens_details?.reasoning_tokens || 0;
+  pool.query(`INSERT INTO public.ai_gebruik(dag, bron, model, aanroepen, invoer, cache, uitvoer, denk) VALUES (CURRENT_DATE, $1, $2, 1, $3, $4, $5, $6)
+    ON CONFLICT (dag, bron, model) DO UPDATE SET aanroepen = ai_gebruik.aanroepen + 1, invoer = ai_gebruik.invoer + $3, cache = ai_gebruik.cache + $4, uitvoer = ai_gebruik.uitvoer + $5, denk = ai_gebruik.denk + $6`,
+    [bron, model, u.prompt_tokens || 0, cache, u.completion_tokens || 0, denk]).catch(() => {});
 }
 export async function aiGebruik(dagen = 7) {
-  const r = await pool.query(`SELECT bron, model, SUM(aanroepen)::int AS aanroepen, SUM(invoer)::bigint AS invoer, SUM(cache)::bigint AS cache, SUM(uitvoer)::bigint AS uitvoer
+  const r = await pool.query(`SELECT bron, model, SUM(aanroepen)::int AS aanroepen, SUM(invoer)::bigint AS invoer, SUM(cache)::bigint AS cache, SUM(uitvoer)::bigint AS uitvoer, SUM(denk)::bigint AS denk
     FROM public.ai_gebruik WHERE dag > CURRENT_DATE - $1::int GROUP BY bron, model ORDER BY bron, model`, [dagen]).catch(() => ({ rows: [] }));
   return r.rows.map((x) => {
     const p = prijsVan(x.model), inv = Number(x.invoer), c = Number(x.cache), uit = Number(x.uitvoer);
-    return { ...x, invoer: inv, cache: c, uitvoer: uit, kosten: p ? ((inv - c) * p[0] + c * p[1] + uit * p[2]) / 1e6 : null, zonderCache: p ? (inv * p[0] + uit * p[2]) / 1e6 : null };
+    return { ...x, invoer: inv, cache: c, uitvoer: uit, denk: Number(x.denk || 0), kosten: p ? ((inv - c) * p[0] + c * p[1] + uit * p[2]) / 1e6 : null, zonderCache: p ? (inv * p[0] + uit * p[2]) / 1e6 : null };
   });
 }
 
-async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
+async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null, effort: optEffort = null, effortVast = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
@@ -194,16 +197,30 @@ async function completeAI(system, messages, { json = false, maxTokens = 1200, im
       const model = forceModel || kidStore.getStore()?.aiModel || await openaiModel();
       // denkende modellen (gpt-5, gpt-6, o-serie): extra ruimte, anders gaat alles op aan nadenken en blijft het antwoord leeg
       const reasoning = /^(gpt-[5-9]|o\d)/.test(model);
-      const res = await openai.chat.completions.create({
+      // denkniveau: per aanroep (kind in de Max-test: 'none'), per Max-test (kidStore.maxEffort, alleen voor Max zelf),
+      // MAX_EFFORT voor Max in de app, anders OPENAI_EFFORT of 'low'. Denktokens worden als uitvoer betaald.
+      const st = kidStore.getStore();
+      const effort = effortVast || (!forceModel && st?.maxEffort) || optEffort || process.env.OPENAI_EFFORT || 'low';
+      // Max-test: flex-verwerking (± de helft van de prijs, mag langzamer); valt terug op gewoon als flex niet lukt
+      const flex = !!st?.cache && process.env.AUDIT_FLEX !== '0';
+      const vraag = (eff, fl) => openai.chat.completions.create({
         model,
         messages: [{ role: 'system', content: system }, ...withImage(messages, image, 'openai')],
-        max_completion_tokens: reasoning ? maxTokens + 2500 : maxTokens,
-        ...(reasoning ? { reasoning_effort: process.env.OPENAI_EFFORT || 'low' } : {}),
+        max_completion_tokens: reasoning ? maxTokens + (eff === 'none' ? 300 : 2500) : maxTokens,
+        ...(reasoning ? { reasoning_effort: eff } : {}),
+        ...(fl ? { service_tier: 'flex' } : {}),
         ...(json ? { response_format: { type: 'json_object' } } : {}),
         // anoniem kenmerk (geen naam) zodat misbruik per gebruiker herleidbaar blijft voor OpenAI's veiligheidssystemen
         ...(user ? { safety_identifier: crypto.createHash('sha256').update(user).digest('hex').slice(0, 32) } : {}),
         store: false,
-      });
+      }, fl ? { timeout: 600_000 } : undefined);
+      let res;
+      try { res = await vraag(effort, flex); } catch (e) {
+        const st400 = e?.status === 400 && /reasoning|effort/i.test(String(e?.message));
+        if (!st400 && !flex) throw e;
+        console.warn(`[ai] ${st400 ? `denkniveau "${effort}" niet ondersteund` : 'flex niet gelukt'} (${e?.status || ''}) → opnieuw`);
+        res = await vraag(st400 ? 'low' : effort, false);
+      }
       telGebruik(model, res.usage);
       const text = res.choices?.[0]?.message?.content?.trim() || '';
       const fin = res.choices?.[0]?.finish_reason;
@@ -380,7 +397,7 @@ function scratchContext(name, scratch, phase) {
 // Aan/uit: in de Max-test per variant (kidStore.stapPlan), anders zie hieronder.
 // Standaard: aan voor NL (Tussenstappen #20: beter op alles, rekenfouten gelijk), AF nog uit tot de volgende test.
 // MAX_STAPPLAN=1/0 zet het voor beide talen aan of uit.
-export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (v != null) return !!v; const e = process.env.MAX_STAPPLAN; return e === '1' || e === '0' ? e === '1' : !isAF(); };
+export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (v != null) return !!v; const e = process.env.MAX_STAPPLAN; return e === '1' || e === '0' ? e === '1' : true; }; // NL (#20) en AF (#31: voorkeur 89 : 62, didactiek +0,26, 33% goedkoper)
 // Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
 // Modus: 'strak' (de app kiest de zet, Max verwoordt), 'advies' (de app geeft feiten + advies, Max kiest; verboden getallen
 // hard bewaakt) of uit. Max-test: kidStore.foutPlan (true = strak); server: MAX_FOUTPLAN=strak|advies (1 = strak).
@@ -441,7 +458,7 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
   const hist = chat.slice(-10);
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
   hist.forEach((m, i) => messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: i === hist.length - 1 ? `${m.text}\n\n${opdracht}` : m.text }));
-  const sys = LERAAR_VAST(), opts = { maxTokens: 400, keepForm: true };
+  const sys = LERAAR_VAST(), opts = { maxTokens: 400, keepForm: true, effort: process.env.MAX_EFFORT || null };
   const msgs = metKind(messages, KIND(name, profile, memory, today));
   let out = await complete(sys, msgs, opts);
   if (typeof out !== 'string') return out;
@@ -464,6 +481,8 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
     if (zicht.split(/\s+/).length > 70) f.push('Je bericht is te lang: hooguit 3 korte zinnen.');
     const pf = plaatjeFouten(zicht);
     if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}).`);
+    const tr = telrijFouten(zicht);
+    if (tr.length) f.push(`Reken je rijtje na: ${tr.join('; ')}.`);
     const nl = isAF() ? nederlandsInAfrikaans(zicht) : [];
     if (nl.length) f.push(`Schrijf in zuiver, eenvoudig Afrikaans (niet: ${nl.join(', ')}).`);
     return f;
@@ -553,7 +572,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}${label}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true };
+  const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true, effort: process.env.MAX_EFFORT || null };
   messages.splice(0, messages.length, ...metKind(messages, KIND(name, profile, memory, today)));
   let out = await complete(sys, messages, opts);
   // Bewaking vóór het kind het ziet (src/kwaliteit.js): verklapt Max het (tussen)antwoord, of praat hij Nederlands in een
@@ -582,6 +601,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
         const bekend = new Set([...nums(question.text), ...nums(step.ask), ...nums(given), ...nums(step.tip), ...nums(step.display)]);
         if (![...nums(t)].some((x) => !bekend.has(x))) f.push(`${name} loopt vast bij deze stap. Begin met een MAKKELIJKER VOORBEELD van dezelfde soort, met andere, kleinere getallen dan in de som (bijv. de helft, of een getal onder de 10), laat ${name} dát eerst doen, en zeg dan dat de echte stap precies zo gaat. Noem de uitkomst van de echte stap niet.`);
       }
+      const tr = telrijFouten(splitForm(t).text || '');
+      if (tr.length) f.push(`Reken je rijtje na: ${tr.join('; ')}.`);
       const pf = plaatjeFouten(t);
       if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}). Maak het plaatje opnieuw: [[getallenlijn: begin | eind | stip]] met begin < eind en de stip ertussen, of laat het plaatje weg.`);
       const nl = isAF() ? nederlandsInAfrikaans(t) : [];
