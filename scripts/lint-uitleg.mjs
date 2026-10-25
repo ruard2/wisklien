@@ -42,7 +42,7 @@ const { alleKaarten } = await import('../src/uitleg/index.js');
 const VAST = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15', '20', '24', '25', '30', '45', '50', '60', '75', '90', '100', '180', '360', '1000', '1 000', '10 000', '3,14', '0,5', '0,25', '0,75', '11', '13', '23', '00', '500']); // + vaste feiten (π, half uur, 13:00, ½ ℓ)
 for (const lang of ['nl', 'af']) for (const [id, k] of Object.entries(alleKaarten(lang))) {
   for (const t of [k.naam, ...(k.aanpak || []), k.model, k.woorden, ...(k.valkuilen || []), k.concreter, ...(k.niet || [])].filter(Boolean)) {
-    const zonderVoorbeeld = String(t).replace(/\((?:bijv\.|bv\.)[^)]*\)|(?:bijv\.|bv\.|Eers ’n klein voorbeeld:|Eerst een klein voorbeeld:|Eerst een makkelijk voorbeeld:)[^.]*\./g, '');
+    const zonderVoorbeeld = String(t).replace(/\((?:bijv\.|bv\.|byvoorbeeld|bijvoorbeeld)[^)]*\)|(?:bijv\.|bv\.|bijvoorbeeld|byvoorbeeld|Eers ’n klein voorbeeld:|Eerst een klein voorbeeld:|Eerst een makkelijk voorbeeld:)[^.]*\./gi, ''); // zelfde regel als scripts/neem-kaarten-over.mjs
     const vreemd = [...zonderVoorbeeld.matchAll(/\d+(?:[  ]\d{3})*(?:,\d+)?/g)].map((m) => m[0]).filter((x) => !VAST.has(x));
     if (vreemd.length) fouten.push(`${lang}:${id} — kaart noemt een voorbeeldgetal (${vreemd.join(', ')}) zonder "bijv.": "${strip(t).slice(0, 90)}"`);
   }
