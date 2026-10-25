@@ -539,11 +539,11 @@ const desimale = {
     if (r < 0.5) {
       const rand = rnd(1, 9), c = rnd(5, 95);
       return tpl('desimale.0a', { ...num(`Hoeveel sent is R${rand},${String(c).padStart(2, '0')}?`, rand * 100 + c, [`R1 = 100 sent, dus R${rand} = ${rand * 100} sent.`, `${rand * 100} + ${c} = ${rand * 100 + c} sent.`], { unit: 'sent', wrong: [W(rand + c, 'Jy het net die rande en die sent bymekaargetel.', 'R1 is 100 sent.')] }),
-        guide: [st(`Hoeveel sent is R${rand}?`, rand * 100, '100 sent = R1.')], guideFinal: `Tel die ${c} sent by` });
+        guide: [st(`Hoeveel sent is R${rand}?`, rand * 100, 'Elke rand is ewe veel sent. Hoeveel sent is een rand? Maal met die aantal rande.')], guideFinal: `Tel die ${c} sent by` });
     }
     const a = rnd(2, 15) * 100 + pick([25, 50, 75]), b = rnd(1, 9) * 100 + pick([25, 50, 75]);
     return tpl('desimale.0b', { ...num(`${R(a / 100)} + ${R(b / 100)} =`, (a + b) / 100, [`Rande: ${Math.floor(a / 100)} + ${Math.floor(b / 100)} = ${Math.floor(a / 100) + Math.floor(b / 100)}.`, `Sent: ${a % 100} + ${b % 100} = ${(a % 100) + (b % 100)}${(a % 100) + (b % 100) >= 100 ? ' = R1 en ' + ((a + b) % 100) + ' sent' : ''}.`, `Saam: ${R((a + b) / 100)}.`], { money: true }),
-      guide: [st(`Tel die sent op: ${a % 100} + ${b % 100} = ?`, (a % 100) + (b % 100), '100 sent maak R1.')], guideFinal: `Tel die rande by (plus R1 as die sent saam 100 of meer is)` });
+      guide: [st(`Tel die sent op: ${a % 100} + ${b % 100} = ?`, (a % 100) + (b % 100), 'Tel eers die tiene sent op, dan die ene sent.')], guideFinal: `Tel die rande by (plus R1 as die sent saam 100 of meer is)` });
   },
   1() {
     const r = Math.random();

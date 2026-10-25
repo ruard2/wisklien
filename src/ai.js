@@ -14,7 +14,7 @@ import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
-import { verklaptAntwoord, nederlandsInAfrikaans } from './kwaliteit.js';
+import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag } from './kwaliteit.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
 const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
@@ -135,13 +135,14 @@ async function completeRaw(system, messages, opts = {}) {
   if (!st?.cache) return completeAI(system, messages, opts);
   const model = opts.model || st.aiModel || (mock ? 'mock' : openai ? await openaiModel() : process.env.AI_MODEL || 'claude-opus-5-5');
   const key = crypto.createHash('sha256').update(JSON.stringify([openai ? 'openai' : 'anthropic', model, system, messages, !!opts.json, opts.maxTokens || 1200, opts.image ? crypto.createHash('sha256').update(opts.image).digest('hex') : null])).digest('hex');
-  try {
+  // lezen: false = alles vers vragen (vinkje uit), maar wel opslaan, zodat een volgende test het kan hergebruiken
+  if (st.cache.lezen !== false) try {
     const r = await pool.query('UPDATE public.ai_cache SET gebruikt = gebruikt + 1, laatst = now() WHERE sleutel = $1 RETURNING antwoord', [key]);
     if (r.rows.length) { st.cache.hergebruikt++; return r.rows[0].antwoord.v; }
   } catch (e) { console.warn('[ai-cache]', e.message); }
   const out = await completeAI(system, messages, opts);
   st.cache.nieuw++;
-  if (out != null) await pool.query('INSERT INTO public.ai_cache(sleutel, model, antwoord) VALUES ($1,$2,$3) ON CONFLICT (sleutel) DO NOTHING', [key, model, JSON.stringify({ v: out })]).catch((e) => console.warn('[ai-cache]', e.message));
+  if (out != null) await pool.query('INSERT INTO public.ai_cache(sleutel, model, antwoord) VALUES ($1,$2,$3) ON CONFLICT (sleutel) DO UPDATE SET antwoord = EXCLUDED.antwoord, laatst = now()', [key, model, JSON.stringify({ v: out })]).catch((e) => console.warn('[ai-cache]', e.message));
   return out;
 }
 async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
@@ -340,14 +341,14 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
     phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Vraag eerst hoe ${name} het deed (${Z(`"Hoe kwam je op ${given}?"`, `"Hoe het jy by ${given} uitgekom?"`)}). Vertelt ${name} het, zoek dan de fout in díé uitleg, benoem die concreet en ga vanaf daar verder. Komt de uitleg van ${name} op een ánder getal uit dan "${given}" (bijv. de goede uitkomst): zeg dan niet alleen "Ja, precies", maar wijs op het verschil (${Z(`"Je rekende het goed uit, maar je vulde ${given} in. Zie je waar het misging?"`, `"Jy het dit reg uitgereken, maar jy het ${given} ingevul. Sien jy waar dit verkeerd geloop het?"`)}). Weet ${name} het niet meer of zegt ${name} "gewoon gegokt": begin samen bij de eerste stap.` : '',
     phase !== 'right' ? `NIET VOORZEGGEN: noem het eindantwoord (${question.display}) zelf NOOIT zolang ${name} het nog niet zelf heeft gezegd: ook niet als voorbeeld, als controle (zoals "5 × 7 = 35, dus …"), in een opsomming waaruit het meteen volgt, of in een plaatje (geen strook, cirkel of tabel waar het antwoord al in staat). Snapt ${name} het niet: maak het concreter (kleinere getallen, geld, een plaatje van de situatie), maar laat het laatste rekenwerk altijd aan ${name}.` : '',
-    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort (${Z('"Ja, precies!"', '"Ja, presies!"')}) en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan alleen dat het klopt en dat ${name} het nu kan invullen (${Z('"Dat is hem! Vul het maar in."', '"Dis reg! Vul dit maar in."')}), zonder het getal of de som met uitkomst nog eens op te schrijven (dus NIET "Dan kun je 48 : 4 = 12 invullen").` : '',
+    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort (${Z('"Ja, precies!"', '"Ja, presies!"')}) en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan alleen dat het klopt en dat ${name} het nu kan invullen (${Z('"Dat is hem! Vul het maar in."', '"Dis reg! Vul dit maar in."')}), zonder het getal of de som met uitkomst nog eens op te schrijven (dus NIET "Dan kun je 48 : 4 = 12 invullen").${phase === 'wrong' ? ` LET OP: ${name} vulde eerst "${given}" in. Komt ${name} nu met het goede antwoord of de goede manier, zeg dan niet alleen dat het klopt: zeg dat het nu goed is en vraag kort wat er de eerste keer anders ging (${Z('"Nu klopt het! Maar eerst vulde je ' + given + ' in. Wat ging er toen anders?"', '"Nou is dit reg! Maar eers het jy ' + given + ' ingevul. Wat was toe anders?"')}). Pas als dat duidelijk is (of ${name} het niet weet), zeg je dat ${name} het kan invullen.` : ''}` : '',
     phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat (${Z('"Kijk nog eens: in 8945 staat de 5 rechts van de 4"', '"Kyk weer: in 8945 staan die 5 regs van die 4"')}). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.${step.tip ? ` De app gaf bij deze stap als tip: "${step.tip}". Leg het uit op dezelfde manier (zelfde route), alleen concreter.` : ''}` : '',
     scratchContext(name, scratch, phase),
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
-    didactiekText(question.cat, question.level),
+    didactiekText(question.cat, question.level, { kort: !!kaartTekst(isAF() ? 'af' : 'nl', question.tpl) }),
   ].filter(Boolean).join('\n');
 
   const opener = {
@@ -356,7 +357,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       : (String(given ?? '').trim() && !/^\?+$/.test(String(given).trim())
         ? `Begin het gesprek: zeg in één korte zin vriendelijk dat "${given}" nog niet klopt, zonder te raden waarom. Vraag daarna alleen hoe ${name} aan "${given}" kwam (bijv. ${Z('"Hoe heb je het uitgerekend?"', '"Hoe het jy dit uitgereken?"')}). Leg nog niets uit.`
         : `Begin het gesprek: zeg in één korte zin vriendelijk dat het nog niet klopt. Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`),
-    step: 'Leg deze ene tussenstap heel concreet uit, het liefst met een makkelijker voorbeeld (bijv. met kleinere getallen of met geld). Noem de uitkomst van deze stap niet en zet hem ook niet in een plaatje. Vraag daarna om het zelf nog eens te proberen.',
+    step: 'Leg deze ene tussenstap uit met een MAKKELIJKER VOORBEELD: dezelfde soort stap met kleinere of rondere getallen (of met geld). Laat het kind eerst dát voorbeeld uitrekenen en zeg dan dat de echte stap precies zo gaat. Herhaal niet de vraag of de tip van de app. Noem de uitkomst van de echte stap niet, ook niet in een plaatje, een opsomming ("250, 500, 750, 1000") of een zin waaruit hij meteen volgt.',
     right: 'Geef een kort compliment over de aanpak en één slimme tip voor dit soort sommen.',
     before: `Help op weg met alleen het eerste kleine stapje: zeg in gewone woorden wat de som vraagt of met welke aanpak je begint, en stel één vraag over de eerste deelberekening. Reken die niet voor.`,
   }[phase];
@@ -377,6 +378,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       const f = [];
       const hit = doelen.find(([d, som]) => verklaptAntwoord(t, d, { som, kind }));
       if (hit) f.push(`In je bericht staat het antwoord (${hit[0]}) dat ${name} zelf moet vinden. Laat dat getal weg: ook niet als keuze, in een rijtje, als controle of in een plaatje. Laat ${name} die laatste stap zelf doen.`);
+      const vorig = [...chat].reverse().find((m) => m.role === 'teacher'), laatsteKind = chat.at(-1)?.role !== 'teacher' ? chat.at(-1)?.text : '';
+      if (vorig && snaptNiet(laatsteKind) && zelfdeVraag(vorig.text, t)) f.push(`${name} zegt dat het niet snapt, maar je stelt bijna dezelfde vraag als net. Stel een ándere, kleinere vraag: een makkelijker voorbeeld met kleinere getallen, een plaatje of een kleiner stapje.`);
       const nl = isAF() ? nederlandsInAfrikaans(t) : [];
       if (nl.length) f.push(`Je bericht bevat Nederlandse of Engelse woorden (${nl.join(', ')}). Schrijf alles in zuiver, eenvoudig Afrikaans (bv. klop, amper, presies, watter, jy, nie, dink, nou, uitgereken, eers, moenie worry nie).`);
       return f;

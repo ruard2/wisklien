@@ -92,7 +92,8 @@ export function problemen(q, { hints = null } = {}) {
   for (const [waar, t] of texts) for (const f of checkArithmetic(t)) add('reken', `[${waar}] ${f.expr} (links is ${f.verwacht})`);
   for (const s of q.guide || []) {
     const d = String(s.display).replace(/^(€\s?|R)/, '');
-    if (s.type !== 'choice' && s.tip && !s.tipAuto && zegtUitkomst(s.tip, d) && !numRe(d).test(s.ask)) add('tip-verklapt', `"${s.ask}" → tip "${s.tip}"`);
+    // ook "1 liter vult 10 bekertjes" (meetlat #6): het antwoord staat gewoon in de tip en niet in de vraag
+    if (s.type !== 'choice' && s.tip && !s.tipAuto && (zegtUitkomst(s.tip, d) || (d.replace(/\D/g, '').length >= 2 && numRe(d).test(String(s.tip).replace(/[\d,]+\s*[×x:÷]\s*[\d,]+(\s*=\s*[\d,]+)?/g, ' ')) && !/\?|\b(bijv|bv)\./.test(s.tip))) && !numRe(d).test(s.ask)) add('tip-verklapt', `"${s.ask}" → tip "${s.tip}"`);
     if (isVagueTip(s.tip)) add('tip-vaag', `"${s.ask}" → tip "${s.tip}"`);
   }
   for (const [waar, t] of [...(q.steps || []).map((s) => ['stappenplan', s]), ...(q.guide || []).map((s) => ['tussenstap', s.ask]), ['slot', q.guideFinal || '']]) {
@@ -137,4 +138,16 @@ const NL_WOORDEN = /\b(je|jij|jouw|niet|klopt|bijna|welke|denk|nu|wij|zo|deze|ku
 export function nederlandsInAfrikaans(text) {
   const t = String(text || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/"[^"]*"|“[^”]*”/g, ' '); // plaatjes en aanhalingen (woorden van het kind) niet
   return [...new Set([...t.matchAll(NL_WOORDEN)].map((m) => m[0].toLowerCase()))];
+}
+
+// ---------- bewaking van Max: dezelfde vraag nog eens na "snap ik niet"? ----------
+// Meetlat #6 (14× herhaling): na "Ik snap het nog niet" stelde Max bijna dezelfde vraag opnieuw.
+const vraagVan = (t) => { const v = String(t || '').replace(/\[\[[^\]]*\]\]/g, ' ').match(/[^.!?\n]*\?/g); return v ? v[v.length - 1] : ''; };
+const woordenVan = (t) => new Set(String(t).toLowerCase().replace(/\*+/g, '').match(/[a-zà-ÿ’']{3,}|\d+(?:[,.]\d+)?/g) || []);
+export function snaptNiet(t) { return /snap|begrijp|verstaan|verstaan|huh|weet (het )?niet|weet nie|\bhè\b|🤔|^\s*\?+\s*$/i.test(String(t || '')); }
+export function zelfdeVraag(vorig, nieuw) {
+  const a = woordenVan(vraagVan(vorig)), b = woordenVan(vraagVan(nieuw));
+  if (a.size < 3 || b.size < 3) return false;
+  const samen = [...a].filter((x) => b.has(x)).length;
+  return samen / (a.size + b.size - samen) >= 0.6;
 }

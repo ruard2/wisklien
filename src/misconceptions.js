@@ -107,7 +107,7 @@ export function misconceptionsFor(q) {
   if ((m = t.match(/^([\d\s ]+) − ([\d\s ]+) =$/))) {
     const a = String(n(m[1])), b = String(n(m[2])).padStart(a.length, '0');
     const digits = a.split('').map((d, i) => Math.abs(+d - +b[i])).join('');
-    if (+digits !== q.answer) out.push(W(+digits, 'Je hebt bij elk cijfer het kleinste van het grootste afgehaald.', 'Haal het getal er in stukken af (rijgen), net als op de getallenlijn: eerst de duizendtallen, dan de honderdtallen, dan de tientallen en de eenheden.'));
+    if (+digits !== q.answer) out.push(W(+digits, 'Je hebt bij elk cijfer het kleinste van het grootste afgehaald.', `Haal het getal er in stukken af (rijgen), net als op de getallenlijn: ${b.replace(/^0+/, '').length >= 4 ? 'eerst de duizendtallen, dan de honderdtallen, dan de tientallen en de eenheden' : b.replace(/^0+/, '').length === 3 ? 'eerst de honderdtallen, dan de tientallen en dan de eenheden' : 'eerst de tientallen, dan de eenheden'}.`));
   }
   // --- verhoudingen: erbij geteld in plaats van keer ---
   if ((m = t.match(/^(\d+) [a-z ]+ kosten € (\d+)\. Hoeveel kosten (\d+) /))) {

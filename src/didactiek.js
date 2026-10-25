@@ -351,9 +351,17 @@ export function hintAanpak(cat, level) {
 }
 
 // Volledige didactiekkaart voor Max: aanpak op dit niveau + het niveau eronder (voor als het niet lukt)
-export function didactiekText(cat, level = 2) {
+// kort: er is een uitlegkaart voor deze soort som; die bepaalt de aanpak. Dan alleen de achtergrond (kern, woorden, controle),
+// zonder de algemene aanpak per niveau, die vaak over een andere soort som ging (meetlat #6: "tel alles op en deel" bij een
+// grafiek-totaalsom; twee kaarten met verschillende volgordes).
+export function didactiekText(cat, level = 2, { kort = false } = {}) {
   const d = DIDACTIEK[cat];
   if (!d) return '';
+  if (kort) return `DIDACTIEKKAART "${cat}" — achtergrond; de UITLEGKAART hierboven bepaalt de aanpak van deze som
+Kern: ${d.kern}
+Woorden (zo gebruikt op school; leg ze uit zoals hier): ${Object.entries(d.woorden).map(([w, u]) => `${w} = ${u}`).join('; ')}
+Controle achteraf: ${d.controle}
+Niet doen: ${[...d.vermijd, 'een andere aanpak dan de uitlegkaart bedenken'].join('; ')}`;
   const L = Math.max(0, Math.min(3, level));
   const nu = d.niveaus[L], lager = L > 0 ? d.niveaus[L - 1] : null;
   return `DIDACTIEKKAART "${cat}" (zo leren Nederlandse scholen het; volg dit, verzin geen andere methode)

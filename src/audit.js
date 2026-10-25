@@ -96,8 +96,8 @@ async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
     : 'Je speelt een kind van 11 (groep 8) dat achterloopt met rekenen. Antwoord kort (max 12 woorden), in kindertaal zoals een kind typt. Meestal probeer je de vraag van de meester te beantwoorden (soms goed, soms fout), soms zeg je "snap ik niet".';
   // het kind weet zelf hoe het aan zijn foute antwoord kwam (Max vraagt daar nu eerst naar)
   const hoe = fout ? (af
-    ? `\n\nJy het eers "${fout.given}" geantwoord (verkeerd).${fout.label ? ` So het jy daarby gekom: ${fout.label}` : ' Bedink self hoe ’n kind by daardie antwoord sou uitkom.'} Vra Meneer hoe jy daarby gekom het, vertel dit kort: ’n verduideliking wat regtig by "${fout.given}" uitkom (jou verkeerde manier), NIE die regte manier nie.`
-    : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort: een uitleg die echt op "${fout.given}" uitkomt (jouw foute manier), NIET de goede manier.`) : '';
+    ? `\n\nJy het eers "${fout.given}" geantwoord (verkeerd).${fout.label ? ` So het jy daarby gekom: ${fout.label}` : ' Bedink self hoe ’n kind by daardie antwoord sou uitkom.'} Vra Meneer hoe jy daarby gekom het, vertel dit kort: ’n verduideliking wat regtig by "${fout.given}" uitkom (jou verkeerde manier), NIE die regte manier nie. Jy weet NIE wat die regte antwoord is nie: moenie ${q.display} noem nie, tensy Meneer jou stap vir stap daarheen gehelp het.`
+    : `\n\nJe had eerst "${fout.given}" geantwoord (fout).${fout.label ? ` Zo kwam je erop: ${fout.label}` : ' Bedenk zelf hoe een kind op dat antwoord zou komen.'} Vraagt de meester hoe je erop kwam, vertel dat dan kort: een uitleg die echt op "${fout.given}" uitkomt (jouw foute manier), NIET de goede manier. Je weet het goede antwoord NIET: noem ${q.display} niet, tenzij de meester je er stap voor stap naartoe heeft geholpen.`) : '';
   const doe = bedoeling ? `\n\n${af ? 'Hierdie keer' : 'Deze keer'}: ${BEDOELING[af ? 'af' : 'nl'][bedoeling]}` : '';
   const user = `${af ? 'Die som' : 'De som'}: ${q.text}\n\n${chat.map((m) => `${m.role === 'teacher' ? (af ? 'Meneer' : 'Meester') : (af ? 'Jy' : 'Jij')}: ${m.text}`).join('\n')}${hoe}${doe}\n\n${af ? 'Wat sê jy terug? Net jou sin.' : 'Wat zeg je terug? Alleen jouw zin.'}`;
   const t = await auditCall(sys, [{ role: 'user', content: user }], { maxTokens: 300, model: KID_MODEL() });
@@ -120,7 +120,7 @@ export async function auditOne(lang, p, models = {}) {
       vers = nieuw.tpl === p.q.tpl && nieuw.text === p.q.text;
       q = vers ? nieuw : structuredClone(p.q);
     } else q = p.q ? structuredClone(p.q) : generate(cat, level);
-    const card = didactiekText(cat, level);
+    const card = didactiekText(cat, level, { kort: !!kaartTekst(lang, q.tpl) });
     const base = { name: NAME, profile: '', memory: '', today: '', question: q, levelName: LEVEL_NAMES[level] };
     const item = {
       lang, cat, level, uitleg_vers: vers, label: catById[cat].label, levelName: LEVEL_NAMES[level], tpl: q.tpl || null, geval: p.id || null, goud: p.goud || null,
@@ -192,13 +192,21 @@ export async function auditOne(lang, p, models = {}) {
   }, models);
 }
 
+// Plaatjes van Max leesbaar voor de beoordelaar (meetlat #6: "[[getallenlijn: 640 | 650 | 642]]" werd gelezen als
+// "642 staat ná 650", terwijl het betekent: lijn van 640 tot 650 met een stip bij 642).
+export function leesbaarPlaatje(t) {
+  return String(t ?? '').replace(/\[\[\s*(getallenlijn|tijdlijn)\s*:\s*([^|\]]+)\|([^|\]]+)\|?([^\]]*)\]\]/gi, (m, soort, a, b, c) =>
+    `[plaatje: ${soort === 'tijdlijn' ? 'tijdbalk' : 'getallenlijn'} van ${a.trim()} tot ${b.trim()}${c.trim() ? `, met een stip bij ${c.trim()}` : ''}]`)
+    .replace(/\[\[\s*sprongen\s*:\s*([^|\]]+)\|([^\]]*)\]\]/gi, (m, a, b) => `[plaatje: lege getallenlijn, vanaf ${a.trim()} sprongen ${b.split('|').map((x) => x.trim()).join(', ')}]`)
+    .replace(/\[\[\s*klok\s*:\s*([^|\]]+)(\|[^\]]*)?\]\]/gi, (m, a) => `[plaatje: klok met wijzers op ${a.trim()}]`);
+}
 // ---------- beoordelen ----------
 const RUBRIC = (lang) => `Je bent een zeer ervaren rekenspecialist en remedial teacher (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV; de app-teksten zijn in het Afrikaans' : 'Nederlandse basisschool, groep 5-8'}). Je beoordeelt kritisch en eerlijk de uitleg in een reken-app voor kinderen (9-12 jaar) die achterlopen.
 
 Je krijgt één som met ALLES wat het kind te zien krijgt:
 - de vaste uitleg van de app: stappenplan (na een fout), hints, tussenstappen ("samen stap voor stap": het kind vult elke stap zelf in, met een tip als het fout gaat) en de uitleg bij een herkende denkfout;
 - gesprekken met de AI-leraar ("Max"): vóór het antwoord ("Hoe begin ik?"), na een fout antwoord, en als het kind vastloopt bij een tussenstap;
-- de UITLEGKAART van deze soort som en de DIDACTIEKKAART van het onderdeel: de aanpak die de app en Max MOETEN volgen (zoals scholen het aanleren). Wijkt de vaste uitleg zelf af van de kaart, of is de kaart zelf onhandig voor deze som, meld dat dan ook (waar: "kaart").;
+- de UITLEGKAART van deze soort som (leidend: de aanpak die de app en Max moeten volgen, zoals scholen het aanleren) en de achtergrond van de DIDACTIEKKAART van het onderdeel. Wijkt de vaste uitleg af van de rekenroute van de uitlegkaart, of is de kaart zelf onhandig voor deze som, meld dat dan ook (waar: "kaart"). Het "model/plaatje" op de kaart is voor Max (die kan tekenen); dat het stappenplan (tekst) geen plaatje tekent is GEEN probleem.;
 - uitkomst van een automatische rekencontrole (kan vals alarm geven, controleer zelf).
 
 Controleer vooral:
@@ -231,12 +239,12 @@ function itemForJudge(it) {
   L.push(`\nSTAPPENPLAN (na een fout):\n${it.stappenplan.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
   L.push(`\nHINTS:\n${it.hints.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
   L.push(`\nTUSSENSTAPPEN:\n${it.tussenstappen.map((s, i) => `${i + 1}. vraag: "${s.vraag}"${s.opties ? ` (keuzes: ${s.opties.join(' | ')})` : ''} → goed: ${s.antwoord}${s.tip ? ` · tip bij fout: "${s.tip}"` : ''}`).join('\n') || '(geen)'}${it.slot ? `\nSlot (de app toont: ${it.lang === 'af' ? `"Nou is dit jou beurt: ${it.slot}" + "Vul hieronder die eindantwoord in."` : `"Nu jij: ${it.slot}" + "Vul hieronder het eindantwoord in."`} Het kind rekent dit laatste stukje bewust zelf uit; dat is geen onaffe stap): ${it.slot}` : ''}`);
-  L.push(`\nMAX VÓÓR HET ANTWOORD\nKind: ${it.gesprekken.begin?.kind}\nMax: ${it.gesprekken.begin?.max ?? '(geen antwoord)'}`);
+  L.push(`\nMAX VÓÓR HET ANTWOORD\nKind: ${it.gesprekken.begin?.kind}\nMax: ${leesbaarPlaatje(it.gesprekken.begin?.max) || '(geen antwoord)'}`);
   L.push(`\nFOUT ANTWOORD van het kind: "${it.fout_antwoord.gegeven}"${it.fout_antwoord.herkend ? ` — de app herkende de denkfout: "${it.fout_antwoord.herkend.label}" (uitleg in de app: "${it.fout_antwoord.herkend.wat_helpt}")` : ' — geen bekende denkfout herkend'}`);
-  L.push(`GESPREK NA DE FOUT:\n${(it.gesprekken.na_fout || []).map((t) => `${t.wie === 'max' ? 'Max' : 'Kind'}: ${t.tekst}`).join('\n') || '(geen)'}`);
+  L.push(`GESPREK NA DE FOUT:\n${(it.gesprekken.na_fout || []).map((t) => `${t.wie === 'max' ? 'Max' : 'Kind'}: ${t.wie === 'max' ? leesbaarPlaatje(t.tekst) : t.tekst}`).join('\n') || '(geen)'}`);
   if (it.gesprekken.stap) {
     const s = it.gesprekken.stap;
-    L.push(`\nVAST BIJ TUSSENSTAP ${s.stap}: "${s.vraag}" (goed: ${s.goed}; kind vulde in: ${s.gegeven}; tip van de app: "${s.tip || '-'}")\nKind: ${s.kind}\nMax: ${s.max ?? '(geen antwoord)'}`);
+    L.push(`\nVAST BIJ TUSSENSTAP ${s.stap}: "${s.vraag}" (goed: ${s.goed}; kind vulde in: ${s.gegeven}; tip van de app: "${s.tip || '-'}")\nKind: ${s.kind}\nMax: ${leesbaarPlaatje(s.max) || '(geen antwoord)'}`);
   }
   L.push(`\nAUTOMATISCHE REKENCONTROLE: ${it.rekencontrole.length ? it.rekencontrole.map((r) => `[${r.waar}] ${r.expr} (uitkomst links is ${r.verwacht}${r.keten ? '; let op: is-teken-ketting' : ''})`).join('; ') : 'niets gevonden'}`);
   L.push(`\nDIDACTIEKKAART:\n${it._card || '(geen)'}`);
@@ -336,9 +344,9 @@ async function runAudit(id) {
     const job = (await pool.query('SELECT * FROM public.max_audit WHERE id=$1', [id])).rows[0];
     const models = { max: job.max_model || null, judge: job.judge_model && job.judge_model !== (job.max_model || job.model) ? job.judge_model : (process.env.AUDIT_MODEL || null), kid: job.kid_model || null };
     // hergebruik: tellers per test (nieuw = betaalde aanroep, hergebruikt = uit public.ai_cache)
-    const teller = { nieuw: 0, hergebruikt: 0 };
-    if (job.hergebruik !== false) models.cache = teller;
-    const bewaarTeller = () => pool.query('UPDATE public.max_audit SET ai_nieuw = ai_nieuw + $2, ai_hergebruikt = ai_hergebruikt + $3 WHERE id=$1', [id, teller.nieuw, teller.hergebruikt]).then(() => { teller.nieuw = 0; teller.hergebruikt = 0; }).catch(() => {});
+    const teller = { nieuw: 0, hergebruikt: 0, lezen: job.hergebruik !== false };
+    models.cache = teller;
+    const bewaarTeller = () => { const n = teller.nieuw, h = teller.hergebruikt; teller.nieuw -= n; teller.hergebruikt -= h; return pool.query('UPDATE public.max_audit SET ai_nieuw = ai_nieuw + $2, ai_hergebruikt = ai_hergebruikt + $3 WHERE id=$1', [id, n, h]).catch(() => {}); };
     const done = new Set((await pool.query(`SELECT idx FROM public.max_audit_items WHERE audit_id=$1 AND verdict IS NOT NULL AND NOT (verdict ? 'fout')`, [id])).rows.map((r) => r.idx));
     const todo = job.plan.map((p, idx) => ({ ...p, idx })).filter((p) => !done.has(p.idx));
     console.log(`[audit] #${id}: ${todo.length} van ${job.n} sommen te gaan (${job.lang})`);

@@ -102,7 +102,10 @@ export function betterTip(ask, lang = 'nl') {
 // Vervangt vage tips in de tussenstappen van een som (in place)
 export function improveTips(q, lang = 'nl') {
   for (const s of q.guide || []) {
-    if (s.type !== 'number' || !isVagueTip(s.tip)) continue;
+    // ook korte tips zonder getal ("Trek het eraf.", "De bovenste getallen.", "Tel stap voor stap."; meetlat #6): als er een
+    // concrete aanpak voor de som in de stap is, krijgt het kind die
+    const kort = String(s.tip || '').trim().split(/\s+/).length <= 5 && !/\d/.test(s.tip || '');
+    if (s.type !== 'number' || !(isVagueTip(s.tip) || kort)) continue;
     const t = betterTip(s.ask, lang);
     if (t) { s.tip = t; s.tipAuto = true; } // tipAuto: gemaakt door betterTip, noemt nooit een uitkomst
   }

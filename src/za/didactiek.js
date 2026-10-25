@@ -303,9 +303,15 @@ export function hintAanpak(cat, level) {
 }
 
 // Volledige kaart vir Max: aanpak op hierdie vlak + die vlak daaronder (as dit nie lukt nie)
-export function didactiekText(cat, level = 2) {
+export function didactiekText(cat, level = 2, { kort = false } = {}) {
   const d = DIDACTIEK[cat];
   if (!d) return '';
+  if (kort) return `DIDAKTIESE KAART "${cat}" — agtergrond; die VERDUIDELIKKAART hierbo bepaal die aanpak van hierdie som
+Kern: ${d.kern}
+Woorde (soos op skool gebruik; verduidelik hulle so): ${Object.entries(d.woorden).map(([w, u]) => `${w} = ${u}`).join('; ')}
+Kontrole agterna: ${d.controle}
+Moenie: ${[...d.vermijd, '’n ander aanpak as die verduidelikkaart uitdink'].join('; ')}
+Algemeen: ${ALGEMEEN.stappe} ${ALGEMEEN.notasie}`;
   const L = Math.max(0, Math.min(3, level));
   const nu = d.niveaus[L], lager = L > 0 ? d.niveaus[L - 1] : null;
   return `DIDAKTIESE KAART "${cat}" (so leer Suid-Afrikaanse skole dit volgens KABV en die DBO-werkboeke; volg dit, moenie ’n ander metode uitdink nie, gebruik GEEN Nederlandse metodes nie)
