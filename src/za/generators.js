@@ -560,7 +560,7 @@ const desimale = {
     const base = rnd(1, 8), opts = [base + 0.3, base + 0.25, base + 0.05, base + 0.35];
     const mx = Math.max(...opts);
     return tpl('desimale.1c', { ...choice(`Watter getal is die grootste? ${opts.map((x) => f(x)).join('; ')}`, opts.map((x) => f(x)), opts.indexOf(mx), ['Maak die aantal syfers ná die komma gelyk: 0,30; 0,25; 0,05; 0,35.', `Dink aan geld: 35c is die meeste. ${f(mx)} is die grootste.`]),
-      guide: [st(`Skryf ${f(base + 0.3)} met twee syfers ná die komma: hoeveel honderdstes is dit? (net die deel ná die komma)`, 30, 'Sit ’n 0 agter: dit verander nie die waarde nie. Lees dan net die syfers ná die komma as honderdstes.')], guideFinal: 'Vergelyk nou die honderdstes' });
+      guide: [st(`Skryf ${f(base + 0.3)} met twee syfers ná die komma: hoeveel honderdstes is dit? (net die deel ná die komma)`, 30, 'Sit ’n 0 agter: dit verander nie die waarde nie. Lees dan net die deel ná die komma.')], guideFinal: 'Vergelyk nou die honderdstes' });
   },
   2() {
     const r = Math.random();
@@ -859,9 +859,9 @@ const meting = {
   0() {
     const [g, k, m] = pick(EENHEDE), n = rnd(2, 25);
     if (Math.random() < 0.35) return tpl('meting.0a', { ...num(`${f(n * m)} ${k} = … ${g}`, n, [`${f(m)} ${k} = 1 ${g}.`, `${f(n * m)} ÷ ${f(m)} = ${n} ${g}.`], { unit: g, wrong: [W(n * m * m, 'Jy het gemaal in plaas van gedeel.', 'Na \'n groter eenheid word die getal kleiner: deel.')] }),
-      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel: kilo = duisend, senti = ’n honderdste, milli = ’n duisendste.', { unit: k })], guideFinal: `Deel deur ${f(m)}` });
+      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel van die eenheid: wat beteken kilo, senti of milli (soos in kilometer, sentimeter, millimeter)?', { unit: k })], guideFinal: `Deel deur ${f(m)}` });
     return tpl('meting.0b', { ...num(`${n} ${g} = … ${k}`, n * m, [`1 ${g} = ${f(m)} ${k}.`, `${n} × ${f(m)} = ${f(n * m)} ${k}.`], { unit: k, wrong: [100, 1000, 10].filter((x) => x !== m).map((x) => W(n * x, `1 ${g} is nie ${f(x)} ${k} nie.`, `1 ${g} = ${f(m)} ${k}.`)) }),
-      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel: kilo = duisend, senti = ’n honderdste, milli = ’n duisendste.', { unit: k })], guideFinal: `Maal met ${n}` });
+      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel van die eenheid: wat beteken kilo, senti of milli (soos in kilometer, sentimeter, millimeter)?', { unit: k })], guideFinal: `Maal met ${n}` });
   },
   1() {
     const [g, k, m] = pick(EENHEDE.slice(1, 4)), n = rnd(2, 9), x = rnd(50, m - 50);

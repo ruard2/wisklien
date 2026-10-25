@@ -139,7 +139,10 @@ export function enkelvoudSom(q, lang = 'nl') {
 // alle sjablonen: "1 × 8 = 8" in een stap wordt gewoon "8"; een tussenstap die alleen "1 × 50 = ?" vraagt, valt weg als er
 // nog andere tussenstappen zijn. Behalve als de som zelf over × 1 gaat (tafel van 1).
 const G = String.raw`\d+(?:[  ]\d{3})*(?:,\d+)?`;
+// Niet bij delen/keersommen/optellen/geld: daar is "1 × 7" een echte hap of het eenheden-stuk van een splitsing (kaartcheck #15).
+const EEN_KEER_NIET = /^(delen|deling|vermenigvuldigen|vermenigvuldig|optellen|optel|kommagetallen|desimale|finansies)$/;
 export function zonderEenKeer(q) {
+  if (EEN_KEER_NIET.test(q.cat || '')) return q;
   const somGaatErOver = /(?<![\d,.])1 ×|× 1(?![\d,])/.test(q.text || '');
   if (somGaatErOver) return q;
   const weg = (t) => (typeof t !== 'string' ? t : t.replace(new RegExp(`(?<![\\d,.])1 × (${G}) = (${G})`, 'g'), (m, a, b) => (a === b ? b : m)).replace(new RegExp(`(?<![\\d,.])(${G}) × 1 = (${G})(?![\\d,])`, 'g'), (m, a, b) => (a === b ? b : m)));

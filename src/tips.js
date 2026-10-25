@@ -71,7 +71,7 @@ export function betterTip(ask, lang = 'nl') {
   if (dm) { const d = dm[2].length, n = Math.round(Number(dm[1].replace(',', '.')) * 10 ** d); return T.desMaal(dm[1], dm[3], n, lang === 'af' ? (d === 1 ? 'tiendes' : 'honderdstes') : (d === 1 ? 'tienden' : 'honderdsten')); }
   // een rij optellingen ("21 + 21 + 15 + 15 = ?", "3 + 8 + 1 = ?"): één voor één, ronde paren eerst
   const rij = ask.match(new RegExp(`(${NUM}(?:\\s*\\+\\s*${NUM}){2,})\\s*=\\s*\\?`));
-  if (rij) { const xs = rij[1].split('+').map((x) => x.trim()); return lang === 'af' ? `Tel een vir een: eers ${xs[0]} + ${xs[1]}, tel dan ${xs.slice(2).join(', dan ')} by. Kyk of twee getalle saam ’n ronde getal maak.` : `Tel één voor één: eerst ${xs[0]} + ${xs[1]}, tel daar dan ${xs.slice(2).join(', dan ')} bij. Kijk of twee getallen samen een rond getal maken.`; }
+  if (rij) { const xs = rij[1].split('+').map((x) => x.trim()); const ns = xs.map(toN); const paar = ns.some((x, i) => ns.some((y, j) => j > i && (x + y) % 10 === 0)); return lang === 'af' ? `Tel een vir een: eers ${xs[0]} + ${xs[1]}, tel dan ${xs.slice(2).join(', dan ')} by.${paar ? ' Kyk of twee getalle saam ’n ronde getal maak.' : ''}` : `Tel één voor één: eerst ${xs[0]} + ${xs[1]}, tel daar dan ${xs.slice(2).join(', dan ')} bij.${paar ? ' Kijk of twee getallen samen een rond getal maken.' : ''}`; }
   const dd = ask.match(/(\d+),(\d{1,2})\s*[:÷]\s*(\d+)\s*=\s*\?/);
   if (dd) { const n = Number(dd[1] + dd[2].padEnd(2, '0')); return lang === 'af' ? `Reken in sent (sonder die komma): ${n} ÷ ${dd[3]}. Sit dan die komma terug: 100 sent = R1.` : `Reken in centen (zonder komma): ${n} : ${dd[3]}. Zet daarna de komma terug: 100 cent = 1 euro.`; }
   const dp = ask.match(/(\d+,\d+)\s*([+−–-])\s*(\d+,\d+)\s*=\s*\?/);
@@ -148,14 +148,23 @@ export function improveTips(q, lang = 'nl') {
 // vastloopt bij een tussenstap. Meetlat #6/#7: in 55% van de gevallen gaf Max geen makkelijker voorbeeld, of een met
 // dezelfde getallen. Zelfde bewerking, kleinere getallen, en met dezelfde "moeilijkheid" (over het tiental, lenen).
 // Geeft { som, uitkomst } of null. Nooit dezelfde uitkomst als de echte stap.
-export function makkelijker(ask, answer) {
+function makkelijker0(ask, answer) {
   const a0 = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '').replace(/\s*\([^)]*\)\s*(?==)/g, ' ');
   // "Hoeveel keer gaan 25 in 65?" / "Hoe vaak past 25 in 65?" (staartdeling, happen)
   const pas = a0.match(new RegExp(`(?:keer gaan|vaak past|keer past)\\s+${NUM}\\s+in\\s+${NUM}`, 'i'));
   if (pas) { const d = toN(pas[1]), n = toN(pas[2]); if (d < 2 || n < d) return null; const dd = d > 10 ? (d % 10 || 5) : d; let nn = dd * 2 + Math.min(dd - 1, 3); if (Math.floor(nn / dd) === answer) nn = dd * 3 + Math.min(dd - 1, 2); if (Math.floor(nn / dd) === answer) return null; return { som: a0.replace(pas[0], pas[0].replace(pas[1], String(dd)).replace(new RegExp(`${pas[2]}$`), String(nn))).replace(/^.*?((?:Hoeveel|Hoe)\b)/i, '$1'), uitkomst: String(Math.floor(nn / dd)), vraag: true }; }
   const gat = a0.match(new RegExp(`${NUM}\\s*[×x·]\\s*\\?\\s*=\\s*${NUM}`));
   if (gat) { const x = toN(gat[1]); const k = toN(gat[2]) / x === 2 ? 3 : 2; return { som: `${x} × ? = ${x * k}`, uitkomst: String(k) }; }
-  const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:=\\s*\\?|\\?\\s*$)`));
+  // breuk gelijkwaardig maken: "3/4 = ?/12" (factor 3) → "1/2 = ?/6" (zelfde factor), "2/3 = □/6"
+  const gl = a0.match(/(\d+)\/(\d+)\s*=\s*[?□]\s*\/\s*(\d+)/);
+  if (gl) { const [t, n, N] = [+gl[1], +gl[2], +gl[3]]; const k = N / n; if (!Number.isInteger(k) || k < 2) return null; const [t2, n2] = n === 2 ? [1, 3] : [1, 2]; if (t2 * k === answer) return null; return { som: `${t2}/${n2} = ?/${n2 * k}`, uitkomst: String(t2 * k), vraag: true }; }
+  // "De helft van 8 = ?"
+  const hf = a0.match(/helft van (\d+)/i);
+  if (hf) { const n = +hf[1]; const x = n > 10 ? 10 : n > 4 ? 4 : null; if (!x || x / 2 === answer) return null; return { som: `De helft van ${x}`, uitkomst: String(x / 2), vraag: true }; }
+  // tijdsduur binnen een uur: "Van 11:00 tot 11:50 = ? minuten" → "Van 3:00 tot 3:20"
+  const tdu = a0.match(/(\d{1,2}):(\d{2})\s*(?:tot|→|naar)\s*(\d{1,2}):(\d{2})/);
+  if (tdu) { const m1 = +tdu[2], h2 = +tdu[3], m2 = +tdu[4]; const d = (h2 - +tdu[1]) * 60 + m2 - m1; if (d <= 10 || d > 120) return null; const k = d >= 30 ? 20 : 10; return { som: `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minuten?`, uitkomst: String(k), vraag: true }; }
+  const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:[a-zé]+\\s*)?(?:=\\s*\\?|\\?\\s*$)`));
   if (!m) return null;
   const a = toN(m[1]), dec = m[2], op = m[3], b = toN(m[4]);
   let som = null, uit = null;
@@ -167,7 +176,8 @@ export function makkelijker(ask, answer) {
   } else if (['×', 'x', '·'].includes(op)) {
     if (a <= 2 && b <= 2) return null;
     const [klein, groot] = a <= b ? [a, b] : [b, a];
-    if (groot > 10 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
+    if (groot > 12 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
+    else if (groot > 10 && klein <= 10) { som = `2 × ${klein}`; uit = 2 * klein; }
     else if (groot > 10) { som = `12 × 11`; uit = 132; }
     else { som = `2 × ${groot}`; uit = 2 * groot; if (klein === 2) { som = `2 × 3`; uit = 6; } }
   } else if ([':', '÷'].includes(op)) {
@@ -182,17 +192,30 @@ export function makkelijker(ask, answer) {
     const A = a / 10 ** z, B = b / 10 ** z, p10 = 10 ** z;
     const kandidaten = [];
     if (A < 10 && B < 10) { if (z === 0) return null; if (plus) { kandidaten.push([A + B >= 10 ? [8, 3] : [2, 1]], [[2, 1]]); } else kandidaten.push([[Math.min(A, 5), Math.max(1, Math.min(B, Math.min(A, 5) - 1))]], [[5, 2]]); }
-    else for (const t of [10, 20, 30]) {
+    else if (A < 20 && B < 20) { // kleine sommen: 16 + 15 → 6 + 5, 4 + 6 → 2 + 3, 16 − 7 → 6 − 2
+      const x = A >= 10 ? A % 10 || 5 : Math.max(2, Math.ceil(A / 2)), y = B >= 10 ? (B % 10 || 3) : Math.max(1, Math.floor(B / 2));
+      if (plus || y < x) kandidaten.push([[x, plus ? y : Math.min(y, x - 1)]]);
+    } else for (const t of [10, 20, 30]) {
       const x = plus ? (A >= 20 ? t + (A % 10) : A) : t + (A % 10) + (A % 10 < B % 10 && B >= 10 ? 10 : 0);
       const y = B >= 20 ? 10 + (B % 10) : B >= 10 && !plus ? B % 10 + 10 : B;
       kandidaten.push([[x, y]]);
     }
     for (const [[x, y]] of kandidaten) {
       const X = x * p10, Y = y * p10, U = plus ? X + Y : X - Y;
-      if (U < 0 || (X >= a && Y >= b) || U === answer || (plus && X + Y >= a + b)) continue;
+      if (U < 0 || (X >= a && Y >= b) || U === answer || X === answer || Y === answer || (plus && X + Y >= a + b)) continue;
       som = `${X} ${plus ? '+' : '−'} ${Y}`; uit = U; break;
     }
   }
   if (som == null || uit === answer || String(uit) === String(answer)) return null;
   return { som, uitkomst: f(uit) };
+}
+
+// Het voorbeeld mag geen getal bevatten dat het antwoord van de stap (of van de som) is: meetlat AF #14 "15 − 10" als
+// voorbeeld bij 65 − 50 = 15 verklapte zo de uitkomst.
+export function makkelijker(ask, answer, verboden = []) {
+  const r = makkelijker0(ask, answer);
+  if (!r) return null;
+  const getallen = (String(r.som).match(/\d+(?:,\d+)?/g) || []).map((x) => Number(x.replace(',', '.')));
+  const nee = [answer, ...verboden].map((x) => Number(String(x).replace(/[^\d,.-]/g, '').replace(',', '.'))).filter((x) => Number.isFinite(x));
+  return getallen.some((g) => nee.includes(g)) ? null : r;
 }

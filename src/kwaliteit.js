@@ -105,7 +105,7 @@ export function problemen(q, { hints = null } = {}) {
     const m = s.match(/van (€\s?|R\s?)?([\d.,: ]+?) (?:naar|tot) (€\s?|R\s?)?([\d.,: ]+?)(?=[ =?,.]|$)/);
     if (/\((deel deur|gedeeld door|delen door) 1\)|[+−-] (R|€ ?)0(?![\d,])/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
     // "1 × 11 = 11" als losse stap (meetlat #8: breuk 1/8 van 88 → "Dan 1/8 deel: 1 × 11"): zinloos, het antwoord staat er al
-    if (/(?<![\d,.])1 × \d+(?:[  ]\d{3})*(?![\d,])\s*(=|\?|$)|(?<![\d,.])\d+ × 1(?![\d,])\s*(=|\?|$)/.test(s) && !/tafel|×\s*1\s*0/.test(s) && !/(?<![\d,.])1 ×|× 1(?![\d,])/.test(q.text || '') && !/\bdus\b/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
+    if (/(?<![\d,.])1 × \d+(?:[  ]\d{3})*(?![\d,])\s*(=|\?|$)|(?<![\d,.])\d+ × 1(?![\d,])\s*(=|\?|$)/.test(s) && !/tafel|×\s*1\s*0/.test(s) && !/(?<![\d,.])1 ×|× 1(?![\d,])/.test(q.text || '') && !/\bdus\b/.test(s) && !/^(delen|deling|vermenigvuldigen|vermenigvuldig|optellen|optel|kommagetallen|desimale|finansies)$/.test(q.cat || '')) add('nul-stap', `[${waar}] ${strip(s)}`);
     if (m && m[2].trim() === m[4].trim()) add('nul-stap', `[${waar}] ${strip(s)}`);
   }
   // Enkelvoud na 1 (meetlat AF #7: "1 dele is ingekleur", "1 honderdstes"; NL #6: "1 honderdtallen")

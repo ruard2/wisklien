@@ -1,5 +1,5 @@
 {
- "bron": "Kaartcheck #9 (gpt-6-luna, versie 1ced81f)",
+ "bron": "Kaartcheck #15 (gpt-6-luna, versie 4be0971)",
  "gemaakt": "2026-10-25",
  "kaarten": {
   "breuken.0a": {
@@ -31,10 +31,10 @@
   "breuken.2b": {
    "naam": "Breuken optellen of aftrekken met verschillende noemers",
    "aanpak": [
-    "Zoek een noemer waar beide noemers precies in passen.",
+    "Zoek de kleinste noemer waar beide noemers precies in passen.",
     "Maak beide breuken gelijknamig: wat je met de noemer doet, doe je ook met de teller.",
     "Tel de tellers op of trek ze van elkaar af; de noemer blijft gelijk.",
-    "Vereenvoudig de breuk. Is de teller groter dan of gelijk aan de noemer, schrijf de uitkomst dan als gemengd getal."
+    "Vereenvoudig de breuk. Is de teller groter dan de noemer, schrijf de uitkomst dan als gemengd getal. Zijn ze gelijk, schrijf dan 1."
    ],
    "model": "Een strook verdeeld in gelijke stukken; maak de stukjes even groot.",
    "valkuilen": [
@@ -53,7 +53,7 @@
     "Teller en noemer achter elkaar gezet → maak eerst de noemer 10, 100 of 1000.",
     "Komma op de verkeerde plek gezet → kijk hoeveel nullen de noemer heeft."
    ],
-   "concreter": "Zet de teller in de plaatswaardetabel bij de plaats die bij de noemer hoort."
+   "concreter": "Maak eerst een gelijkwaardige breuk met noemer 10, 100 of 1000. Zet daarna de teller in de tabel bij de plaats die bij de noemer hoort."
   },
   "breuken.3b": {
    "naam": "Delen door een breuk",
@@ -101,14 +101,14 @@
    "naam": "Tafeldeling",
    "aanpak": [
     "Zoek een handig tafelproduct met de deler.",
-    "Vergelijk dat product met het getal: is het meer of minder?",
+    "Vergelijk dat product met het getal.",
     "Bepaal hoeveel keer de deler in het getal past."
    ],
-   "model": "Sprongen ter grootte van de deler op de getallenlijn.",
+   "model": "Een passende keersom bij de deler.",
    "valkuilen": [
     "De deler en de uitkomst omwisselen → controleer met een keersom: uitkomst × deler = getal."
    ],
-   "concreter": "Gebruik eventueel een kleiner tafelproduct als startpunt en tel sprongen verder."
+   "concreter": "Gebruik eventueel een kleiner tafelproduct als startpunt en tel verder."
   },
   "delen.1c": {
    "naam": "Nullen wegstrepen",
@@ -224,13 +224,13 @@
    "naam": "Afronden op duizendtallen",
    "aanpak": [
     "Kijk naar het honderdtal-cijfer.",
-    "Is het 5 of meer? Verhoog dan het duizendtal-cijfer met 1. Is het minder dan 5? Laat het duizendtal-cijfer staan.",
+    "Is het 5 of meer? Verhoog het getal tot en met de duizendtallen met 1. Her groepeer zo nodig naar de volgende plaatswaarde. Is het minder dan 5? Laat de duizendtallen staan.",
     "Maak de honderdtallen, tientallen en eenheden 0."
    ],
    "model": "Plaatswaardetabel",
    "valkuilen": [
     "Cijfers onder het duizendtal niet op 0 gezet → maak de honderdtallen, tientallen en eenheden 0.",
-    "Duizendtal niet verhoogd bij 5 of meer → kijk naar het honderdtal-cijfer en verhoog het duizendtal met 1."
+    "Bij 5 of meer het duizendtal niet verhoogd of niet hergroepeerd → verhoog het getal tot en met de duizendtallen met 1 en hergroepeer zo nodig."
    ],
    "concreter": "Gebruik een kleiner getal met vier cijfers."
   },
@@ -288,15 +288,16 @@
   "grafieken.3d": {
    "naam": "Cirkeldiagram: procent van een aantal",
    "aanpak": [
-    "Lees het procent af in het cirkeldiagram.",
-    "Herken een makkelijke breuk als die past (bijv. 25% = een kwart). Reken anders via 10%."
+    "Lees het percentage af bij de juiste categorie in het cirkeldiagram.",
+    "Gebruik een passende bekende breuk als dat kan.",
+    "Reken anders 10% uit en bouw het percentage op; gebruik zo nodig 5% als de helft van 10%."
    ],
-   "model": "Gebruik een passende bekende breuk, of reken via 10% en combineer de benodigde delen.",
+   "model": "Gebruik een passende bekende breuk, of reken via 10% en combineer de benodigde delen. Voor 5% neem je de helft van 10%.",
    "valkuilen": [
     "Procent verkeerd afgelezen → zoek de juiste categorie en kleur in het diagram.",
-    "Deel door het verkeerde getal → kies de passende breuk of bepaal eerst 10% door het totaal door 10 te delen."
+    "Deel door het verkeerde getal → kies een passende breuk of bepaal eerst 10% door het totaal door 10 te delen; bouw daarna het gevraagde percentage op."
    ],
-   "concreter": "Laat het kind eerst het percentage in het diagram aanwijzen en daarna kiezen: een bekende breuk gebruiken of rekenen via 10%."
+   "concreter": "Laat het kind eerst het percentage in het diagram aanwijzen en daarna kiezen: een bekende breuk gebruiken of het percentage opbouwen vanuit 10%."
   },
   "kommagetallen.0a": {
    "naam": "Kommagetallen optellen met geld",
@@ -329,16 +330,17 @@
   "kommagetallen.1b": {
    "naam": "Kommagetallen optellen: komma onder komma",
    "aanpak": [
-    "Maak de getallen even lang achter de komma.",
-    "Tel de helen apart op en tel de getallen achter de komma apart op.",
-    "Tel de twee uitkomsten samen. Is de uitkomst achter de komma 1 of meer, dan zit daar ook een hele in."
+    "Zet de komma’s onder elkaar en vul zo nodig nullen aan, zodat de getallen even lang zijn.",
+    "Tel van rechts naar links kolom voor kolom op. Is een kolomsom 10 of meer, schrijf dan het cijfer rechts op en tel 1 mee in de kolom links.",
+    "Zet de komma in de uitkomst recht onder de andere komma’s."
    ],
-   "model": "Komma onder komma; geld",
+   "model": "Komma onder komma; eventueel geld als de getallen euro’s en centen voorstellen.",
    "valkuilen": [
-    "Een nul achteraan verandert de waarde niet (bijv. 0,3 = 0,30) → maak de getallen even lang.",
-    "De uitkomst achter de komma kan 1 of meer zijn → tel die uitkomst helemaal bij de uitkomst van de helen op."
+    "Komma’s niet onder elkaar → lijn de komma’s uit.",
+    "Een nul achteraan verandert de waarde niet (bijv. 0,3 = 0,30) → vul nullen aan om de cijfers goed onder elkaar te zetten.",
+    "Vergeten door te tellen bij een kolom groter dan 9 → schrijf het restcijfer op en tel 1 mee in de kolom links."
    ],
-   "concreter": "Met geld: lees de getallen als euro’s en centen."
+   "concreter": "Zet de getallen netjes onder elkaar en tel rustig van rechts naar links."
   },
   "kommagetallen.2a": {
    "naam": "Kommagetal × 10, 100 of 1000",
@@ -449,14 +451,16 @@
    "concreter": "Teken de figuren en vergelijk ze één voor één met de eigenschap uit de vraag."
   },
   "meetkunde.1a": {
-   "naam": "Soort hoek (scherp, recht, stomp)",
+   "naam": "Soort hoek (scherp, recht, stomp of gestrekt)",
    "aanpak": [
     "Vergelijk de hoek met 90° (het hoekje van een blad papier).",
     "Kleiner dan 90° = scherp; precies 90° = recht; tussen 90° en 180° = stomp; precies 180° = gestrekt."
    ],
-   "model": "Een papierhoek",
-   "valkuilen": [],
-   "concreter": "Leg een blad papier in de hoek."
+   "model": "Een papierhoek voor 90° en een rechte lijn voor 180°.",
+   "valkuilen": [
+    "Groter dan 90° meteen stomp noemen → controleer ook of de hoek precies 180° is."
+   ],
+   "concreter": "Leg een blad papier in de hoek om 90° te vergelijken; gebruik een rechte lijn om 180° te laten zien."
   },
   "meetkunde.1b": {
    "naam": "Symmetrieassen",
@@ -593,7 +597,7 @@
    "naam": "Hoe laat klaar (oven)",
    "aanpak": [
     "Kijk hoeveel minuten het is vanaf de begintijd tot het volgende hele uur.",
-    "Is de baktijd korter dan die tijd? Tel de baktijd direct bij de begintijd op.",
+    "Is de baktijd korter dan of even lang als die tijd? Tel de baktijd direct bij de begintijd op.",
     "Is de baktijd langer? Trek de tijd tot het hele uur van de baktijd af en tel de rest na het hele uur verder."
    ],
    "model": "Een tijdbalk met eventueel het volgende hele uur als tussenstop.",
@@ -632,15 +636,16 @@
    "naam": "Breuk naar procent",
    "aanpak": [
     "Procent betekent: per 100.",
-    "Maak de noemer 100 door teller en noemer met hetzelfde getal te vermenigvuldigen.",
-    "De teller van de breuk op honderd is het aantal procent."
+    "Kijk of je de noemer met een heel getal 100 kunt maken. Zo ja, vermenigvuldig teller en noemer met hetzelfde getal.",
+    "De teller van de breuk op honderd is het aantal procent.",
+    "Lukt dat niet met een heel getal? Deel de teller door de noemer en vermenigvuldig de uitkomst met 100."
    ],
-   "model": "Gelijkwaardige breuk met noemer 100",
+   "model": "Gelijkwaardige breuk met noemer 100 als dat met een heel getal kan; anders teller ÷ noemer × 100.",
    "valkuilen": [
-    "De oorspronkelijke teller als procent nemen → maak eerst de noemer 100.",
-    "Teller en noemer niet met hetzelfde getal vermenigvuldigen → gebruik bij beide dezelfde vermenigvuldigingsfactor."
+    "Alleen de noemer vermenigvuldigen → doe hetzelfde met teller en noemer.",
+    "De oorspronkelijke teller als procent nemen → bepaal eerst hoeveel honderdsten de breuk is."
    ],
-   "concreter": "Bijvoorbeeld: 1/2 is 50/100, dus 50%."
+   "concreter": "Bijvoorbeeld: 1/2 = 50/100, dus 50%."
   },
   "procenten.2d": {
    "naam": "Hoeveel procent is het?",
@@ -660,7 +665,7 @@
    "naam": "Prijsverhoging",
    "aanpak": [
     "Reken 10% van de oude prijs uit.",
-    "Reken daarmee het gevraagde percentage uit.",
+    "Reken het gevraagde percentage uit met 10% als tussenstap; gebruik zo nodig een deel van 10%.",
     "Tel de verhoging bij de oude prijs op."
    ],
    "model": "Gebruik geld: de oude prijs is het hele bedrag; de verhoging is het extra bedrag dat erbij komt.",
@@ -780,12 +785,12 @@
     "Tel de minuten vooruit op. Splits 45 minuten zo nodig in 30 en 15 minuten.",
     "Ga je voorbij het hele uur? Tel vanaf 00 minuten verder en verhoog het uur met 1."
    ],
-   "model": "Een klok: de grote wijzer telt vooruit in sprongen van 5 minuten. Bij de 12 begint een nieuw uur.",
+   "model": "Een klok: de grote wijzer telt vooruit in sprongen van 5 minuten. Houd het uur bij in de notatie van de som; op een wijzerklok kan bijvoorbeeld 13:00 als 1:00 worden weergegeven.",
    "valkuilen": [
-    "Uur behandelen alsof het 100 minuten heeft → een uur heeft 60 minuten; bij de 12 begint het volgende uur.",
-    "Alleen de grote wijzer verzetten → kijk ook of je voorbij de 12 bent gegaan en het uur moet verhogen."
+    "Uur behandelen alsof het 100 minuten heeft → een uur heeft 60 minuten; na 60 minuten begint het volgende uur.",
+    "Alleen de grote wijzer verzetten → kijk ook of je voorbij de 12 bent gegaan en verhoog dan het uur in de notatie van de som."
    ],
-   "concreter": "Laat het kind de grote wijzer vooruitdraaien en hardop de minuten tellen. Bij de 12: noem het volgende uur en tel vanaf 00 verder."
+   "concreter": "Laat het kind de grote wijzer vooruitdraaien en hardop de minuten tellen. Bij de 12: noem het volgende uur in de notatie van de som en tel vanaf 00 verder."
   },
   "tijdBasis.0b": {
    "naam": "Uren naar minuten",
@@ -816,13 +821,14 @@
   "tijdBasis.1e": {
    "naam": "24-uursnotatie",
    "aanpak": [
-    "Bepaal eerst het uur en de minuten op de gewone klok.",
-    "Zet om naar 24-uursnotatie: vóór 12 uur ’s middags blijft het uur gelijk; 12 uur ’s middags blijft 12; bij uren van 1 t/m 11 ’s middags/avonds tel je 12 op. De minuten blijven gelijk."
+    "Bepaal uit de gesproken tijd eerst het uur en de minuten op een gewone klok.",
+    "Zet de tijd om: bij middernacht wordt 12 uur 00, bij 12 uur ’s middags blijft het 12, bij 1 t/m 11 uur ’s ochtends blijft het uur gelijk en bij 1 t/m 11 uur ’s middags/avonds tel je 12 op. De minuten blijven gelijk."
    ],
    "model": "Klok met wijzers (grote wijzer in sprongen van 5 minuten) en een digitale klok.",
    "valkuilen": [
     "De minuten veranderen bij het omzetten → laat de minuten gelijk.",
-    "12 uur ’s middags wordt 24 uur → 12 uur ’s middags blijft 12."
+    "12 uur ’s middags wordt 24 uur → 12 uur ’s middags blijft 12.",
+    "12 uur ’s nachts wordt 12 uur → middernacht schrijf je als 00."
    ],
    "concreter": "Zet de gesproken tijd eerst om naar uur en minuten; verander daarna alleen het uur volgens de 24-uursregel."
   },
@@ -909,26 +915,27 @@
    "aanpak": [
     "Tel de getallen van de verhouding op: hoeveel delen zijn er samen?",
     "Deel het totaal door het aantal delen: hoeveel is één deel?",
-    "Vermenigvuldig het aantal delen van de persoon met de waarde van één deel."
+    "Vermenigvuldig het aantal delen van de gevraagde persoon met de waarde van één deel."
    ],
    "model": "Een strook verdeeld in evenveel gelijke vakjes als er delen samen zijn.",
    "valkuilen": [
-    "Het totaal door 2 delen → controleer of beide personen evenveel delen krijgen."
+    "Het totaal delen door één getal uit de verhouding → tel eerst de delen van de verhouding op.",
+    "Het aantal delen van de verkeerde persoon gebruiken → kijk goed naar wie de som vraagt."
    ],
    "concreter": "Teken evenveel vakjes als er delen samen zijn."
   },
   "verhoudingen.3b": {
    "naam": "Verbruik (1 op …)",
    "aanpak": [
-    "Maak een verhoudingstabel: 1 liter → het aantal km uit de som.",
-    "Reken uit hoeveel km je met 10 liter rijdt.",
-    "Kijk hoe vaak het aantal km per liter in de totale afstand past; dat is het aantal liters."
+    "Lees af hoeveel km bij 1 liter hoort.",
+    "Deel de totale afstand door het aantal km per liter.",
+    "Noteer het antwoord in liters."
    ],
-   "model": "Verhoudingstabel met twee rijen: wat je boven doet, doe je onder ook.",
+   "model": "Verhoudingstabel met twee rijen: kilometers en liters. Bij 1 liter hoort het aantal km uit de som; deel de totale afstand door dat aantal.",
    "valkuilen": [
-    "Vermenigvuldigen in plaats van delen → kijk hoeveel keer het aantal km per liter in de totale afstand past."
+    "Vermenigvuldigen in plaats van delen → bedenk hoeveel keer de afstand per liter in de totale afstand past."
    ],
-   "concreter": "Begin met 1 liter en 10 liter. Reken daarna verder met de afstand uit de som."
+   "concreter": "Begin met: 1 liter rijdt … km. Vraag daarna hoe vaak die afstand in de totale afstand past."
   },
   "verhoudingen.3c": {
    "naam": "Mengverhouding: één deel siroop en water",
@@ -946,28 +953,28 @@
   "vermenigvuldigen.0c": {
    "naam": "Ontbrekend getal in een keersom",
    "aanpak": [
-    "Zoek een bekende keersom met hetzelfde getal.",
-    "Vergelijk de uitkomst daarvan met de uitkomst in de som.",
-    "Tel in gelijke sprongen naar de uitkomst en bepaal hoeveel groepjes dat zijn."
+    "Bepaal hoeveel groepjes van het gegeven getal samen de uitkomst maken.",
+    "Gebruik zo nodig een bekende keersom als steun.",
+    "Controleer door het gevonden aantal te vermenigvuldigen met het gegeven getal."
    ],
-   "model": "Sprongen op de getallenlijn; elke sprong is één groep van het gegeven getal.",
+   "model": "Groepjes: elk groepje bevat het gegeven getal. Bepaal hoeveel groepjes samen de uitkomst maken.",
    "valkuilen": [
-    "Delen en dat als som zien → laat zien dat het een keersom met een gat is.",
-    "Het gegeven getal invullen → lees de keersom hardop met het gat."
+    "Het gegeven getal invullen → lees de keersom hardop met het gat.",
+    "Alleen delen als losse som → denk aan het aantal groepjes en controleer met een keersom."
    ],
-   "concreter": "Gebruik groepjes: hoeveel groepjes van het gegeven getal zijn er nodig om samen de uitkomst te maken?"
+   "concreter": "Gebruik voorwerpen of teken groepjes. Hoeveel groepjes van het gegeven getal zijn nodig om samen de uitkomst te maken?"
   },
   "vermenigvuldigen.0d": {
    "naam": "Keersom als verhaaltje (groepjes met evenveel)",
    "aanpak": [
-    "Bepaal hoeveel groepjes er zijn en hoeveel in elk groepje zitten.",
-    "Schrijf de keersom op: groepjes × aantal per groepje.",
-    "Kies een handige tafelstrategie, bijvoorbeeld via 1 groepje bij 10 groepjes, of via 10 groepjes bij 5 groepjes."
+    "Bepaal hoeveel groepjes er zijn en hoeveel er in elk groepje zitten.",
+    "Schrijf de keersom op: aantal groepjes × aantal per groepje.",
+    "Reken uit met een passende tafelstrategie, bijvoorbeeld een tafel die je kent, verdubbelen of rekenen met 10."
    ],
-   "model": "Teken groepjes of gebruik het plaatje van de zakjes/doosjes; elk groepje heeft evenveel.",
+   "model": "Teken groepjes of gebruik een plaatje van zakjes of doosjes; elk groepje heeft evenveel.",
    "valkuilen": [
     "Aantallen verwisselen → benoem eerst het aantal groepjes en daarna wat er in elk groepje zit.",
-    "Alleen optellen → maak groepjes zichtbaar en schrijf de keersom op.  "
+    "Alleen optellen → maak de groepjes zichtbaar en schrijf de keersom op."
    ],
    "concreter": "Teken de groepjes en zet in elk groepje evenveel stippen."
   },
@@ -1020,7 +1027,7 @@
    ],
    "model": "Rooster/rechthoek of dozen in rijen",
    "valkuilen": [
-    "Eenheden vergeten → Controleer hoeveel dozen er in totaal zijn. "
+    "Het eenhedendeel vergeten → Controleer of je zowel de tientallen als de losse dozen hebt meegerekend."
    ],
    "concreter": "Begin met 10 dozen: hoeveel is dat? Reken daarna de overige dozen uit."
   },
@@ -1042,15 +1049,196 @@
    "naam": "Twee getallen van twee cijfers",
    "aanpak": [
     "Splits één getal in tientallen en eenheden.",
-    "Reken het andere getal keer elk deel.",
-    "Tel de twee deelantwoorden op."
+    "Vermenigvuldig het andere getal met elk deel.",
+    "Reken een deelproduct zo nodig verder uit door het andere getal ook te splitsen.",
+    "Tel de deelproducten op."
    ],
-   "model": "Een rechthoek die in twee stukken is verdeeld: één stuk voor de tientallen en één voor de eenheden.",
+   "model": "Een rechthoek in twee hoofdvakken: één voor de tientallen en één voor de eenheden. Een vak mag je verder verdelen om het deelproduct uit te rekenen.",
    "valkuilen": [
-    "Tientallen en eenheden door elkaar halen → schrijf de twee deelproducten apart op.",
-    "Allebei de getallen splitsen en vier deelproducten maken → houd de aanpak overzichtelijk en splits één getal."
+    "Tientallen en eenheden door elkaar halen → schrijf de hoofddeelproducten apart op.",
+    "De splitsingen door elkaar halen → houd eerst de twee hoofddeelproducten bij; gebruik een extra splitsing alleen binnen een deelproduct."
    ],
-   "concreter": "Laat met een kleiner voorbeeld zien hoe één getal in tientallen en eenheden wordt gesplitst; reken daarna beide deelproducten uit en tel ze op."
+   "concreter": "Laat met een kleiner voorbeeld zien hoe je één getal splitst en twee deelproducten maakt. Splits een deelproduct zo nodig verder uit en tel daarna de hoofddeelproducten op."
+  },
+  "getalbegrip.1a": {
+   "naam": "Afronden op een plaatswaarde",
+   "aanpak": [
+    "Bepaal op welke plaatswaarde je moet afronden.",
+    "Kijk naar het cijfer rechts van die plaatswaarde.",
+    "5 of meer: rond naar boven af. Minder dan 5: rond naar beneden af."
+   ],
+   "model": "Getallenlijn tussen de twee dichtstbijzijnde veelvouden van de gevraagde plaatswaarde.",
+   "valkuilen": [
+    "Naar het verkeerde cijfer gekeken → wijs de gevraagde plaatswaarde aan en kijk één plek naar rechts."
+   ],
+   "concreter": "Vraag: tussen welke twee veelvouden van de gevraagde plaatswaarde ligt het getal, en ligt het vóór of na het midden?"
+  },
+  "grafieken.1c": {
+   "naam": "Verschil hoogste en laagste staaf",
+   "aanpak": [
+    "Lees de waarde van de hoogste staaf af.",
+    "Lees de waarde van de laagste staaf af.",
+    "Reken grootste min kleinste."
+   ],
+   "model": "Vergelijk de waarden van de hoogste en laagste staaf en trek de kleinste af van de grootste.",
+   "valkuilen": [
+    "Optellen bij ‘hoeveel meer’ → Schrijf de aantallen onder elkaar en reken grootste min kleinste."
+   ],
+   "concreter": "Markeer de hoogste en laagste staaf en schrijf hun waarden erbij."
+  },
+  "grafieken.2d": {
+   "naam": "Totaal uit een tabel",
+   "aanpak": [
+    "Tel de aantallen in de tabel bij elkaar op. Als dat lastig is, tel dan steeds twee aantallen bij elkaar op en voeg de rest toe."
+   ],
+   "model": "Gebruik de aantallen uit de tabel.",
+   "valkuilen": [
+    "Een aantal overslaan → wijs elk aantal aan terwijl je het meetelt."
+   ],
+   "concreter": "Tel de aantallen één voor één bij elkaar op."
+  },
+  "klokLezen.a": {
+   "naam": "Klokkijken (wijzerklok)",
+   "aanpak": [
+    "Kijk bij welk getal de grote wijzer staat. Tel vanaf de 12 in sprongen van 5 minuten; op de 12 is het 0 minuten.",
+    "Kijk welk uur de kleine wijzer voorbij is, of op staat.",
+    "Zeg de tijd."
+   ],
+   "model": "Een wijzerklok: de grote wijzer telt vanaf de 12 in sprongen van 5 minuten.",
+   "valkuilen": [
+    "Grote en kleine wijzer verwisseld → onthoud: de grote wijzer geeft de minuten aan.",
+    "Het volgende uur gelezen terwijl de kleine wijzer daar nog niet is → lees het uur dat de kleine wijzer voorbij is, of waarop hij staat."
+   ],
+   "concreter": "Tel samen in sprongen van 5 langs de klok. Op de 12 begint de telling: dat is 0 minuten."
+  },
+  "klokWoorden.a": {
+   "naam": "Tijd in woorden (half, kwart)",
+   "aanpak": [
+    "Kijk naar de grote wijzer en bepaal hoeveel minuten er voorbij het hele uur zijn.",
+    "Lees de tijd in woorden: bij ‘over’ noem je het uur dat bezig is; bij ‘voor’ en ‘half’ noem je het uur waar je naartoe rekent."
+   ],
+   "model": "Een klok met wijzers: de grote wijzer telt in sprongen van 5 minuten.",
+   "valkuilen": [
+    "‘Half zes’ als 6:30 → ‘half zes’ is een half uur vóór zes uur."
+   ],
+   "concreter": "Wijs de grote wijzer aan en tel de minuten vanaf het hele uur."
+  },
+  "kommagetallen.1c": {
+   "naam": "Kommagetal aftrekken van een heel getal",
+   "aanpak": [
+    "Schrijf het hele getal met komma en nullen.",
+    "Trek eerst het hele deel af en daarna het kommagetal.",
+    "Controleer door de uitkomst en het afgetrokken getal op te tellen."
+   ],
+   "model": "Geld: begin met het hele bedrag en haal eerst de hele euro’s, daarna de centen eraf.",
+   "valkuilen": [
+    "Alleen de hele delen afgetrokken → trek daarna ook het kommagetal af."
+   ],
+   "concreter": "Met geld: je betaalt met het hele bedrag; haal eerst de hele euro’s en daarna de centen eraf."
+  },
+  "oppervlakte.1b": {
+   "naam": "Omtrek rechthoek",
+   "aanpak": [
+    "Tel lengte en breedte op: dat is de helft van de rand.",
+    "Verdubbel de uitkomst voor de hele rand."
+   ],
+   "model": "Volg met je vinger de rand helemaal rondom.",
+   "valkuilen": [
+    "Vermenigvuldigt lengte en breedte → tel eerst lengte en breedte op; verdubbel daarna de uitkomst."
+   ],
+   "concreter": "Teken een rechthoek en volg de rand met je vinger."
+  },
+  "optellen.1a": {
+   "naam": "Plus tot 1000: tientallen erbij, dan eenheden",
+   "aanpak": [
+    "Splits het kleine getal in tientallen en eenheden.",
+    "Tel eerst de tientallen erbij.",
+    "Tel dan de eenheden erbij; maak zo nodig eerst een tiental vol."
+   ],
+   "model": "Lege getallenlijn: maak eerst de sprong met de tientallen en daarna de sprong met de eenheden.",
+   "valkuilen": [
+    "Tientallen en eenheden door elkaar gehaald → splits het kleine getal en tel ze apart.",
+    "Bij de eenheden over het tiental heen gaan → maak eerst het tiental vol en tel de rest erbij."
+   ],
+   "concreter": "Gebruik geld: briefjes van € 100 en € 10 en munten van € 1."
+  },
+  "optellen.2c": {
+   "naam": "Min met grote getallen: rijgen in stukjes",
+   "aanpak": [
+    "Splits het getal dat eraf gaat in duizendtallen, honderdtallen, tientallen en eenheden.",
+    "Haal de stukjes één voor één af, begin bij de grootste.",
+    "Controleer met een plussom: antwoord + wat eraf ging = begingetal."
+   ],
+   "model": "Een lege getallenlijn met achterwaartse sprongen: eerst de grootste sprong, daarna de kleinere sprongen.",
+   "valkuilen": [
+    "Een stukje vergeten eraf te halen → schrijf de stukjes eerst op.",
+    "Bij een nul in het getal de plekken door elkaar halen → zeg het getal hardop en wijs de plaatswaarden aan."
+   ],
+   "concreter": "Gebruik geldbedragen met bundels van €1000, €100 en €10, plus losse euro’s. Haal de stukjes één voor één af."
+  },
+  "optellen.3c": {
+   "naam": "Min met heel grote getallen: rijgen in stukjes",
+   "aanpak": [
+    "Splits het getal dat eraf gaat in plaatswaardestukjes.",
+    "Haal de stukjes één voor één af.",
+    "Controleer met een plussom."
+   ],
+   "model": "Getallenlijn: maak achterwaartse sprongen, één per stukje. Of gebruik het positieschema.",
+   "valkuilen": [
+    "Nullen in het getal → schrijf het getal in het positieschema."
+   ],
+   "concreter": "Oefen zo nodig eerst met kleinere getallen en pas de aanpak daarna toe op de som."
+  },
+  "procenten.0b": {
+   "naam": "10% van een getal",
+   "aanpak": [
+    "10% is 1/10 deel.",
+    "Deel het getal door 10."
+   ],
+   "model": "De procentenstrook",
+   "valkuilen": [
+    "Er 10 afgehaald → bedenk dat 10% gelijk is aan delen door 10."
+   ],
+   "concreter": "Van 100 euro is 10% 10 euro."
+  },
+  "schaal.2a": {
+   "naam": "Schaal (1 : …) naar km",
+   "aanpak": [
+    "1 cm op de kaart is zoveel cm in het echt als het schaalgetal.",
+    "Vermenigvuldig de afstand op de kaart in cm met het schaalgetal.",
+    "Reken de uitkomst om: cm → m (: 100) → km (: 1000)."
+   ],
+   "model": "De maten-trap: cm → m → km.",
+   "valkuilen": [
+    "Vergeten om te rekenen naar km → volg de maten-trap stap voor stap."
+   ],
+   "concreter": "Reken eerst de kaartafstand om naar cm in het echt. Zet die cm daarna om naar km."
+  },
+  "tijdBasis.2a": {
+   "naam": "Aankomsttijd (uren en minuten erbij)",
+   "aanpak": [
+    "Tel eerst de hele uren bij de begintijd op.",
+    "Tel daarna de minuten erbij en zet 60 minuten of meer om in uren en minuten."
+   ],
+   "model": "Tijdbalk",
+   "valkuilen": [
+    "60 minuten of meer → zet de minuten om; voor elke 60 minuten komt er een uur bij."
+   ],
+   "concreter": "Gebruik een tijdbalk."
+  },
+  "tijdBasis.3c": {
+   "naam": "Afstand in minuten (km per uur)",
+   "aanpak": [
+    "1. Zet de snelheid om naar km in 60 minuten.",
+    "2. Reken uit hoeveel km in 10 minuten is: deel door 6.",
+    "3. Reken van 10 minuten naar het gevraagde aantal minuten."
+   ],
+   "model": "Verhoudingstabel met minuten en kilometers; gebruik 10 minuten als tussenstap.",
+   "valkuilen": [
+    "Minuten als kommagetal behandelen → reken eerst met 10-minutenstukjes.",
+    "Vergeten hoeveel stukjes van 10 minuten in de gevraagde tijd passen → deel de tijd door 10."
+   ],
+   "concreter": "Maak een tabel met 60 minuten en de snelheid; reken terug naar 10 minuten en gebruik daarna het aantal 10-minutenstukjes."
   }
  }
 }

@@ -346,7 +346,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat (${Z('"Kijk nog eens: in 8945 staat de 5 rechts van de 4"', '"Kyk weer: in 8945 staan die 5 regs van die 4"')}). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
-    phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.${step.tip ? ` De app gaf bij deze stap als tip: "${step.tip}". Leg het uit op dezelfde manier (zelfde route), alleen concreter.` : ''}${(() => { const v = makkelijker(step.ask, step.answer); return v ? ` MAKKELIJKER VOORBEELD (door de app nagerekend, gebruik dit): ${v.vraag ? v.som : `${v.som} = ?`} (uitkomst ${v.uitkomst}). Laat ${name} eerst dít voorbeeld uitrekenen, bevestig het, en zeg dan dat de echte stap precies zo gaat.` : ''; })()}` : '',
+    phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.${step.tip ? ` De app gaf bij deze stap als tip: "${step.tip}". Leg het uit op dezelfde manier (zelfde route), alleen concreter.` : ''}${(() => { const v = makkelijker(step.ask, step.answer, [question.answer]); return v ? ` MAKKELIJKER VOORBEELD (door de app nagerekend, gebruik dit): ${v.vraag ? v.som : `${v.som} = ?`} (uitkomst ${v.uitkomst}). Laat ${name} eerst dít voorbeeld uitrekenen, bevestig het, en zeg dan dat de echte stap precies zo gaat.` : ''; })()}` : '',
     scratchContext(name, scratch, phase),
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
     didactiekText(question.cat, question.level, { kort: !!kaartTekst(isAF() ? 'af' : 'nl', question.tpl) }),
@@ -385,6 +385,13 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       // en Max zegt alleen "Dis reg! Vul dit maar in." zonder het verschil te benoemen.
       if (phase === 'wrong' && given != null && laatsteKind && noemtGetal(laatsteKind, question.display) && !noemtGetal(t, given) && /\b(klopt|precies|goed|juist|reg|presies|korrek)\b/i.test(t))
         f.push(`${name} zegt nu het goede antwoord, maar vulde eerst "${given}" in. Zeg dat het nu klopt én vraag kort wat er de eerste keer anders ging (noem "${given}"). Zeg pas daarna dat ${name} het kan invullen.`);
+      // Vastgelopen bij een tussenstap zonder voorbeeld van de app: dan moet Max zelf een makkelijker voorbeeld geven, met
+      // andere (kleinere) getallen. Meetlat #13/#14: in ± 50% van die gevallen herhaalde Max de stap met dezelfde getallen.
+      if (phase === 'step' && step && !makkelijker(step.ask, step.answer, [question.answer])) {
+        const nums = (x) => new Set((String(x || '').replace(/\[\[[^\]]*\]\]/g, ' ').match(/\d+(?:,\d+)?/g) || []));
+        const bekend = new Set([...nums(question.text), ...nums(step.ask), ...nums(given), ...nums(step.tip), ...nums(step.display)]);
+        if (![...nums(t)].some((x) => !bekend.has(x))) f.push(`${name} loopt vast bij deze stap. Begin met een MAKKELIJKER VOORBEELD van dezelfde soort, met andere, kleinere getallen dan in de som (bijv. de helft, of een getal onder de 10), laat ${name} dát eerst doen, en zeg dan dat de echte stap precies zo gaat. Noem de uitkomst van de echte stap niet.`);
+      }
       const pf = plaatjeFouten(t);
       if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}). Maak het plaatje opnieuw: [[getallenlijn: begin | eind | stip]] met begin < eind en de stip ertussen, of laat het plaatje weg.`);
       const nl = isAF() ? nederlandsInAfrikaans(t) : [];

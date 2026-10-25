@@ -239,7 +239,7 @@ const optellen = {
       const totaal = rnd(12, 18) * 1000 + rnd(1, 9) * 100 + rnd(10, 90), a = rnd(2500, 4500), b = rnd(1800, 3900);
       return tpl('optellen.3b', { ...num(`De school heeft € ${fmt(totaal)} te besteden. Ze kopen boeken voor € ${fmt(a)} en gaan op schoolreis voor € ${fmt(b)}. Hoeveel euro blijft er over?`,
         totaal - a - b, [`Wat ze uitgeven: ${fmt(a)} + ${fmt(b)} = ${fmt(a + b)}.`, `Wat overblijft: ${fmt(totaal)} − ${fmt(a + b)} = ${fmt(totaal - a - b)}.`], { unit: 'euro' }),
-      guide: [st(`Hoeveel geven ze samen uit? ${fmt(a)} + ${fmt(b)} = ?`, a + b, 'Tel eerst de hele euro’s op, dan de centen.')], guideFinal: `Wat blijft over? ${fmt(totaal)} − ${fmt(a + b)}` });
+      guide: [st(`Hoeveel geven ze samen uit? ${fmt(a)} + ${fmt(b)} = ?`, a + b, Number.isInteger(a) && Number.isInteger(b) ? 'Splits het tweede bedrag in duizendtallen, honderdtallen, tientallen en eenheden, en tel ze één voor één bij het eerste op.' : 'Tel eerst de hele euro’s op, dan de centen.')], guideFinal: `Wat blijft over? ${fmt(totaal)} − ${fmt(a + b)}` });
     }
     const a = rnd(40, 90) * 1000 + rnd(0, 9) * 10, b = rnd(12000, 38999);
     const g = rijgSub(a, b);
@@ -375,7 +375,7 @@ const kommagetallen = {
       return tpl('kommagetallen.0a', { ...num(`Je koopt een tijdschrift van ${euro(e1 + c1 / 100)} en een snoepzak van ${euro(e2 + c2 / 100)}. Hoeveel betaal je samen?`, tot,
         [`Eerst de hele euro's: ${e1} + ${e2} = ${e1 + e2}.`, `Dan de centen: ${c1} + ${c2} = ${c1 + c2} cent${c1 + c2 >= 100 ? ` = € 1 en ${c1 + c2 - 100} cent` : ''}.`, `Samen: ${euro(tot)}.`], { money: true }),
       guide: [st(`Eerst de hele euro's: ${e1} + ${e2} = ?`, e1 + e2, 'Alleen de cijfers vóór de komma.'), st(`Dan de centen: ${c1} + ${c2} = ? cent`, c1 + c2, 'De cijfers achter de komma zijn de centen.', { unit: 'cent' })],
-      guideFinal: `Samen: € ${e1 + e2} en ${c1 + c2} cent${c1 + c2 >= 100 ? ' (100 cent = € 1!)' : ''}` });
+      guideFinal: c1 + c2 >= 100 ? `Samen: € ${e1 + e2} en ${c1 + c2} cent. Wissel 100 cent om voor € 1: hoeveel euro en cent is dat?` : `Samen: € ${e1 + e2} en ${c1 + c2} cent` });
     }
     const a = rnd(1, 6), b = rnd(1, 9 - a), w = rnd(0, 3);
     return tpl('kommagetallen.0b', { ...num(`${fmt(w + a / 10)} + 0,${b} =`, w + (a + b) / 10, [`0,${b} is ${b} tienden.`, `${a} tienden + ${b} tienden = ${a + b} tienden.`, `Dus ${fmt(w + (a + b) / 10)}.`]),
@@ -552,7 +552,7 @@ const getalbegrip = {
       const idx = vals.indexOf(groot ? Math.max(...vals) : Math.min(...vals));
       return tpl('getalbegrip.3c', { ...choice(`Welk getal is het ${groot ? 'grootst' : 'kleinst'}?`, opts, idx, [`Maak alle getallen even lang met nullen achteraan:`,
         ...opts.map((o) => `${o} → ${fmt(Number(o.replace(',', '.')), 3)}`), `Vergelijk ze nu als duizendsten: ${opts[idx]} is het ${groot ? 'grootst' : 'kleinst'}.`]),
-      guide: [st(`Maak ${opts[0]} even lang (3 cijfers achter de komma). Hoeveel duizendsten is dat?`, vals[0] * 1000, `${opts[0]} = ${fmt(vals[0], 3)}.`)],
+      guide: [st(`Maak ${opts[0]} even lang (3 cijfers achter de komma). Hoeveel duizendsten is dat?`, vals[0] * 1000, 'Een nul achteraan verandert de waarde niet. Vul aan met nullen tot er 3 cijfers achter de komma staan.')],
       guideFinal: `Schrijf ze allemaal als duizendsten en vergelijk` });
     }
     const n = rnd(1001, 9999) / 1000, r = round(Math.round(round(n * 10, 6)) / 10, 1), c = Number(n.toFixed(3)[3]);
@@ -657,7 +657,7 @@ const breuken = {
       const ding = { liter: 'flesjes van', kilo: 'zakjes van', meter: 'stukken van' }[unit];
       return tpl('breuken.3b', { ...num(`Je hebt ${w} ${unit}. Je verdeelt het over ${ding} 1/${d} ${unit}. Hoeveel ${ding.split(' ')[0]} krijg je?`, w * d,
         [`Hoe vaak past 1/${d} in 1 ${unit}? ${d} keer.`, `In ${w} ${unit} past het dus ${w} × ${d} = ${w * d} keer.`, `Dat is de deelsom ${w} : 1/${d} = ${w * d}.`]),
-      guide: [st(`Hoeveel ${ding.split(' ')[0]} van 1/${d} ${unit} haal je uit 1 ${unit}?`, d, `1/${d} ${unit} past ${d} keer in 1 ${unit}.`)], guideFinal: `En uit ${w} ${unit}: ${w} × ${d}` });
+      guide: [st(`Hoeveel ${ding.split(' ')[0]} van 1/${d} ${unit} haal je uit 1 ${unit}?`, d, `Hoeveel stukken van 1/${d} ${unit} maken samen 1 hele ${unit}? Denk aan een strook in ${d} gelijke stukken.`)], guideFinal: `En uit ${w} ${unit}: ${w} × ${d}` });
     }
     const d = pick([2, 4, 3]), d2 = pick([4, 8, 6]), w1 = rnd(1, 4), w2 = rnd(1, 3), n1 = rnd(1, d - 1), n2 = rnd(1, d2 - 1);
     const L = lcm(d, d2), tot = (w1 + w2) * L + n1 * (L / d) + n2 * (L / d2);
@@ -746,7 +746,7 @@ const procenten = {
       if (!Number.isInteger(deel) || !Number.isInteger(deel / (p / 10))) return tpl('procenten.3d', procenten[3]());
       if (p === 25) return tpl('procenten.3e', { ...num(`25% van de leerlingen gaat met de fiets naar school. Dat zijn ${deel} leerlingen. Hoeveel leerlingen zijn er in totaal?`, totaal, [
         `25% is 1/4 deel.`, `1/4 deel = ${deel} leerlingen.`, `Alles (4/4) = 4 × ${deel} = ${totaal}.`]),
-      guide: [stC('25% is hetzelfde als:', ['1/4 deel', '1/2 deel', '1/25 deel'], 0, '25 van de 100 = 1 van de 4.')], guideFinal: `Alles is 4 keer zoveel: 4 × ${deel}` });
+      guide: [stC('25% is hetzelfde als:', ['1/4 deel', '1/2 deel', '1/25 deel'], 0, 'Denk aan 100 gelijke hokjes: 25 hokjes, hoeveel van zulke groepjes passen er in 100?')], guideFinal: `Alles is 4 keer zoveel: 4 × ${deel}` });
       return tpl('procenten.3f', { ...num(`${p}% van de leerlingen gaat met de fiets naar school. Dat zijn ${deel} leerlingen. Hoeveel leerlingen zijn er in totaal?`, totaal, [
         `Maak een verhoudingstabel: ${p}% → ${deel}.`, `10% → ${deel / (p / 10)}.`, `100% → ${totaal}.`]),
       guide: [st(`Verhoudingstabel: ${p}% zijn ${deel} leerlingen. Hoeveel leerlingen is 10%?`, deel / (p / 10), `Deel door ${p / 10}.`)], guideFinal: `100% is 10 keer zoveel als 10%` });
@@ -897,7 +897,7 @@ const metriek = {
       () => { const v = pick([3, 5, 6, 7, 9, 10, 11]) * 250; return [`${fmt(v)} ml = ... liter`, v / 1000, 'liter', [`1 liter = 1000 ml.`, `${fmt(v)} : 1000 = ${fmt(v / 1000)}`], 1000]; },
       () => { const v = rnd(2, 9); return [`${v} km = ... m`, v * 1000, 'm', [`1 km = 1000 m.`, `${v} × 1000 = ${fmt(v * 1000)}`], 1000]; },
     ])();
-    return tpl('metriek.1a', { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: [st(`Met welk getal reken je om? (1 grote maat = ? kleine maten)`, t[4], 'Kijk op de trap hoeveel stappen het is tussen de twee maten. Elke stap is × 10.')], guideFinal: t[3][1].split('=')[0].trim() });
+    return tpl('metriek.1a', { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: [st(`Met welk getal reken je om? (1 grote maat = ? kleine maten)`, t[4], 'Kijk op de trap hoeveel stappen het is tussen de twee maten. Elke stap scheelt 10 keer.')], guideFinal: t[3][1].split('=')[0].trim() });
   },
   2() {
     const t = pick([
@@ -1047,7 +1047,7 @@ function ovenSom(lang) {
       : [`${hhmm(s)} + ${d} minuten = ${hhmm(s + d)} (het uur blijft hetzelfde).`],
     { visual: { kind: 'digital', time: hhmm(s), look: 'oven' } }),
   guide: over ? [st(`Hoeveel minuten van ${hhmm(s)} tot ${hhmm(heel)}?`, heel - s, 'Tel vanaf de begintijd door tot het volgende hele uur. Hoeveel minuten is dat?', { unit: 'minuten' }),
-    st(`Hoeveel minuten moet ${wat[1]} daarna nog? ${d} − ${heel - s} = ?`, d - (heel - s), 'Wat er van de bakttijd overblijft.', { unit: 'minuten' })] : [],
+    st(`Hoeveel minuten moet ${wat[1]} daarna nog? ${d} − ${heel - s} = ?`, d - (heel - s), 'Wat er van de baktijd overblijft.', { unit: 'minuten' })] : [],
   guideFinal: over ? `${hhmm(heel)} + ${s + d - heel} minuten` : null });
 }
 // Bestaande tijdsommen krijgen het plaatje dat erbij hoort
