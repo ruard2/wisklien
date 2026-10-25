@@ -13,6 +13,7 @@
 //   guide — invulbare tussenstappen ("samen stap voor stap"): het kind rekent
 //           elke tussenstap zelf uit, daarna het eindantwoord.
 
+import { algemeneDenkfouten } from './denkfouten.js';
 import { kaartVoor } from './uitleg/index.js';
 import { problemen } from './kwaliteit.js';
 import { improveTips } from './tips.js';
@@ -1501,6 +1502,7 @@ export function generateRaw(cat, level) {
   q.shape = shapeOf(q.text);
   improveTips(q, 'nl'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = misconceptionsFor(q);
+  q.wrong = [...q.wrong, ...algemeneDenkfouten(q, 'nl')]; // kale sommen: onthouden vergeten, ernaast in de tafel, … (src/denkfouten.js)
   addVisual(q);
   return enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'nl'), 'nl'), 'nl');
 }

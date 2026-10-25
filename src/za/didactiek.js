@@ -328,3 +328,47 @@ Kontrole agterna: ${d.controle}
 Moenie: ${[...d.vermijd, '’n ander aanpak as hierbo uitdink'].join('; ')}
 Algemeen: ${ALGEMEEN.stappe} ${ALGEMEEN.notasie}`;
 }
+
+// Taalgids vir Max in Afrikaans (die eweknie van TAALGIDS in src/didactiek.js). Tussenstappen AF #22: Max het byna elke
+// boodskap met "Dis reg, Sam" begin, ook as die kind verkeerd was of gesê het hy verstaan nie (die vorige taalreël het
+// "geen stress" as "dis reg so" vertaal). Hier: die KABV-skoolwoorde, wat om te vermy, en afwisselende aanmoediging.
+export const TAALGIDS_AF = {
+  woorden: {
+    somme: 'optelsom, aftreksom, maalsom, deelsom; ’n kaal som en ’n woordsom (storiesom); die antwoord; ’n tussenantwoord; die kladblad',
+    optel: 'bymekaartel, saam; spring op die getallelyn (eers die tiene, dan die ene); opbreek (uitgebreide notasie: 700 + 40 + 2); in kolomme onder mekaar (begin regs by die ene, oordra)',
+    aftrek: 'aftrek, haal weg, die verskil; terugspring op die getallelyn; aanvul ("hoeveel moet by om by … te kom?"); omruil (’n tien omruil vir 10 ene) in kolomme',
+    maal: 'maal (×), die maaltafels; omruil (4 × 7 = 7 × 4); verdubbel en halveer; opbreek: 7 × 65 = 7 × 60 en 7 × 5; ’n nul agteraan by × 10',
+    deel: 'deel (÷), eerlik verdeel (almal ewe veel), hoeveel keer gaan … in …; die res (wat oorbly); langdeling vir groter getalle',
+    desimale: 'desimale getal (desimale breuk); die syfers ná die komma; heelgetalle, tiendes, honderdstes, duisendstes; komma onder komma; plekwaardetabel (D H T E , t h d)',
+    breuke: 'gewone breuk; teller (die getal bo die streep), noemer (die getal onder die streep); gelyke noemers maak; ekwivalente breuke (1/2 = 2/4); vereenvoudig; gemengde getal (2 1/2)',
+    persentasie: 'persent = uit 100; 100% is alles; via 50%, 25%, 10% (en 1%); afslag, nuwe prys; ’n persentasiestrook',
+    getalle: 'getal (nie "nommer" nie), syfer (die tekens 0-9), die waarde van ’n syfer (die 4 in 347 is 40 werd); plekwaarde: duisende, honderde, tiene, ene; ewe en onewe',
+    meet: 'lengte, massa, inhoud (kapasiteit); omtrek (die lengte rondom), area (hoeveel vierkantjes pas in), volume; eenhede omreken (km, m, cm, mm; kg, g; ℓ, mℓ)',
+    tyd: 'kwart oor, half, kwart voor; ’n kwartier; die tydlyn; hoe lank dit duur; analoog en digitaal; 24-uur-tyd',
+    notasie: 'geld as R12,50; komma in desimale getalle (2,5); × vir maal en ÷ vir deel; getalle in ’n ry met ; daartussen; groot getalle met ’n spasie (12 500)',
+    data: 'staafgrafiek, lyngrafiek, sirkelgrafiek, tabel, tellyste; modus (die meeste), mediaan (die middelste), gemiddeld, omvang',
+  },
+  vermijd: [
+    ['dis reg (as die kind verkeerd is, of net sê hy verstaan nie)', '"Toemaar", "Geen probleem nie", "Dis oukei", "Kom ons kyk saam"; "Dis reg" net as iets regtig korrek is'],
+    ['keer (vir ×), vermenigvuldig', 'maal'],
+    ['delen door, gedeeld door', 'deel deur'],
+    ['kommagetal', 'desimale getal'],
+    ['procent', 'persent, persentasie'],
+    ['tientallen, honderdtallen, eenheden', 'tiene, honderde, ene'],
+    ['getallenlijn, nommerlyn', 'getallelyn'],
+    ['plaatje', 'prentjie'],
+    ['uitrekenen', 'uitwerk, bereken'],
+    ['nummer (vir ’n getal)', 'getal'],
+    ['okay, nice, cool, check, basically', 'goed, mooi, kontroleer, eintlik'],
+    ['euro, €', 'rand, R'],
+    ['niet, niks meer, nog niet, ook al', 'nie, niks meer nie, nog nie, alreeds'],
+  ],
+  complimenten: ['Mooi so!', 'Knap gedoen!', 'Presies!', 'Ja, dis korrek!', 'Goeie werk!', 'Lekker!', 'Jy het dit!', 'Netjies uitgewerk!'],
+};
+export function taalgidsAF() {
+  return `TAAL VIR DIE KIND (Suid-Afrikaanse skoolwoorde, KABV; gebruik ALTYD hierdie woorde)
+${Object.entries(TAALGIDS_AF.woorden).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+VERMY (links verkeerd → regs goed):
+${TAALGIDS_AF.vermijd.map(([p, b]) => `- ${p} → ${b}`).join('\n')}
+Praat soos ’n Suid-Afrikaanse juffrou of meneer praat, nie soos ’n vertaling nie: kort, gewone sinne. Wissel jou komplimente af (${TAALGIDS_AF.complimenten.join(' / ')}); begin NIE elke boodskap op dieselfde manier nie, en nooit met "Dis reg" as die kind nog nie reg is nie.`;
+}

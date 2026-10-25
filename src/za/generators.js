@@ -5,6 +5,7 @@
 //
 // Vlakke: 0 = graad 4, 1 = graad 5, 2 = graad 6, 3 = graad 7.
 
+import { algemeneDenkfouten } from '../denkfouten.js';
 import { kaartVoor } from '../uitleg/index.js';
 import { problemen } from '../kwaliteit.js';
 import { improveTips } from '../tips.js';
@@ -1174,6 +1175,7 @@ export function generateRaw(cat, level) {
   q.shape = shapeOf(q.text);
   improveTips(q, 'af'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = (q.wrong || []).filter((w) => w && w.label && w.answer != null && !(typeof w.answer === 'number' && (Number.isNaN(w.answer) || Math.abs(w.answer - q.answer) < 1e-9)));
+  q.wrong = [...q.wrong, ...algemeneDenkfouten(q, 'af')]; // kale sommen: onthouden vergeten, ernaast in de tafel, … (src/denkfouten.js)
   return enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'af'), 'af'), 'af');
 }
 export function generateLike(cat, level, shape, notText) {

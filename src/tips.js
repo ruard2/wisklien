@@ -159,8 +159,8 @@ function makkelijker0(ask, answer) {
   const gl = a0.match(/(\d+)\/(\d+)\s*=\s*[?□]\s*\/\s*(\d+)/);
   if (gl) { const [t, n, N] = [+gl[1], +gl[2], +gl[3]]; const k = N / n; if (!Number.isInteger(k) || k < 2) return null; const [t2, n2] = n === 2 ? [1, 3] : [1, 2]; if (t2 * k === answer) return null; return { som: `${t2}/${n2} = ?/${n2 * k}`, uitkomst: String(t2 * k), vraag: true }; }
   // "De helft van 8 = ?"
-  const hf = a0.match(/helft van (\d+)/i);
-  if (hf) { const n = +hf[1]; const x = n > 10 ? 10 : n > 4 ? 4 : null; if (!x || x / 2 === answer) return null; return { som: `De helft van ${x}`, uitkomst: String(x / 2), vraag: true }; }
+  const hf = a0.match(/(helfte?) van (\d+)/i);
+  if (hf) { const n = +hf[2]; const x = n > 10 ? 10 : n > 4 ? 4 : null; if (!x || x / 2 === answer) return null; return { som: `${hf[1].toLowerCase() === 'helfte' ? 'Die helfte' : 'De helft'} van ${x}`, uitkomst: String(x / 2), vraag: true }; }
   // tijdsduur binnen een uur: "Van 11:00 tot 11:50 = ? minuten" → "Van 3:00 tot 3:20"
   const tdu = a0.match(/(\d{1,2}):(\d{2})\s*(?:tot|→|naar)\s*(\d{1,2}):(\d{2})/);
   if (tdu) { const m1 = +tdu[2], h2 = +tdu[3], m2 = +tdu[4]; const d = (h2 - +tdu[1]) * 60 + m2 - m1; if (d <= 10 || d > 120) return null; const k = d >= 30 ? 20 : 10; return { som: /\bminute\b/i.test(a0) ? `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minute?` : `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minuten?`, uitkomst: String(k), vraag: true }; }

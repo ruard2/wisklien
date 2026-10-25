@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum.js';
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
+import { taalgidsAF } from './za/didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag } from './stapgesprek.js';
@@ -26,7 +27,7 @@ const ONDERWIJS = () => (isAF() ? 'Suid-Afrikaanse laerskool-onderwijs (KABV, In
 const Z = (nl, af) => (isAF() ? af : nl); // voorbeeldzin in de taal van het kind
 const TAALREGEL = () => (isAF() ? `
 
-TAAL (heel belangrijk): Antwoord ALTIJD in eenvoudig, correct Afrikaans zoals in Suid-Afrika gepraat wordt — nooit Nederlands. Gebruik de Suid-Afrikaanse schoolwoorden (KABV): somme, gewone breuke, teller, noemer, desimale breuke, tiendes, honderdstes, persentasie, plekwaarde (ene, tiene, honderde, duisende), kolomme, langdeling, oordra, getallesin, getallelyn, verdubbel en halveer, afronding, skatting, omtrek, area, volume. Geld in rand en sent (R12,50). Deel met ÷. Getallen in een rij met ; ertussen. Spreek een leraar aan als "Meneer". De voorbeeldzinnen in deze instructies zijn Nederlands: zeg ze ALTIJD in het Afrikaans (bv. "Hoe kwam je op …?" → "Hoe het jy by … uitgekom?", "Dat is hem!" → "Dis reg!", "Bijna" → "Amper", "Welke" → "Watter", "je/jij" → "jy", "niet" → "nie", "denk" → "dink", "nu" → "nou", "zo" → "so", "geen stress" → "moenie worry nie" of "dis reg so"). Geen Nederlandse of Engelse woorden.` : '');
+TAAL (heel belangrijk): Antwoord ALTIJD in eenvoudig, correct Afrikaans zoals in Suid-Afrika gepraat wordt — nooit Nederlands. Gebruik de Suid-Afrikaanse schoolwoorden (KABV): somme, gewone breuke, teller, noemer, desimale breuke, tiendes, honderdstes, persentasie, plekwaarde (ene, tiene, honderde, duisende), kolomme, langdeling, oordra, getallesin, getallelyn, verdubbel en halveer, afronding, skatting, omtrek, area, volume. Geld in rand en sent (R12,50). Deel met ÷. Getallen in een rij met ; ertussen. Spreek een leraar aan als "Meneer". De voorbeeldzinnen in deze instructies zijn Nederlands: zeg ze ALTIJD in het Afrikaans (bv. "Hoe kwam je op …?" → "Hoe het jy by … uitgekom?", "Dat is hem!" → "Dis reg!", "Bijna" → "Amper", "Welke" → "Watter", "je/jij" → "jy", "niet" → "nie", "denk" → "dink", "nu" → "nou", "zo" → "so", "geen stress" → "moenie worry nie" of "toemaar"; "Dis reg" alleen als iets écht klopt). Geen Nederlandse of Engelse woorden.` : '');
 import { kidStore, pool } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
@@ -285,9 +286,9 @@ WOORDEN
 - Ga er NOOIT van uit dat ${name} vakwoorden kent. Zeg het eerst in gewone woorden: "het getal onder de streep" i.p.v. "noemer", "het getal boven de streep" i.p.v. "teller", "zorgen dat de getallen onder de streep hetzelfde zijn" i.p.v. "gelijknamig maken", "de rand rondom" i.p.v. "omtrek".
 - Wil je het vakwoord leren, zet het er dan tussen haakjes achter: "het getal onder de streep (dat heet de noemer)".
 - Korte, gewone zinnen. "Keer" in plaats van "vermenigvuldigen", "delen door" in plaats van "de deler".
-${isAF() ? '' : `
-${taalgidsText()}
-`}
+
+${isAF() ? taalgidsAF() : taalgidsText()}
+
 
 ONTHOUDEN EN VOORTBOUWEN
 - Je kent ${name} al. Gebruik wat je weet (hieronder): verwijs ernaar als het past ("Weet je nog, met die pizza?"), gebruik uitleg en voorbeelden die eerder werkten, en let extra op denkfouten die vaker voorkomen.
