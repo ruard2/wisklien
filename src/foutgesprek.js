@@ -10,7 +10,7 @@ import { makkelijker } from './tips.js';
 import { snaptNiet } from './kwaliteit.js';
 import { antwoordVan, isZelfde, WEET_NIET } from './stapgesprek.js';
 
-const GOKT = /gegokt|gegok|geraai|raai|zomaar|maar wat|weet (ik )?niet (meer|precies)|weet nie (meer|mooi)|geen idee|ek weet nie/i;
+const GOKT = /gegokt|gegok|geraai|raai|zomaar|maar wat|weet (ik )?niet (meer|precies)|weet nie (meer|mooi)|geen idee|ek weet nie|vergist|vergis|snel gedaan|vinnig gedoen|fout gemaak|in mijn hoofd|in my kop/i;
 const VRAAG = /^\s*(waarom|hoe(?!\s+kwam)|wat|wie|welke|wanneer|kan|mag|moet|hoekom|watter|is dit omdat)\b/i;
 const vb = (st) => (st.type === 'choice' ? st.options[st.answer] : st.display);
 
@@ -39,6 +39,12 @@ export const FOUTZETTEN = {
     doel: 'Het kind gaf een fout antwoord op de stap. Zeg vriendelijk dat het nog niet klopt (noem het getal van het kind) en geef de hulp van de TIP hieronder, concreet voor deze stap. Vraag de stap opnieuw.',
     opties: ['de tip in eigen woorden, met de getallen van de stap', 'knip de stap in twee kleine stukjes volgens de tip en vraag het eerste'],
     regels: 'Noem de uitkomst van de stap niet. Zeg niets onwaars over het getal van het kind.',
+  },
+  stap_concreet: {
+    doel: 'Het kind snapt deze stap nog niet. Help BIJ DEZE STAP, concreter en op een ándere manier dan je vorige bericht: laat met een heel klein voorbeeld zien hoe het gaat (dat voorbeeld mag je helemaal voordoen, mét uitkomst; gebruik het makkelijker voorbeeld hieronder als dat er is), of knip de stap in een kleiner stukje, of gebruik het model van de kaart (geld, plaatje). Vraag daarna in hetzelfde bericht meteen de stap zelf (of het eerste kleine stukje ervan).',
+    opties: ['klein voorbeeld voordoen + "en bij jouw som?"', 'de stap in een kleiner stukje, met een plaatje of geld'],
+    regels: 'Noem de uitkomst van de stap zelf niet. Geen apart voorbeeld waar het kind eerst op moet antwoorden: na dit bericht doet het kind de stap.',
+    vbUitkomst: true,
   },
   goed_nu: {
     doel: 'Het kind heeft nu het GOEDE eindantwoord. Zeg dat het nu klopt, en vraag kort wat er de eerste keer anders ging (noem het eerste, foute antwoord).',
@@ -78,7 +84,13 @@ export function foutPlan({ question: q, given, chat = [] }) {
     } else if (!heeftAntwoord && (snaptNiet(tekst) || WEET_NIET.test(tekst))) {
       s.snap++;
       if (s.fase === 'voorbeeld') zet = s.snap >= 3 || s.foutVb >= 1 ? 'vb_voordoen' : 'vb_concreter';
-      else { const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]); s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null; zet = s.vb ? 'voorbeeld' : 'eigen_voorbeeld'; }
+      else {
+        // Na een fout geen apart voorbeeld-omweggetje (Na een fout #23/#24: dat kostte twee beurten en het kind kwam niet
+        // verder): concreter bij de stap zelf, met een voorgedaan mini-voorbeeld; lukt het dan nog niet, samen doen.
+        const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]);
+        s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null;
+        s.hulp = (s.hulp || 0) + 1; zet = s.hulp >= 2 ? 'stap_samen' : 'stap_concreet';
+      }
     } else if (heeftAntwoord && verwacht) {
       const goed = isZelfde(tekst, verwacht.uitkomst);
       if (eind || (goed && doel.slot && s.fase !== 'voorbeeld')) zet = 'goed_nu';
@@ -86,9 +98,13 @@ export function foutPlan({ question: q, given, chat = [] }) {
       else if (goed) {
         // welke stap was dit? een tussenstap uit de som → door naar de volgende; anders een deelvraag van Max
         const j = q.guide.findIndex((st, x) => x >= s.k && isZelfde(String(verwacht.uitkomst), vb(st)));
-        if (j >= 0) { s.k = j + 1; s.fout = 0; zet = s.k >= q.guide.length ? 'laatste' : 'volgende'; } else zet = 'deel_goed';
+        if (j >= 0) { s.k = j + 1; s.fout = 0; s.hulp = 0; s.vb = null; zet = s.k >= q.guide.length ? 'laatste' : 'volgende'; } else zet = 'deel_goed';
       } else if (s.fase === 'voorbeeld') { s.foutVb++; zet = s.foutVb >= 2 ? 'vb_voordoen' : 'vb_fout'; }
-      else { s.fout++; zet = s.fout >= 2 ? (() => { const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]); s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null; return s.vb ? 'voorbeeld' : 'eigen_voorbeeld'; })() : 'stap_hint'; }
+      else {
+        s.fout++;
+        if (s.fout >= 2) { const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]); s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null; s.hulp = (s.hulp || 0) + 1; }
+        zet = s.fout === 1 ? 'stap_hint' : s.hulp >= 2 || s.fout >= 3 ? 'stap_samen' : 'stap_concreet';
+      }
     }
     if (zet) {
       s.zetten.push(zet);
@@ -108,5 +124,6 @@ export const FOUTZETTEN_AF = {
   volgende: { doel: 'Die kind het die vorige stap REG. Sê kort en gemeend dat dit klop en vra die volgende tussenstap hieronder.', opties: ['"Reg! Nou …"', 'sit die stappe tot dusver kort onder mekaar en vra die volgende'], regels: 'Moenie die antwoord van die nuwe stap of die finale antwoord noem nie.' },
   laatste: { doel: 'Al die tussenstappe is reg. Sê dat dit klop en laat die kind nou self die laaste stukkie doen (die SLOT hieronder) om die finale antwoord te kry.', opties: ['"Puik! Nou die laaste stukkie: …"', 'sit die stappe kort onder mekaar en vra die slot'], regels: 'Moenie die finale antwoord noem nie; die kind werk dit self uit.' },
   stap_hint: { doel: 'Die kind het die stap verkeerd. Sê vriendelik dat dit nog nie reg is nie (noem die kind se getal) en gee die hulp van die WENK hieronder, konkreet vir hierdie stap. Vra die stap weer.', opties: ['die wenk in eie woorde, met die getalle van die stap', 'breek die stap in twee klein stukkies volgens die wenk en vra die eerste'], regels: 'Moenie die antwoord van die stap noem nie. Sê niks wat nie waar is oor die kind se getal nie.' },
+  stap_concreet: { doel: 'Die kind verstaan hierdie stap nog nie. Help BY HIERDIE STAP, meer konkreet en op ’n ánder manier as jou vorige boodskap: wys met ’n baie klein voorbeeld hoe dit gaan (daardie voorbeeld mag jy heeltemal voordoen, mét antwoord; gebruik die makliker voorbeeld hieronder as dit daar is), of breek die stap in ’n kleiner stukkie, of gebruik die model van die kaart (geld, prentjie). Vra daarna in dieselfde boodskap dadelik die stap self (of die eerste klein stukkie daarvan).', opties: ['klein voorbeeld voordoen + "en by jou som?"', 'die stap in ’n kleiner stukkie, met ’n prentjie of geld'], regels: 'Moenie die antwoord van die stap self noem nie. Geen aparte voorbeeld waarop die kind eers moet antwoord nie: ná hierdie boodskap doen die kind die stap.' },
   goed_nu: { doel: 'Die kind het nou die REGTE finale antwoord. Sê dat dit nou klop, en vra kort wat die eerste keer anders was (noem die eerste, verkeerde antwoord).', opties: ['"Nou is dit reg! Eers het jy … gehad. Wat was toe anders?"', 'kompliment oor die aanpak + die vraag wat anders was'], regels: 'Moenie die regte getal of die som met antwoord weer neerskryf nie. "Vul dit maar in" sê jy eers daarna.' },
 };
