@@ -10,9 +10,10 @@ import {
   awardBadge, getBadges,
 } from './src/engine.js';
 import { ts, teacherName, dayNames, defaultRewards, isAF } from './src/i18n.js';
-import { aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { aliasFor, aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
+import { migrateLogboek, apiLogger, zetAlias, logboekExport, logboekTelling } from './src/logboek.js';
 import { createDemoKid } from './src/demo/index.js';
 import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteAudit, auditJobs, auditJob, auditItems, compactItems, splitParts, vergelijk } from './src/audit.js';
 import { loginPage, listPage, reportPage, comparePage } from './src/audit-page.js';
@@ -30,6 +31,34 @@ else if (PARENT_PIN.length < 6 || PARENT_PIN === '1234') console.warn('[let op] 
 
 const app = express();
 app.use(express.json({ limit: '600kb' })); // ruim genoeg voor een kladblok-plaatje
+
+// ---------- apparaat: elk toestel (telefoon, tablet, pc) krijgt een eigen, willekeurige kenmerk-cookie ----------
+// Bij "Wie ben jij?" ziet een toestel alleen de kinderen die al eens op dít toestel speelden (niet alle gebruikers).
+const deviceOf = (req) => (/^[a-f0-9]{32}$/.test(cookieOfRaw(req, 'dev') || '') ? cookieOfRaw(req, 'dev') : null);
+function cookieOfRaw(req, name) { return Object.fromEntries((req.headers.cookie || '').split(';').map((x) => x.trim().split('=')).filter((x) => x[0]))[name]; }
+app.use((req, res, next) => {
+  if (!deviceOf(req)) {
+    const id = crypto.randomBytes(16).toString('hex');
+    req.headers.cookie = `${req.headers.cookie ? `${req.headers.cookie}; ` : ''}dev=${id}`;
+    res.append('Set-Cookie', `dev=${id}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${5 * 365 * 86400}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
+  }
+  next();
+});
+// Logboek: elke API-aanroep bewaren voor analyse (src/logboek.js)
+app.use(apiLogger({ kidIdOf: (r) => kidIdOf(r), deviceOf: (r) => deviceOf(r) }));
+async function linkDevice(req, kidId) {
+  const d = deviceOf(req);
+  if (d && kidId) await q(`INSERT INTO public.device_kids(device, kid_id) VALUES ($1,$2) ON CONFLICT (device, kid_id) DO UPDATE SET laatst = now()`, [d, kidId]).catch(() => {});
+}
+async function deviceKids(req) {
+  const d = deviceOf(req);
+  // een kind dat hier al gekozen is (cookie van vóór deze regel), hoort ook bij dit toestel
+  const cur = kidIdOf(req);
+  if (cur) await linkDevice(req, cur);
+  if (!d) return [];
+  const ids = new Set((await q('SELECT kid_id FROM public.device_kids WHERE device=$1', [d])).rows.map((r) => r.kid_id));
+  return (await listKids()).filter((k) => ids.has(k.id));
+}
 
 // ---------- simpele inlog met ondertekende cookie ----------
 const sign = (v) => crypto.createHmac('sha256', SECRET).update(v).digest('hex').slice(0, 32);
@@ -347,7 +376,18 @@ async function loadSession(id, client = { query: q }) {
 // API kind
 // =====================================================================
 const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐙', '🦄', '🐯', '🐨', '🚀', '⚽', '🎮', '🦖'];
-app.get('/api/kids', wrap(async (req, res) => res.json({ kids: await listKids(), current: kidIdOf(req), avatars: AVATARS })));
+// Alleen de kinderen van dít toestel; de beheerder (ouderscherm met beheerderspincode) ziet ze allemaal.
+app.get('/api/kids', wrap(async (req, res) => res.json({ kids: parentScope(req)?.all ? await listKids() : await deviceKids(req), current: kidIdOf(req), avatars: AVATARS })));
+// Inloggen met je naam (hoofdletters tellen niet mee): bestaat het kind, dan hoort het voortaan bij dit toestel.
+app.post('/api/kids/naam', wrap(async (req, res) => {
+  const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  if (name.length < 2) return res.status(400).json({ error: ts('Hoe heet je? (minstens 2 letters)') });
+  const kid = (await listKids()).find((k) => k.name.trim().replace(/\s+/g, ' ').toLowerCase() === name);
+  if (!kid) return res.json({ nieuw: true });
+  await linkDevice(req, kid.id);
+  setKidCookie(res, kid.id);
+  res.json({ kid });
+}));
 // Profielgegevens controleren. Taal bepaalt het curriculum: Nederlands → NL, Afrikaans → Suid-Afrika (KABV).
 const rewardError = (e, af) => ({
   amount: af ? 'Kies ’n bedrag van 0 tot R10 per dag (0 = geen geld).' : 'Kies een bedrag van 0 tot € 10 per dag (0 = geen geld).',
@@ -375,8 +415,8 @@ app.post('/api/kids', wrap(async (req, res) => {
   const name = String(req.body.name || '').trim().replace(/\s+/g, ' ').slice(0, 30);
   if (name.length < 2) return res.status(400).json({ error: ts('Hoe heet je? (minstens 2 letters)') });
   const kids = await listKids();
-  if (kids.length >= 12) return res.status(400).json({ error: ts('Er zijn al heel veel profielen.') });
-  if (kids.some((k) => k.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: ts('Er is al een {n}. Kies die hierboven!', { n: name }) });
+  if (kids.length >= Number(process.env.MAX_KIDS || 1000)) return res.status(400).json({ error: ts('Er zijn al heel veel profielen.') });
+  if (kids.some((k) => k.name.trim().toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: ts('Er is al een {n}. Kies die hierboven!', { n: name }) });
   const p = cleanProfile(req.body);
   if (p.error) return res.status(400).json({ error: p.error });
   // optioneel: de ouder stelt meteen beloning, weekplan, wachtwoord en verrassingen in
@@ -394,6 +434,7 @@ app.post('/api/kids', wrap(async (req, res) => {
     if (setup.surprise) surprise = cleanSurprise(setup.surprise);
   }
   const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length], p);
+  await linkDevice(req, kid.id);
   if (pw) await setKidPassword(kid.id, hashPw(pw));
   if (rcfg || surprise || setup?.research === false) await kidStore.run(kidContext(kid), async () => {
     if (rcfg) await setSetting('reward_cfg', rcfg);
@@ -406,6 +447,9 @@ app.post('/api/kids', wrap(async (req, res) => {
 app.post('/api/kids/select', wrap(async (req, res) => {
   const kid = await getKid(req.body.id);
   if (!kid) return res.status(404).json({ error: ts('Dat profiel bestaat niet meer.') });
+  // alleen een kind van dit toestel (of de beheerder); anders eerst met de naam inloggen
+  if (!parentScope(req)?.all && !(await deviceKids(req)).some((k) => k.id === kid.id) && !(await mayParent(req, kid.id))) return res.status(403).json({ error: ts('Typ eerst je naam.') });
+  await linkDevice(req, kid.id);
   setKidCookie(res, kid.id);
   res.json({ kid });
 }));
@@ -1417,7 +1461,7 @@ audit.post('/login', (req, res) => {
 });
 audit.use((req, res, next) => (parentScope(req)?.all ? next() : res.status(401).send(loginPage('', !process.env.PARENT_PIN))));
 audit.post('/logout', (req, res) => { res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0'); res.redirect(303, '/audit'); });
-audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null, gebruik: await aiGebruik(7) }))));
+audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null, gebruik: await aiGebruik(7), logboek: await logboekTelling() }))));
 audit.post('/start', wrap(async (req, res) => {
   try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n, req.body.soort, { max: req.body.max, judge: req.body.judge, kid: req.body.kid, effort: req.body.effort, hergebruik: req.body.hergebruik === '1' })}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
 }));
@@ -1425,6 +1469,12 @@ audit.get('/vergelijk', wrap(async (req, res) => {
   const [A, B] = await Promise.all([auditJob(Number(req.query.a)), auditJob(Number(req.query.b))]);
   if (!A || !B) return res.status(404).send('Niet gevonden');
   res.send(comparePage(A, B, vergelijk(await auditItems(A.id), await auditItems(B.id))));
+}));
+// Logboek downloaden (alles voor analyse): ?soort=api|ai&dagen=7&kid=3
+audit.get('/logboek.json', wrap(async (req, res) => {
+  const d = await logboekExport({ soort: req.query.soort === 'ai' ? 'ai' : 'api', dagen: req.query.dagen, kid: req.query.kid });
+  res.setHeader('Content-Disposition', `attachment; filename="logboek-${d.soort}-${d.dagen}d.json"`);
+  res.json(d);
 }));
 audit.get('/:id.json', wrap(async (req, res) => {
   const job = await auditJob(Number(req.params.id));
@@ -1464,6 +1514,8 @@ app.get('*', (req, res) => res.sendFile('index.html', { root: 'public' }));
 
 await migrate();
 await migrateLeerlog();
+await migrateLogboek();
+zetAlias(aliasFor);
 await migrateAudit();
 resumeAudits().catch((e) => console.error('[audit]', e));
 app.listen(PORT, () => console.log(`Rekenapp draait op http://localhost:${PORT}`));

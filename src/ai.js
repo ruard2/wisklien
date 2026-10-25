@@ -31,6 +31,7 @@ const TAALREGEL = () => (isAF() ? `
 
 TAAL (baie belangrik): Antwoord ALTYD in eenvoudige, korrekte Afrikaans soos dit in Suid-Afrika gepraat word — nooit Nederlands of Engels nie. Party konteks- en opdragreëls van die app is in Nederlands (net vir jou): skryf jou antwoord aan die kind tog altyd in Afrikaans. Gebruik die skoolwoorde van die taalgids. Geld in rand en sent (R12,50). Deel met ÷. Getalle in ’n ry met ; tussenin. "Dis reg" net as iets regtig korrek is.` : '');
 import { kidStore, pool } from './db.js';
+import { logAI } from './logboek.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
 // Op de server heet het kind gewoon "Christo"; naar de AI gaat een vaste schuilnaam (bijv. "Leerling-4821").
@@ -136,7 +137,15 @@ async function complete(system, messages, opts = {}) {
 // Hergebruik (alleen in de Max-test, niet voor echte kinderen): exact dezelfde vraag aan hetzelfde model → het opgeslagen
 // antwoord uit public.ai_cache in plaats van een nieuwe (betaalde) aanroep. Verandert er iets aan de som, de kaart, de prompt
 // of het gesprek, dan is de vraag anders en wordt er gewoon opnieuw gevraagd. kidStore.cache = { nieuw, hergebruikt } telt mee.
+// Elke AI-aanroep in het logboek (src/logboek.js): doel, model, berichten, antwoord, tokens, duur, of het uit de cache kwam.
 async function completeRaw(system, messages, opts = {}) {
+  const t0 = Date.now(), meta = {};
+  let uitCache = false;
+  const out = await completeRaw0(system, messages, { ...opts, _meta: meta }, () => { uitCache = true; });
+  logAI({ system, messages, antwoord: out, model: meta.model || opts.model || kidStore.getStore()?.aiModel || null, effort: meta.effort || null, usage: meta.usage, ms: Date.now() - t0, uitCache, fout: out == null ? (meta.fout || 'leeg antwoord') : null, doel: opts.doel });
+  return out;
+}
+async function completeRaw0(system, messages, opts = {}, opCache = () => {}) {
   const st = kidStore.getStore();
   // meter (Max-test): omvang van elke aanroep in tokens (± 4 tekens per token), ook als het antwoord uit de cache komt,
   // zodat twee manieren eerlijk te vergelijken zijn
@@ -150,7 +159,7 @@ async function completeRaw(system, messages, opts = {}) {
   // lezen: false = alles vers vragen (vinkje uit), maar wel opslaan, zodat een volgende test het kan hergebruiken
   if (st.cache.lezen !== false) try {
     const r = await pool.query('UPDATE public.ai_cache SET gebruikt = gebruikt + 1, laatst = now() WHERE sleutel = $1 RETURNING antwoord', [key]);
-    if (r.rows.length) { st.cache.hergebruikt++; return uit(r.rows[0].antwoord.v); }
+    if (r.rows.length) { st.cache.hergebruikt++; opCache(); return uit(r.rows[0].antwoord.v); }
   } catch (e) { console.warn('[ai-cache]', e.message); }
   const out = await completeAI(system, messages, opts);
   st.cache.nieuw++;
@@ -180,7 +189,7 @@ export async function aiGebruik(dagen = 7) {
   });
 }
 
-async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null, effort: optEffort = null, effortVast = null } = {}) {
+async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null, effort: optEffort = null, effortVast = null, _meta = {} } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
     const last = String(messages.at(-1)?.content || '');
@@ -222,6 +231,7 @@ async function completeAI(system, messages, { json = false, maxTokens = 1200, im
         res = await vraag(st400 ? 'low' : effort, false);
       }
       telGebruik(model, res.usage);
+      Object.assign(_meta, { usage: res.usage, model, effort });
       const text = res.choices?.[0]?.message?.content?.trim() || '';
       const fin = res.choices?.[0]?.finish_reason;
       const out = json ? safeJson(text) : text || null;
@@ -458,7 +468,7 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
   const hist = chat.slice(-10);
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
   hist.forEach((m, i) => messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: i === hist.length - 1 ? `${m.text}\n\n${opdracht}` : m.text }));
-  const sys = LERAAR_VAST(), opts = { maxTokens: 400, keepForm: true, effort: process.env.MAX_EFFORT || null };
+  const sys = LERAAR_VAST(), opts = { maxTokens: 400, keepForm: true, effort: process.env.MAX_EFFORT || null, doel: `max-plan:${plan.zet}` };
   const msgs = metKind(messages, KIND(name, profile, memory, today));
   let out = await complete(sys, msgs, opts);
   if (typeof out !== 'string') return out;
@@ -572,7 +582,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}${label}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true, effort: process.env.MAX_EFFORT || null };
+  const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true, effort: process.env.MAX_EFFORT || null, doel: `max:${phase}${advies ? '+advies' : ''}${bewaakt.length ? '+bewaking' : ''}` };
   messages.splice(0, messages.length, ...metKind(messages, KIND(name, profile, memory, today)));
   let out = await complete(sys, messages, opts);
   // Bewaking vóór het kind het ziet (src/kwaliteit.js): verklapt Max het (tussen)antwoord, of praat hij Nederlands in een

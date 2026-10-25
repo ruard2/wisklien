@@ -200,6 +200,11 @@ export async function migrate() {
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS parent_pw text;
     -- demo-kind (knop "Bekijk de demo"): staat niet in de kindlijst en wordt na een tijdje opgeruimd
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS demo boolean NOT NULL DEFAULT false;
+    -- welke kinderen op welk toestel speelden (zodat "Wie ben jij?" alleen die laat zien)
+    CREATE TABLE IF NOT EXISTS public.device_kids (
+      device text NOT NULL, kid_id int NOT NULL REFERENCES public.kids(id) ON DELETE CASCADE,
+      eerst timestamptz NOT NULL DEFAULT now(), laatst timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (device, kid_id)
+    );
   `);
   for (const k of (await pool.query('SELECT id FROM public.kids')).rows) await migrateKid(k.id);
 }

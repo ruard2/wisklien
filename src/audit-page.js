@@ -42,11 +42,15 @@ const gebruikKaart = (g = []) => {
     ${g.map((x) => `<tr><td>${esc(x.bron)}</td><td>${esc(x.model)}</td><td class="num">${n(x.aanroepen)}</td><td class="num">${n(x.invoer)}</td><td class="num">${x.invoer ? Math.round((100 * x.cache) / x.invoer) : 0}%</td><td class="num">${n(x.uitvoer)}</td><td class="num">${x.uitvoer ? Math.round((100 * (x.denk || 0)) / x.uitvoer) : 0}%</td><td class="num">${d(x.kosten)}</td><td class="num">${d(x.zonderCache)}</td></tr>`).join('')}</table>
     <p class="small muted">Tokens zoals OpenAI ze telt. "Uit cache" = invoer die OpenAI al kende (90% goedkoper). Kosten met de prijs per model (gpt-6-luna: $0,10 / $0,01 / $0,50 per miljoen; ander model: zet AI_PRIJS="invoer,cache,uitvoer").</p></div>`;
 };
-export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
+export function listPage(jobs, { ai, model, judge, gebruik = [], logboek = null }) {
   const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : j.soort === 'kaarten' ? '🗂️ kaartcheck' : j.soort === 'stappen' ? '🪜 tussenstappen' : j.soort === 'fouten' ? '🔁 na een fout' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
     <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}${j.kid_model ? ` · kind ${esc(j.kid_model)}` : ''}</td></tr>`).join('');
   return page('Max-test', `<h1>🧪 Max-test</h1>
     ${gebruikKaart(gebruik)}
+    ${logboek ? `<div class="card"><b>🗄️ Logboek (alles voor analyse)</b> <span class="small muted">laatste 7 dagen: ${logboek.api7 ?? 0} app-aanroepen, ${logboek.ai7 ?? 0} AI-aanroepen · totaal ${logboek.api ?? 0} / ${logboek.ai ?? 0}</span><br>
+      <span class="small">Downloaden: app-interactie <a href="/audit/logboek.json?soort=api&dagen=1">1 dag</a> · <a href="/audit/logboek.json?soort=api&dagen=7">7 dagen</a> · <a href="/audit/logboek.json?soort=api&dagen=30">30 dagen</a>
+      &nbsp;|&nbsp; AI (Max e.d.) <a href="/audit/logboek.json?soort=ai&dagen=1">1 dag</a> · <a href="/audit/logboek.json?soort=ai&dagen=7">7 dagen</a> · <a href="/audit/logboek.json?soort=ai&dagen=30">30 dagen</a></span>
+      <p class="small muted">Zonder echte namen (schuilnaam), zonder pincodes, wachtwoorden en kladblok-plaatjes; niets van kinderen waarvoor de ouder "Help de app verbeteren" uitzette. Per kind: voeg &amp;kid=… toe.</p></div>` : ''}
     <p class="muted">De échte Meester Max (zelfde prompts en model als in de app) krijgt een stapel sommen: "Hoe begin ik?", een fout antwoord met een kort gesprek, en vastlopen bij een tussenstap. Alles wordt bewaard en door een AI-beoordelaar nagekeken. Kinderen en ouders zien hier niets van.</p>
     <div class="card"><form method="post" action="/audit/start">
       <b>Nieuwe test</b><br><br>

@@ -280,3 +280,16 @@ Max. Aan voor NL (Tussenstappen #20) en AF (#31); `MAX_STAPPLAN=0` zet het uit. 
   betaald), tests via flex (± half geld, valt terug op gewoon), het gespeelde kind denkt nooit na. In de app: `MAX_EFFORT=none`
   voor Max (na een meetlat die het goedkeurt). /audit toont nu ook hoeveel van de uitvoer denkwerk was.
 - **Telrijtjes nagerekend** (`telrijFouten`): "2, 4, 6, 10" → Max schrijft opnieuw.
+
+### Toestellen en inloggen
+Elk toestel krijgt een eigen kenmerk-cookie (`dev`). "Wie ben jij?" toont alleen kinderen die al op dít toestel speelden
+(tabel `public.device_kids`); de beheerder ziet ze allemaal. Kent het toestel nog niemand, dan typt het kind zijn naam
+(hoofdletters en spaties tellen niet mee): bestaat die, dan ga je verder en hoort het kind voortaan bij dit toestel; anders
+maak je een nieuw profiel (naam al ingevuld). Een kind van een ander toestel kiezen kan alleen via de naam.
+
+### Logboek (alles bewaren voor analyse)
+`src/logboek.js`: elke API-aanroep (`public.logboek`: pad, verzoek, antwoord, status, duur, toestel, kind) en elke
+AI-aanroep (`public.ai_log`: doel, model, berichten, antwoord, tokens, duur, cache; vaste instructies één keer in
+`public.ai_prompt`). Zonder echte namen (schuilnaam), pincodes, wachtwoorden of kladblok-plaatjes; niets als de ouder
+"Help de app verbeteren" uitzette. Downloaden op /audit (1/7/30 dagen, per kind met `&kid=`). Bewaren: `LOGBOEK_DAGEN`
+(730). Uit: `LOGBOEK=0`. Max-test-aanroepen alleen met `AI_LOG_TEST=1`.

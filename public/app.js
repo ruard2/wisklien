@@ -530,21 +530,52 @@ async function renderWho() {
   // Nieuw kind in stappen: 1 taal · 2 naam, groep en plaatje · 3 uitleg (geef aan je ouder) · 4 ouder vult in
   let step = 1;
   const dots = (n) => `<div class="wiz-dots">${[1, 2, 3, 4].map((k) => `<i class="${k === n ? 'on' : k < n ? 'past' : ''}"></i>`).join('')}</div>`;
-  const draw = (err = '', showNew = !kids.length) => {
+  // Naam typen: als dit toestel nog geen kinderen kent, of bij "iemand anders?". Hoofdletters tellen niet mee.
+  // Bestaat de naam al, dan ga je meteen verder (en hoort dat kind voortaan bij dit toestel); anders maak je een profiel.
+  const drawNaam = (err = '') => {
+    $app.innerHTML = `<form class="stack" style="margin-top:8vh" data-naam>
+      <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Hoe heet je? <span class="muted" style="font-size:.7em">· Wat is jou naam?</span></h1>
+        <p class="muted">Typ je naam · Tik jou naam</p></div>
+      <div class="card stack"><input name="name" maxlength="30" placeholder="bijv. · bv. Christo" autocomplete="off" autocapitalize="words" required value="${esc(prof.name || '')}"></div>
+      <p class="small" style="color:var(--bad);min-height:18px;text-align:center">${esc(err)}</p>
+      <button class="btn block">Verder · Volgende →</button>
+      <button type="button" class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>
+      ${kids.length ? '<button type="button" class="btn ghost block" data-terug>‹ Terug · Terug</button>' : '<button type="button" class="btn ghost block" data-demo>👀 Bekijk de demo · Kyk na die demo</button>'}
+      <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a></form>`;
+    const f = $app.querySelector('[data-naam]');
+    f.name.focus();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const name = f.name.value.trim();
+      if (name.length < 2) return drawNaam('Minstens 2 letters · Minstens 2 letters');
+      try {
+        const r = await api('/api/kids/naam', { name });
+        if (r.kid) { location.hash = '#/'; route(); return; }
+        prof.name = name; step = 1; draw('', true); // onbekende naam: nieuw profiel, de naam staat al ingevuld
+      } catch (er) { drawNaam(er.message); }
+    };
+    f.querySelector('[data-shownew]').onclick = () => { prof.name = f.name.value.trim() || prof.name; step = 1; draw('', true); };
+    f.querySelector('[data-terug]')?.addEventListener('click', () => draw('', false));
+    f.querySelector('[data-demo]')?.addEventListener('click', () => chooseDemo());
+  };
+  const draw = (err = '', showNew = false) => {
+    if (!showNew && !kids.length) return drawNaam(err);
     if (!showNew) {
       $app.innerHTML = `<div class="stack" style="margin-top:6vh">
         <div style="text-align:center"><div class="big-emoji">👋</div><h1 style="margin-top:6px">Wie ben jij? <span class="muted" style="font-size:.7em">· Wie is jy?</span></h1>
           <p class="muted">Tik op je naam · Tik op jou naam</p></div>
         <div class="who-grid">${kids.map((k) => `<button class="who-kid" data-kid="${k.id}"><span>${esc(k.avatar)}</span><b>${esc(k.name)}</b>${k.country === 'ZA' ? '<small>🇿🇦</small>' : ''}</button>`).join('')}</div>
+        <button class="btn ghost block" data-anders>🔎 Iemand anders? Typ je naam · Iemand anders? Tik jou naam</button>
         <button class="btn ghost block" data-shownew>➕ Ik ben nieuw · Ek is nuut</button>
         <button class="btn ghost block" data-demo>👀 Bekijk de demo · Kyk na die demo</button>
         <a href="#/overzicht" class="small muted" style="text-align:center;margin-top:10px">👨‍🏫 Ouder of leerkracht? · Ouer of onderwyser? → overzicht</a></div>`;
       $app.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = async () => { await api('/api/kids/select', { id: Number(b.dataset.kid) }); location.hash = '#/'; route(); }));
       $app.querySelector('[data-shownew]').onclick = () => { step = 1; draw('', true); };
+      $app.querySelector('[data-anders]').onclick = () => drawNaam();
       $app.querySelector('[data-demo]').onclick = () => chooseDemo();
       return;
     }
-    const back = kids.length || step > 1 ? `<button type="button" class="btn ghost block" data-back>‹ Terug</button>` : '';
+    const back = `<button type="button" class="btn ghost block" data-back>‹ Terug</button>`; // terug naar de namen of naar "Hoe heet je?"
     if (step === 1) {
       // stap 1: in welke taal krijg je les? (dit scherm is nog tweetalig)
       $app.innerHTML = `<div class="stack wiz" style="margin-top:5vh">${dots(1)}
