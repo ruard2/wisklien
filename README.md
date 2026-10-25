@@ -254,3 +254,18 @@ brug terug, of bij "snap het niet" concreter → voordoen → samen doen; fout a
 zelf). Heeft de app geen makkelijker voorbeeld, dan bedenkt Max er een en zet het onzichtbaar als `[VB: vraag = uitkomst]`
 erbij; de app rekent het na en kijkt daarmee het antwoord van het kind na. Een eigen vraag van het kind gaat naar de gewone
 Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het voor beide talen aan of uit. Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).
+
+### Betere input naar de AI (alles wat de app zeker weet, rekent de app uit)
+- **Denkfouten** (`src/denkfouten.js`, NL en AF): bij kale sommen de gebruikelijke foute manieren (onthouden vergeten,
+  kleinste van grootste, lenen zonder verlagen, ernaast in de tafel, nul vergeten, één keer te veel/weinig), bij
+  verhaaltjessommen de verkeerde bewerking, en overal "gestopt bij een tussenantwoord". Dekking: NL 20% → 77%, AF 48% → 76%
+  van de sjablonen. Een fout die bij twee verklaringen past, krijgt er geen.
+- **Gespreksplan na een fout** (`src/foutgesprek.js`): na de vaste opening loopt de app met het kind de tussenstappen af
+  (fout zoeken in de uitleg van het kind, samen beginnen, volgende stap, tip, makkelijker voorbeeld, brug, "nu klopt het —
+  wat ging er anders?"). Elk antwoord wordt nagekeken tegen de vraag die Max stelde (`[VB: …]`). Aan met `MAX_FOUTPLAN=1`
+  (nog uit); testen met /audit → "Na een fout".
+- **Makkelijker voorbeelden van de app**: nu ook tafelsommen (opstapsom van de tip: 9 × 6 → 10 × 6), maten omrekenen,
+  "3/4 van 20", "25% van 80", centen, kolomstappen, gelijkwaardige breuken. Dekking tussenstappen: ± 35% → 50%.
+- **Afrikaanse Max in het Afrikaans**: eigen systeeminstructies (`src/za/leraar.js`), taalgids, zetten en opdrachten.
+- **Kindfeiten** (`kindFeiten` in src/signals.js): per onderwerp de denkfouten die het kind de laatste 60 dagen maakte,
+  welke uitleg-vorm daarna hielp, en hoe het de laatste 14 dagen ging.

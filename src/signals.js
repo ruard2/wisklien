@@ -168,3 +168,23 @@ export function signalsForMax(sig, helps = []) {
 ${lines.join('\n') || '- (nog geen bijzonderheden)'}
 ${h.length ? `Welke uitleg-vorm hielp per onderwerp (daarna goed / keer gebruikt):\n${h.join('\n')}\nKies meestal de vorm die het best werkt bij dit onderwerp; probeer af en toe (ongeveer 1 op 4) een andere vorm, en combineer gerust (bijv. plaatje + stappen).` : ''}`;
 }
+
+// Feiten over DIT kind bij DIT onderwerp, voor Max (gestructureerd, uit de eigen gegevens van de app; geen AI-gok):
+// welke denkfouten het kind hier de laatste tijd maakte, en welke uitleg-vorm daarna hielp. Max gebruikt het om sneller
+// de goede ingang te kiezen ("weet je nog, de 1 die je moet onthouden?"), nooit als label tegen het kind.
+export async function kindFeiten(cat, { af = false } = {}) {
+  const fouten = (await q(`SELECT misconception AS m, COUNT(*)::int n, MAX(created_at) AS laatst FROM attempts
+      WHERE cat=$1 AND misconception IS NOT NULL AND created_at > now() - interval '60 days' GROUP BY 1 ORDER BY 2 DESC, 3 DESC LIMIT 3`, [cat]).catch(() => ({ rows: [] }))).rows;
+  const vormen = (await q(`SELECT form, COUNT(*)::int n, SUM(CASE WHEN outcome THEN 1 ELSE 0 END)::int ok FROM explanations
+      WHERE cat=$1 AND outcome IS NOT NULL GROUP BY form HAVING COUNT(*) >= 2 ORDER BY SUM(CASE WHEN outcome THEN 1 ELSE 0 END)::float / COUNT(*) DESC`, [cat]).catch(() => ({ rows: [] }))).rows;
+  const recent = (await q(`SELECT COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE cat=$1 AND created_at > now() - interval '14 days'`, [cat]).catch(() => ({ rows: [{}] }))).rows[0] || {};
+  if (!fouten.length && !vormen.length && !recent.n) return '';
+  const dagen = (d) => Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 864e5));
+  const L = af
+    ? { kop: 'WAT DIE APP VAN HIERDIE KIND BY HIERDIE ONDERWERP WEET (feite; noem dit nooit as ’n etiket nie)', fout: 'Denkfoute wat die kind hier al gemaak het', keer: 'keer', dag: (n) => (n === 0 ? 'vandag' : n === 1 ? 'gister' : `${n} dae gelede`), vorm: 'Verduideliking wat daarna gehelp het (daarna reg / gebruik)', laatste: 'Laaste 14 dae', goed: 'reg' }
+    : { kop: 'WAT DE APP OVER DIT KIND BIJ DIT ONDERWERP WEET (feiten; noem het nooit als label)', fout: 'Denkfouten die het kind hier al maakte', keer: 'keer', dag: (n) => (n === 0 ? 'vandaag' : n === 1 ? 'gisteren' : `${n} dagen geleden`), vorm: 'Uitleg die daarna hielp (daarna goed / gebruikt)', laatste: 'Laatste 14 dagen', goed: 'goed' };
+  return [L.kop,
+    fouten.length ? `- ${L.fout}: ${fouten.map((f) => `"${f.m}" (${f.n} ${L.keer}, laatst ${L.dag(dagen(f.laatst))})`).join('; ')}` : '',
+    vormen.length ? `- ${L.vorm}: ${vormen.map((v) => `${v.form} ${v.ok}/${v.n}`).join(', ')}` : '',
+    recent.n ? `- ${L.laatste}: ${recent.ok}/${recent.n} ${L.goed}` : ''].filter(Boolean).join('\n');
+}

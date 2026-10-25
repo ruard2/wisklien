@@ -148,6 +148,7 @@ export function improveTips(q, lang = 'nl') {
 // vastloopt bij een tussenstap. Meetlat #6/#7: in 55% van de gevallen gaf Max geen makkelijker voorbeeld, of een met
 // dezelfde getallen. Zelfde bewerking, kleinere getallen, en met dezelfde "moeilijkheid" (over het tiental, lenen).
 // Geeft { som, uitkomst } of null. Nooit dezelfde uitkomst als de echte stap.
+const f0 = (x) => String(Math.round(x * 1000) / 1000).replace('.', ',');
 function makkelijker0(ask, answer) {
   const a0 = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '').replace(/\s*\([^)]*\)\s*(?==)/g, ' ');
   // "Hoeveel keer gaan 25 in 65?" / "Hoe vaak past 25 in 65?" (staartdeling, happen)
@@ -157,13 +158,39 @@ function makkelijker0(ask, answer) {
   if (gat) { const x = toN(gat[1]); const k = toN(gat[2]) / x === 2 ? 3 : 2; return { som: `${x} × ? = ${x * k}`, uitkomst: String(k) }; }
   // breuk gelijkwaardig maken: "3/4 = ?/12" (factor 3) → "1/2 = ?/6" (zelfde factor), "2/3 = □/6"
   const gl = a0.match(/(\d+)\/(\d+)\s*=\s*[?□]\s*\/\s*(\d+)/);
-  if (gl) { const [t, n, N] = [+gl[1], +gl[2], +gl[3]]; const k = N / n; if (!Number.isInteger(k) || k < 2) return null; const [t2, n2] = n === 2 ? [1, 3] : [1, 2]; if (t2 * k === answer) return null; return { som: `${t2}/${n2} = ?/${n2 * k}`, uitkomst: String(t2 * k), vraag: true }; }
+  if (gl) { const [t, n, N] = [+gl[1], +gl[2], +gl[3]]; const k = N / n; if (!Number.isInteger(k) || k < 2) return null;
+    // zelfde factor, andere (kleinere) breuk; geen getal dat het antwoord is (anders verklapt het voorbeeld het)
+    for (const [t2, n2] of [[1, 2], [1, 3], [1, 4], [2, 3], [1, 5], [3, 4]]) { if (n2 === n && t2 === t) continue; const T2 = t2 * k, N2 = n2 * k; if ([T2, N2, t2, n2].includes(answer)) continue; return { som: `${t2}/${n2} = ?/${N2}`, uitkomst: String(T2), vraag: true }; }
+    return null; }
   // "De helft van 8 = ?"
   const hf = a0.match(/(helfte?) van (\d+)/i);
   if (hf) { const n = +hf[2]; const x = n > 10 ? 10 : n > 4 ? 4 : null; if (!x || x / 2 === answer) return null; return { som: `${hf[1].toLowerCase() === 'helfte' ? 'Die helfte' : 'De helft'} van ${x}`, uitkomst: String(x / 2), vraag: true }; }
   // tijdsduur binnen een uur: "Van 11:00 tot 11:50 = ? minuten" → "Van 3:00 tot 3:20"
   const tdu = a0.match(/(\d{1,2}):(\d{2})\s*(?:tot|→|naar)\s*(\d{1,2}):(\d{2})/);
   if (tdu) { const m1 = +tdu[2], h2 = +tdu[3], m2 = +tdu[4]; const d = (h2 - +tdu[1]) * 60 + m2 - m1; if (d <= 10 || d > 120) return null; const k = d >= 30 ? 20 : 10; return { som: /\bminute\b/i.test(a0) ? `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minute?` : `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minuten?`, uitkomst: String(k), vraag: true }; }
+  // maten omrekenen: "3 kg = … g" → "2 kg = … g" (zelfde maten, ander aantal)
+  const maat = a0.match(/(\d+(?:,\d+)?)\s*(km|m|dm|cm|kg|g|ℓ|l|liter|mℓ|ml)\s*=\s*(?:\.\.\.|…|\?|□)\s*(mm|mℓ|ml|mg|cm|cl|dm|dl|m|g)(?![a-zA-Zℓ])/i);
+  if (maat) {
+    const F = { 'km-m': 1000, 'm-cm': 100, 'm-dm': 10, 'm-mm': 1000, 'dm-cm': 10, 'cm-mm': 10, 'kg-g': 1000, 'g-mg': 1000, 'ℓ-mℓ': 1000, 'l-ml': 1000, 'liter-ml': 1000, 'l-cl': 100, 'l-dl': 10, 'ℓ-ml': 1000, 'l-mℓ': 1000 }[`${maat[2].toLowerCase()}-${maat[3].toLowerCase()}`];
+    const x = toN(maat[1].replace(',', '.')) === 2 ? 3 : 2;
+    if (F && x * F !== answer) return { som: `${x} ${maat[2]} = … ${maat[3]}`, uitkomst: f0(x * F), vraag: true };
+  }
+  // deel van: "1/4 van 12" / "3/4 van 20" → zelfde breuk van een kleiner getal
+  const dv = a0.match(/(\d+)\/(\d+)\s*(?:deel\s*)?van\s*(\d+)/i);
+  if (dv) {
+    const [t, n, g] = [+dv[1], +dv[2], +dv[3]];
+    for (const m2 of [2, 3, 4]) { const G = n * m2; if (G < g && t * m2 !== answer) return { som: `${t}/${n} van ${G}`, uitkomst: String(t * m2), vraag: true }; }
+    return null;
+  }
+  // procent van: "25% van 80" → "25% van 200"
+  const pv = a0.match(/(\d+)\s*%\s*(?:van|afslag van)\s*(\d+)/i);
+  if (pv) { const p = +pv[1]; for (const G of [200, 20, 40, 100]) { const u = (p * G) / 100; if (Number.isInteger(u) && G !== +pv[2] && u !== answer && G !== answer) return { som: `${p}% van ${G}`, uitkomst: String(u), vraag: true }; } return null; }
+  // geld in centen: "Hoeveel sent is R6?" / "Hoeveel cent is € 4?"
+  const ct = String(ask).match(/hoeveel (sent|cent) is (?:R|€)\s?(\d+(?:,\d+)?)/i);
+  if (ct) { const x = toN(ct[2].replace(',', '.')) === 2 ? 3 : 2; if (x * 100 !== answer) return { som: `${/sent/i.test(ct[1]) ? 'Hoeveel sent is R' : 'Hoeveel cent is € '}${x}?`, uitkomst: String(x * 100), vraag: true }; }
+  // kolomstap met twee cijfers ("Ene: 7 + 6 = ?"): kleine cijfers, met dezelfde moeilijkheid (over de 10 of niet)
+  const kol = String(ask).match(/^(Eenheden|Tientallen|Honderdtallen|Duizendtallen|Ene|Tiene|Honderde|Duisende|Tienden|Tiendes)\b[^:]*:\s*(\d)\s*([+−-])\s*(\d)\s*=\s*\?/i);
+  if (kol) { const [A, B] = [+kol[2], +kol[4]], plus = kol[3] === '+'; const opties = plus ? (A + B >= 10 ? [[8, 3], [7, 5], [9, 4]] : [[2, 3], [3, 4], [1, 2]]) : [[5, 2], [6, 2], [4, 3], [8, 5]]; for (const [X, Y] of opties) { const U = plus ? X + Y : X - Y; if (U !== answer && X !== answer && Y !== answer && !(X === A && Y === B)) return { som: `${X} ${plus ? '+' : '−'} ${Y}`, uitkomst: String(U) }; } }
   const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:[a-zé]+\\s*)?(?:=\\s*\\?|\\?\\s*$)`));
   if (!m) return null;
   const a = toN(m[1]), dec = m[2], op = m[3], b = toN(m[4]);
@@ -184,9 +211,14 @@ function makkelijker0(ask, answer) {
       if (ander <= 2 || k * t === answer) return null;
       return { som: macht === 'a' ? `${t} × ${k}` : `${k} × ${t}`, uitkomst: String(k * t) };
     }
-    // twee tafelgetallen (9 × 6): een ánder tafelfeit helpt niet; dan geeft Max zelf de route van de tip (10 × 6 − 6)
-    if (groot <= 10) return null;
-    if (groot > 12 && groot % 10 === 0 && klein <= 10) { const r = groot % 100 === 0 ? 200 : 30; som = `${r} × ${klein === 2 ? 3 : klein}`; uit = r * (klein === 2 ? 3 : klein); } // rond getal: rond voorbeeld (900 × 8 → 200 × 8)
+    // twee tafelgetallen (9 × 6): een ánder willekeurig tafelfeit helpt niet (meetlat #17/#18), wel de opstapsom van de tip:
+    // 9 × 6 → 10 × 6 (en dan 6 eraf), 7 × 6 → 5 × 6 (en dan 2 × 6 erbij), 4 × 6 → 2 × 6 (en dan verdubbelen)
+    if (groot <= 10) {
+      const anker = { 9: 10, 8: 4, 7: 5, 6: 5, 5: 10, 4: 2, 3: 2 }[a];
+      if (!anker || b < 2 || anker * b === answer) return null;
+      return { som: `${anker} × ${b}`, uitkomst: String(anker * b), opstap: true };
+    }
+    if (groot > 12 && groot % 10 === 0 && klein <= 10) { const r = groot % 100 === 0 ? (groot === 200 ? 300 : 200) : groot === 30 ? 20 : 30; som = `${r} × ${klein === 2 ? 3 : klein}`; uit = r * (klein === 2 ? 3 : klein); } // rond getal: rond voorbeeld (900 × 8 → 200 × 8)
     else if (groot > 12 && klein <= 10) { const k = klein === 1 ? 2 : klein; som = `11 × ${k}`; uit = 11 * k; } // splitsen in 10 en 1: 29 × 8 → 11 × 8 // zelfde aanpak (splitsen), kleiner getal
     else if (groot > 10 && klein <= 10) { som = `2 × ${klein}`; uit = 2 * klein; }
     else if (groot > 10 && klein % 10 === 0) { som = `12 × ${klein === 20 ? 30 : 20}`; uit = 12 * (klein === 20 ? 30 : 20); } // 38 × 20 → 12 × 30
@@ -194,8 +226,9 @@ function makkelijker0(ask, answer) {
     else { som = `2 × ${groot}`; uit = 2 * groot; if (klein === 2) { som = `2 × 3`; uit = 6; } }
   } else if ([':', '÷'].includes(op)) {
     if (b < 2 || a <= b) return null;
-    const k = Math.round(a / b) === 2 ? 3 : 2;
-    if (b * k >= a) return null; // 16 : 8 → geen "24 : 8" (groter, meetlat AF #18)
+    let k = Math.round(a / b) === 2 ? 3 : 2;
+    if (a / b <= 10 && a / b > 5) k = 5; // 48 : 8 → opstapsom 40 : 8 (en dan nog één keer 8)
+    if (b * k >= a || k === answer) return null; // 16 : 8 → geen "24 : 8" (groter, meetlat AF #18)
     som = `${b * k} ${op} ${b}`; uit = k;
   } else {
     // plus en min: ronde getallen blijven rond (900 + 100 → 200 + 100), het getal wordt kleiner, over het tiental / lenen blijft

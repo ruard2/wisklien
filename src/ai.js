@@ -14,9 +14,11 @@ import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { taalgidsAF } from './za/didactiek.js';
+import { LERAAR_AF } from './za/leraar.js';
 import { kaartTekst } from './uitleg/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
-import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag } from './stapgesprek.js';
+import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
+import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF } from './foutgesprek.js';
 import { makkelijker } from './tips.js';
 import { vasteBeurt } from './vast.js';
 
@@ -27,7 +29,7 @@ const ONDERWIJS = () => (isAF() ? 'Suid-Afrikaanse laerskool-onderwijs (KABV, In
 const Z = (nl, af) => (isAF() ? af : nl); // voorbeeldzin in de taal van het kind
 const TAALREGEL = () => (isAF() ? `
 
-TAAL (heel belangrijk): Antwoord ALTIJD in eenvoudig, correct Afrikaans zoals in Suid-Afrika gepraat wordt — nooit Nederlands. Gebruik de Suid-Afrikaanse schoolwoorden (KABV): somme, gewone breuke, teller, noemer, desimale breuke, tiendes, honderdstes, persentasie, plekwaarde (ene, tiene, honderde, duisende), kolomme, langdeling, oordra, getallesin, getallelyn, verdubbel en halveer, afronding, skatting, omtrek, area, volume. Geld in rand en sent (R12,50). Deel met ÷. Getallen in een rij met ; ertussen. Spreek een leraar aan als "Meneer". De voorbeeldzinnen in deze instructies zijn Nederlands: zeg ze ALTIJD in het Afrikaans (bv. "Hoe kwam je op …?" → "Hoe het jy by … uitgekom?", "Dat is hem!" → "Dis reg!", "Bijna" → "Amper", "Welke" → "Watter", "je/jij" → "jy", "niet" → "nie", "denk" → "dink", "nu" → "nou", "zo" → "so", "geen stress" → "moenie worry nie" of "toemaar"; "Dis reg" alleen als iets écht klopt). Geen Nederlandse of Engelse woorden.` : '');
+TAAL (baie belangrik): Antwoord ALTYD in eenvoudige, korrekte Afrikaans soos dit in Suid-Afrika gepraat word — nooit Nederlands of Engels nie. Party konteks- en opdragreëls van die app is in Nederlands (net vir jou): skryf jou antwoord aan die kind tog altyd in Afrikaans. Gebruik die skoolwoorde van die taalgids. Geld in rand en sent (R12,50). Deel met ÷. Getalle in ’n ry met ; tussenin. "Dis reg" net as iets regtig korrek is.` : '');
 import { kidStore, pool } from './db.js';
 
 // ---------- privacy: de AI ziet nooit de echte naam ----------
@@ -327,9 +329,15 @@ UITLEG-VORM (onzichtbaar label)
 // zodat OpenAI ze als "al gezien" rekent (90% korting) en sneller antwoordt. Alles wat per kind verschilt (naam, profiel,
 // notities, vandaag) staat vooraan in het eerste bericht. Zie aiGebruik() voor de echte cijfers.
 const vastCache = {};
-const LERAAR_VAST = () => (vastCache[isAF() ? 'af' : 'nl'] ||= LERAAR_SJABLOON('het kind'));
-const KIND = (name, profile = '', memory = '', today = '') => [`OVER HET KIND: het kind heet ${name}. Spreek ${name} aan met "je" en gebruik soms de naam.`,
-  profile ? `LEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : '', today ? `VANDAAG IN DEZE SESSIE\n${today}` : ''].filter(Boolean).join('\n');
+// AF: eie Afrikaanse instruksies (src/za/leraar.js), nie Nederlandse instruksies met "vertaal" nie
+const LERAAR_VAST = () => (vastCache[isAF() ? 'af' : 'nl'] ||= isAF()
+  ? LERAAR_AF({ naam: 'die kind', leraar: teacherName(), skatting: ALGEMEEN.schatten, drieslag: ALGEMEEN.drieslag, taalgids: taalgidsAF() })
+  : LERAAR_SJABLOON('het kind'));
+const KIND = (name, profile = '', memory = '', today = '') => (isAF()
+  ? [`OVER HET KIND: die kind se naam is ${name}. Praat met ${name} as "jy" en gebruik soms die naam.`,
+    profile ? `LEERDERPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOU NOTAS OOR ${name.toUpperCase()} (uit vorige lesse)\n${memory}` : '', today ? `VANDAG IN HIERDIE SESSIE\n${today}` : '']
+  : [`OVER HET KIND: het kind heet ${name}. Spreek ${name} aan met "je" en gebruik soms de naam.`,
+    profile ? `LEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : '', today ? `VANDAAG IN DEZE SESSIE\n${today}` : '']).filter(Boolean).join('\n');
 const metKind = (messages, kind) => { const m = messages.map((x) => ({ ...x })); const i = m.findIndex((x) => x.role === 'user'); if (i >= 0) m[i].content = `${kind}\n\n${m[i].content}`; return m; };
 const completeLeraar = (kind, messages, opts) => complete(LERAAR_VAST(), metKind(messages, kind), opts);
 
@@ -373,22 +381,59 @@ function scratchContext(name, scratch, phase) {
 // Standaard: aan voor NL (Tussenstappen #20: beter op alles, rekenfouten gelijk), AF nog uit tot de volgende test.
 // MAX_STAPPLAN=1/0 zet het voor beide talen aan of uit.
 export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (v != null) return !!v; const e = process.env.MAX_STAPPLAN; return e === '1' || e === '0' ? e === '1' : !isAF(); };
+// Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
+export const foutPlanAan = () => { const v = kidStore.getStore()?.foutPlan; if (v != null) return !!v; return process.env.MAX_FOUTPLAN === '1'; };
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
   const plan = stapPlan({ question, step, chat });
   if (!plan) return null;
+  return planBeurt({ name, profile, memory, today, question, step, chat, plan, situatie: isAF() ? [
+    `Die kind werk in tussenstappe en sit vas by die stap: "${step.ask}". Reg is ${plan.goedStap} (GEHEIM: moenie dit noem nie, die kind moet dit self vind). In die blokkie het die kind eers ingevul: "${given || '?'}".`,
+    step.tip ? `Die app se aanpak by hierdie stap (wenk): "${step.tip}". Volg hierdie roete.` : '',
+  ] : [
+    `Het kind rekent in tussenstappen en zit vast bij de stap: "${step.ask}". Goed is ${plan.goedStap} (GEHEIM: noem dit niet, het kind moet het zelf vinden). In het vakje vulde het kind eerst in: "${given || '?'}".`,
+    step.tip ? `Aanpak van de app bij deze stap (tip): "${step.tip}". Volg deze route.` : '',
+  ] });
+}
+// Gespreksplan na een fout (src/foutgesprek.js): de app loopt de tussenstappen van de som met het kind af.
+async function foutBeurt({ name, profile, memory, today, question, given, chat, misconception }) {
+  const fp = foutPlan({ question, given, chat });
+  if (!fp) return null;
+  const tekst = FOUTZETTEN[fp.zet] || ZETTEN[fp.zet];
+  if (!tekst) return null;
+  const doel = fp.doel, goedStap = doel.type === 'choice' ? doel.options?.[doel.answer] : doel.display;
+  const plan = { ...tekst, zet: fp.zet, voorbeeld: fp.voorbeeld, goedStap, fase: fp.fase === 'voorbeeld' ? 'voorbeeld' : 'stap', eerdereZetten: fp.eerdereZetten };
+  const route = (question.guide || []).map((g, i) => `${i + 1}. ${g.ask} → ${g.type === 'choice' ? g.options[g.answer] : g.display}`).join(' / ');
+  return planBeurt({ name, profile, memory, today, question, step: doel, chat, plan, situatie: isAF() ? [
+    `${name} het eers "${given}" op die som geantwoord; dit is VERKEERD. Die regte finale antwoord is ${question.display} (GEHEIM: noem dit nooit; ${name} moet dit self vind).`,
+    misconception ? `Herkende denkfout (seker): ${misconception.label} Wat help: ${misconception.fix}` : `Geen bekende denkfout herken nie: jy weet nie hoe ${name} by "${given}" uitgekom het nie, behalwe wat ${name} self vertel.`,
+    `Die app se roete (tussenstappe met antwoord, GEHEIM): ${route}${question.guideFinal ? ` / slot: ${question.guideFinal} → ${question.display}` : ''}.`,
+    `Waar julle nou is: ${doel.slot ? `die SLOT: "${doel.ask}"` : `tussenstap ${fp.k + 1}: "${doel.ask}" (reg: ${goedStap}, GEHEIM)`}.${doel.tip ? ` Die app se wenk by hierdie stap: "${doel.tip}".` : ''}`,
+  ] : [
+    `${name} antwoordde eerst "${given}" op de som; dat is FOUT. Het goede eindantwoord is ${question.display} (GEHEIM: noem het nooit; ${name} moet het zelf vinden).`,
+    misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : `Geen bekende denkfout herkend: je weet niet hoe ${name} aan "${given}" kwam, behalve wat ${name} zelf vertelt.`,
+    `De route van de app (tussenstappen met uitkomst, GEHEIM): ${route}${question.guideFinal ? ` / slot: ${question.guideFinal} → ${question.display}` : ''}.`,
+    `Waar jullie nu zijn: ${doel.slot ? `het SLOT: "${doel.ask}"` : `tussenstap ${fp.k + 1}: "${doel.ask}" (goed: ${goedStap}, GEHEIM)`}.${doel.tip ? ` Tip van de app bij deze stap: "${doel.tip}".` : ''}`,
+  ] });
+}
+async function planBeurt({ name, profile, memory, today, question, step, chat, plan: plan0, situatie = [] }) {
+  // AF: die skuif in Afrikaans
+  const af = isAF(), afT = af ? (ZETTEN_AF[plan0.zet] || FOUTZETTEN_AF[plan0.zet]) : null;
+  const plan = afT ? { ...plan0, ...afT } : plan0;
   const { verboden } = getallenRegel({ question, step, chat, plan });
   const vb = plan.voorbeeld;
   const ctx = [
-    'GESPREKSPLAN (alleen voor jou): de app bepaalt WAT je in dit bericht doet, jij bepaalt HOE je het zegt. Volg de OPDRACHT precies; de algemene regels gelden verder gewoon.',
+    af ? 'GESPREKSPLAN (net vir jou): die app besluit WAT jy in hierdie boodskap doen, jy besluit HOE jy dit sê. Volg die OPDRAG presies; die algemene reëls geld verder gewoon.' : 'GESPREKSPLAN (alleen voor jou): de app bepaalt WAT je in dit bericht doet, jij bepaalt HOE je het zegt. Volg de OPDRACHT precies; de algemene regels gelden verder gewoon.',
     describeQuestion(question),
-    `Het kind rekent in tussenstappen en zit vast bij de stap: "${step.ask}". Goed is ${plan.goedStap} (GEHEIM: noem dit niet, het kind moet het zelf vinden). In het vakje vulde het kind eerst in: "${given || '?'}".`,
-    step.tip ? `Aanpak van de app bij deze stap (tip): "${step.tip}". Volg deze route.` : '',
-    vb ? `MAKKELIJKER VOORBEELD${vb.vanApp ? ' (door de app nagerekend)' : ' (dat jij eerder gaf)'}: ${vb.som} — uitkomst ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (noem die uitkomst niet)'}.` : '',
+    ...situatie,
+    vb?.opstap ? (af ? 'Dit is ’n OPSTAPSOM: ’n maklike som waarop die regte stap voortbou volgens die wenk (bv. die helfte daarvan, of nog een keer by of af), nie "presies so met ander getalle" nie. Lê die brug so.' : 'Dit is een OPSTAPSOM: een makkelijke som waar de echte stap op voortbouwt volgens de tip (bijv. de helft ervan, of er nog één keer bij of af), niet "precies zo met andere getallen". Leg de brug zo.') : '',
+    vb ? (af ? `MAKLIKER VOORBEELD${vb.vanApp ? ' (deur die app nagewerk)' : ' (wat jy vroeër gegee het)'}: ${vb.som} — antwoord ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (moenie daardie antwoord noem nie)'}.` : `MAKKELIJKER VOORBEELD${vb.vanApp ? ' (door de app nagerekend)' : ' (dat jij eerder gaf)'}: ${vb.som} — uitkomst ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (noem die uitkomst niet)'}.`) : '',
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
-    plan.eerdereZetten.length ? `Wat je eerder in dit gesprek deed: ${plan.eerdereZetten.join(' → ')}.` : '',
+    plan.eerdereZetten.length ? (af ? `Wat jy vroeër in hierdie gesprek gedoen het: ${plan.eerdereZetten.join(' → ')}.` : `Wat je eerder in dit gesprek deed: ${plan.eerdereZetten.join(' → ')}.`) : '',
   ].filter(Boolean).join('\n');
-  const opdracht = `[app, onzichtbaar voor het kind] OPDRACHT: ${plan.doel} Kies zelf één manier: ${plan.opties.join(' OF ')}. ${plan.regels}${verboden.length ? ` Deze getallen komen NIET in je bericht: ${verboden.join(', ')}.` : ''}
-STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals een goede bijlesjuf of -meester praat. Reageer eerst op wat ${name} net zei (gebruik de woorden of het getal van ${name}); klopt het getal maar de uitleg erbij niet, zeg dat vriendelijk. Begin anders dan je vorige bericht. Hooguit één vraag, aan het eind. Gebruik soms de naam. Reken alles wat je zegt na: elk getal in je voorbeeld moet kloppen en mag elkaar niet tegenspreken.${plan.zet === 'klaar' ? '' : `
+  const opdracht = af ? `[app, onsigbaar vir die kind] OPDRAG: ${plan.doel} Kies self een manier: ${plan.opties.join(' OF ')}. ${plan.regels}${verboden.length ? ` Hierdie getalle kom NIE in jou boodskap nie: ${verboden.join('; ')}.` : ''}
+STYL: 1 tot 3 kort sinne (hoogstens ± 45 woorde), warm en natuurlik, soos ’n goeie ekstra-klasse-juffrou of -meneer praat. Reageer eers op wat ${name} net gesê het (gebruik ${name} se woorde of getal); is die getal reg maar die verduideliking daarby nie, sê dit vriendelik. Begin anders as jou vorige boodskap; "Dis reg" net as iets regtig reg is. Hoogstens een vraag, aan die einde. Gebruik soms die naam. Werk alles na wat jy sê: elke getal in jou voorbeeld moet klop en mag mekaar nie weerspreek nie.${plan.zet === 'klaar' || plan.geenVraagLabel ? '' : `
+Sit op die heel laaste reël, onsigbaar vir die kind, die vraag wat jy vra met die regte antwoord: [VB: <jou vraag kort, as ’n som as dit kan> = <die regte antwoord>] (bv. [VB: 30 − 10 = 20], [VB: 66 × 20 = 1320] of [VB: plek van die 4 in 345 = tiene]). Die app kyk daarmee ${name} se antwoord na.`}` : `[app, onzichtbaar voor het kind] OPDRACHT: ${plan.doel} Kies zelf één manier: ${plan.opties.join(' OF ')}. ${plan.regels}${verboden.length ? ` Deze getallen komen NIET in je bericht: ${verboden.join(', ')}.` : ''}
+STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals een goede bijlesjuf of -meester praat. Reageer eerst op wat ${name} net zei (gebruik de woorden of het getal van ${name}); klopt het getal maar de uitleg erbij niet, zeg dat vriendelijk. Begin anders dan je vorige bericht. Hooguit één vraag, aan het eind. Gebruik soms de naam. Reken alles wat je zegt na: elk getal in je voorbeeld moet kloppen en mag elkaar niet tegenspreken.${plan.zet === 'klaar' || plan.geenVraagLabel ? '' : `
 Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt met het juiste antwoord: [VB: <je vraag kort, als som als dat kan> = <het juiste antwoord>] (bijv. [VB: 30 − 10 = 20], [VB: 66 × 20 = 1320] of [VB: plek van de 4 in 345 = tientallen]). De app kijkt daarmee het antwoord van ${name} na.`}`;
   const hist = chat.slice(-10);
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
@@ -403,8 +448,8 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
     const f = [], { text: zicht, vb: eigen } = splitForm(t);
     const hit = verboden.find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
     if (hit != null) f.push(`Het getal ${String(hit).replace('.', ',')} mag niet in je bericht (dat moet ${name} zelf vinden).`);
-    else if (plan.zet !== 'klaar' && verklaptAntwoord(zicht, plan.goedStap, { som: `${question.text}\n${step.ask}`, kind: kindTekst })) f.push(`In je bericht staat de uitkomst van de stap (${plan.goedStap}). Laat die weg.`);
-    if (plan.zet !== 'klaar') {
+    else if (!['klaar', 'goed_nu'].includes(plan.zet) && verklaptAntwoord(zicht, plan.goedStap, { som: `${question.text}\n${step.ask}`, kind: kindTekst })) f.push(`In je bericht staat de uitkomst van de stap (${plan.goedStap}). Laat die weg.`);
+    if (!['klaar', 'goed_nu'].includes(plan.zet)) {
       if (!eigen && ZETTEN_VB.has(plan.zet)) f.push('Zet op de allerlaatste regel je vraag met het juiste antwoord: [VB: <vraag> = <antwoord>].');
       if (eigen) {
         const juist = rekenVraag(eigen.som), u = getallenIn(eigen.uitkomst)[0];
@@ -443,6 +488,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   // Gespreksplan bij een tussenstap (src/stapgesprek.js): de app kiest de zet, Max verwoordt. Geen zet (eigen vraag van
   // het kind e.d.)? Dan de gewone Max hieronder.
   if (metPlan) { const r = await stapBeurt({ name, profile, memory, today, question, step, given, chat }); if (r) return r; }
+  // Gespreksplan na een fout (src/foutgesprek.js): vanaf het eerste antwoord van het kind (de opening is een vaste beurt).
+  if (phase === 'wrong' && foutPlanAan() && chat.some((m) => m.role === 'teacher') && !scratch?.image) { const r = await foutBeurt({ name, profile, memory, today, question, given, chat, misconception }); if (r) return r; }
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),

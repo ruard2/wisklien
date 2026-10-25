@@ -16,6 +16,7 @@ import { kidStore, pool } from './db.js';
 import { generate, hintsFor, detectMisconception, checkAnswer, catById, CATEGORIES, LEVEL_NAMES, didactiekText } from './curriculum.js';
 import { teacherTurn, splitForm, auditCall, describeQuestion, aiEnabled, aiModel } from './ai.js';
 import { stapPlan } from './stapgesprek.js';
+import { foutPlan } from './foutgesprek.js';
 import { kaartTekst } from './uitleg/index.js';
 import { fracStr, hhmm, metZaad } from './util.js';
 import { readFileSync } from 'node:fs';
@@ -149,7 +150,7 @@ export async function auditOne(lang, p, models = {}) {
       const t0 = Date.now();
       try { const r = await fn(); return { ...r, ms: Date.now() - t0 }; } catch (e) { item.fouten.push(`${label}: ${e.message}`); return null; }
     };
-    const maxSays = async (args) => { const r = await teacherTurn({ ...base, ...args }); const { text, form } = splitForm(r); return { text: text || null, vorm: form || null }; };
+    const maxSays = async (args) => { const r = await teacherTurn({ ...base, ...args }); const { text, form, vb } = splitForm(r); return { text: text || null, vorm: form || null, vb: vb || null }; };
 
     // vóór het antwoord: "Hoe begin ik?"
     const begin = lang === 'af' ? 'Hoe begin ek?' : 'Hoe begin ik?';
@@ -165,7 +166,7 @@ export async function auditOne(lang, p, models = {}) {
     const turns = [];
     const r1 = await call('fout-1', () => maxSays({ phase: 'wrong', given, chat, misconception: mis }));
     if (r1?.text) {
-      chat.push({ role: 'teacher', text: r1.text }); turns.push({ wie: 'max', tekst: r1.text, vorm: r1.vorm, ms: r1.ms });
+      chat.push({ role: 'teacher', text: r1.text, ...(r1.vb ? { vb: r1.vb } : {}) }); turns.push({ wie: 'max', tekst: r1.text, vorm: r1.vorm, ms: r1.ms, ...(r1.vb ? { vb: r1.vb } : {}) });
       // Vraagt Max hoe het kind aan het foute antwoord kwam, dan antwoordt het kind met een vaste, eerlijke uitleg die
       // bij de fout past (meetlat #6-#8: het AI-kind gaf in ± 25% van de gevallen ineens de góéde manier, een gesprek dat
       // bij echte kinderen bijna nooit voorkomt). Vast = herhaalbaar, gratis, en elke run hetzelfde.
@@ -175,7 +176,7 @@ export async function auditOne(lang, p, models = {}) {
         chat.push({ role: 'kid', text: k1.text }); turns.push({ wie: 'kind', tekst: k1.text });
         const r2 = await call('fout-2', () => maxSays({ phase: 'wrong', given, chat: [...chat], misconception: mis }));
         if (r2?.text) {
-          chat.push({ role: 'teacher', text: r2.text }); turns.push({ wie: 'max', tekst: r2.text, vorm: r2.vorm, ms: r2.ms });
+          chat.push({ role: 'teacher', text: r2.text, ...(r2.vb ? { vb: r2.vb } : {}) }); turns.push({ wie: 'max', tekst: r2.text, vorm: r2.vorm, ms: r2.ms, ...(r2.vb ? { vb: r2.vb } : {}) });
           const k2 = lang === 'af' ? 'Ek verstaan dit nog nie 🤔' : 'Ik snap het nog niet 🤔';
           chat.push({ role: 'kid', text: k2 }); turns.push({ wie: 'kind', tekst: k2, knop: true });
           const r3 = await call('fout-3', () => maxSays({ phase: 'wrong', given, chat: [...chat], misconception: mis }));
@@ -265,6 +266,72 @@ export async function auditStap(lang, p, models = {}) {
     };
   }, models);
 }
+// ---------- Na-een-fout-test: de oude Max tegen Max met gespreksplan na een fout ----------
+// Per meetlat-geval met tussenstappen en een fout antwoord: dezelfde opening (vaste beurt), dan 3 beurten van Max.
+// Pad "lukt": het kind vertelt hoe het deed (vast) of antwoordt, en antwoordt daarna goed. Pad "moeilijk": het kind
+// antwoordt fout, zegt "snap het nog niet", en antwoordt daarna goed. Blind beoordeeld, zoals de Tussenstappen-test.
+export async function auditFout(lang, p, models = {}) {
+  return inCtx(lang, async () => {
+    let q, vers = null;
+    if (p.q && p.seed != null) { const nieuw = metZaad(p.seed, () => generate(p.cat, p.level)); vers = nieuw.tpl === p.q.tpl && nieuw.text === p.q.text; q = vers ? nieuw : structuredClone(p.q); }
+    else q = structuredClone(p.q);
+    if (!q.guide?.length) { q = structuredClone(p.q); vers = false; }
+    const w = p.fout != null ? { raw: p.fout } : wrongAnswer(q);
+    const given = q.type === 'choice' ? q.options[Number(w.raw)] : w.raw;
+    const mis = detectMisconception(q, w.raw, checkAnswer);
+    const pad = hashVan(`${p.id}/fout`) % 2 ? 'lukt' : 'moeilijk';
+    const base = { name: NAME, profile: '', memory: '', today: '', question: q, levelName: LEVEL_NAMES[p.level], phase: 'wrong', given, misconception: mis };
+    const zonderMeter = (fn) => kidStore.run({ ...kidStore.getStore(), meter: null }, fn);
+    const variant = (aan) => {
+      const meter = { aanroepen: 0, invoer: 0, vast: 0, uitvoer: 0 };
+      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan, meter }, async () => {
+        const chat = [], turns = [], fouten = [];
+        const zeg = async () => {
+          try {
+            const zet = aan ? (chat.length ? foutPlan({ question: q, given, chat })?.zet || 'vrij' : 'opening') : null;
+            const t0 = Date.now(); const r = await teacherTurn({ ...base, chat: [...chat] }); const { text, vb } = splitForm(r);
+            if (!text) return false;
+            chat.push({ role: 'teacher', text, ...(vb ? { vb } : {}) }); turns.push({ wie: 'max', tekst: text, ms: Date.now() - t0, ...(zet ? { zet } : {}), ...(vb ? { vb } : {}) });
+            return true;
+          } catch (e) { fouten.push(e.message); return false; }
+        };
+        const kind = async (bedoeling) => { const t = await zonderMeter(() => kidSays(lang, q, chat, bedoeling, { given, label: mis?.label || null })); chat.push({ role: 'kid', text: t }); turns.push({ wie: 'kind', tekst: t }); };
+        const zegKind = (t, knop = false) => { chat.push({ role: 'kid', text: t }); turns.push({ wie: 'kind', tekst: t, ...(knop ? { knop: true } : {}) }); };
+        if (await zeg()) {
+          const vraagtHoe = /hoe (kwam|heb|deed|ben|bedoel)|hoe het jy|hoe kom jy|wat het jy gedoen|wat deed je/i.test(chat.at(-1).text);
+          if (vraagtHoe) zegKind(kindLegtUit(lang, p.id || q.text, mis?.label || null));
+          else await kind(pad === 'lukt' ? 'goed' : 'fout');
+          if (await zeg()) {
+            if (pad === 'lukt') await kind('goed'); else zegKind(lang === 'af' ? 'Ek verstaan dit nog nie 🤔' : 'Ik snap het nog niet 🤔', true);
+            if (await zeg()) { await kind('goed'); await zeg(); }
+          }
+        }
+        return { turns, meter, fouten };
+      });
+    };
+    const [oud, nieuw] = await Promise.all([variant(false), variant(true)]);
+    return {
+      soort: 'fout', lang, cat: p.cat, level: p.level, geval: p.id, tpl: q.tpl, label: catById[p.cat].label, levelName: LEVEL_NAMES[p.level], uitleg_vers: vers, pad,
+      som: describeQuestion(q), antwoord: q.display,
+      fout: { gegeven: given, herkend: mis ? { label: mis.label, wat_helpt: mis.fix } : null },
+      stap: { nr: 0, vraag: '(na een fout antwoord)', goed: q.display, gegeven: given, tip: null },
+      tussenstappen: (q.guide || []).map((g) => ({ vraag: g.ask, antwoord: g.display })), slot: q.guideFinal || null,
+      varianten: { oud, nieuw }, volgorde: hashVan(`${p.id}/xy-fout`) % 2 ? ['oud', 'nieuw'] : ['nieuw', 'oud'],
+      _card: kaartTekst(lang, q.tpl) || '',
+    };
+  }, models);
+}
+const FOUTRUBRIC = (lang) => `Je bent een zeer ervaren remedial teacher rekenen (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV; de gesprekken zijn in het Afrikaans' : 'Nederlandse basisschool, groep 5-8'}). Een kind (9-12 jaar, loopt achter) gaf in een reken-app een FOUT antwoord op een som. Daarna praat de AI-leraar "Max" met het kind. Je krijgt TWEE gesprekken (X en Y) bij precies dezelfde som en hetzelfde foute antwoord, met twee versies van Max (het eerste bericht is in beide hetzelfde). Het kind wordt gespeeld; zijn reacties kunnen verschillen. Beoordeel elk gesprek los, kritisch en eerlijk:
+- stap (didactiek): pakt Max de echte fout op (de herkende denkfout, of de fout in wat het kind vertelt)? Kleine stappen langs de aanpak van de UITLEGKAART en de tussenstappen van de app, concreter of een makkelijker voorbeeld als het kind het niet snapt, terug naar de som, en laat hij het kind zelf het antwoord vinden? Vraagt hij aan het eind wat er de eerste keer anders ging?
+- warm (natuurlijk): klinkt Max als een fijne, echte bijlesjuf of -meester? Persoonlijk, afwisselend, bemoedigend, niet mechanisch, kort genoeg.
+- luistert: reageert Max echt op wat het kind net zei?
+- verklapt: noemt Max het eindantwoord (of een tussenuitkomst die het kind zelf moest vinden) voordat het kind het zei?
+- rekenfout: staat er een rekenfout in wat Max zegt?
+Cijfers 1-5 (5 = uitstekend). Zeg welk gesprek beter is voor dit kind (of "gelijk"). Noem alleen echte problemen, met gesprek (X of Y), een letterlijk citaat en wat er mis is.
+Antwoord met één JSON-object:
+{"X": {"stap": 1-5, "warm": 1-5, "luistert": 1-5, "verklapt": true|false, "rekenfout": true|false}, "Y": {zelfde}, "voorkeur": "X"|"Y"|"gelijk",
+ "problemen": [{"gesprek": "X"|"Y", "soort": "denkfout-gemist|niet-luisteren|herhaling|mechanisch|te-lang|voorzeggen|rekenfout|andere-aanpak|onduidelijk|sprong|anders", "citaat": "...", "uitleg": "..."}],
+ "oordeel": "één of twee zinnen: wat is het belangrijkste verschil"}`;
 const STAPRUBRIC = (lang) => `Je bent een zeer ervaren remedial teacher rekenen (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV; de gesprekken zijn in het Afrikaans' : 'Nederlandse basisschool, groep 5-8'}). Een kind (9-12 jaar, loopt achter) rekent in een app een som in tussenstappen en loopt vast bij één stap. Je krijgt TWEE gesprekken (X en Y) bij precies dezelfde som en stap, met twee versies van de AI-leraar "Max". Het kind wordt in beide gesprekken gespeeld; zijn reacties kunnen dus verschillen. Beoordeel elk gesprek los, kritisch en eerlijk:
 - stap (didactiek): helpt Max precies bij díe stap? Een makkelijker voorbeeld dat echt makkelijker is en dezelfde aanpak heeft, een duidelijke brug terug naar de echte stap, concreter (geld, plaatje, kleinere stukjes) als het kind het niet snapt, voordoen als het echt niet lukt, de aanpak van de UITLEGKAART en de tip van de app. Leidt het gesprek het kind naar de oplossing van de stap?
 - warm (natuurlijk): klinkt Max als een fijne, echte bijlesjuf of -meester? Persoonlijk, afwisselend, bemoedigend, níet mechanisch of als een standaardtekst, niet steeds dezelfde zinnen. Kort genoeg voor een kind.
@@ -281,10 +348,11 @@ export async function judgeStap(it, models = {}) {
     const [x, y] = it.volgorde;
     const gesprek = (v) => it.varianten[v].turns.map((t) => `${t.wie === 'max' ? 'Max' : 'Kind'}: ${t.wie === 'max' ? leesbaarPlaatje(t.tekst) : t.tekst}`).join('\n') || '(geen gesprek)';
     const user = [it.som, `Juiste antwoord van de som: ${it.antwoord}`,
-      `Tussenstappen: ${it.tussenstappen.map((g, i) => `${i + 1}. ${g.vraag} → ${g.antwoord}`).join(' / ')}`,
-      `HET KIND ZIT VAST BIJ STAP ${it.stap.nr}: "${it.stap.vraag}" (goed: ${it.stap.goed}; het kind vulde in: ${it.stap.gegeven}; tip van de app: "${it.stap.tip || '-'}")`,
+      `Tussenstappen van de app: ${it.tussenstappen.map((g, i) => `${i + 1}. ${g.vraag} → ${g.antwoord}`).join(' / ')}${it.slot ? ` / slot: ${it.slot}` : ''}`,
+      it.soort === 'fout' ? `FOUT ANTWOORD van het kind: "${it.fout.gegeven}"${it.fout.herkend ? ` — de app herkende de denkfout: "${it.fout.herkend.label}" (wat helpt: "${it.fout.herkend.wat_helpt}")` : ' — geen bekende denkfout herkend'}`
+        : `HET KIND ZIT VAST BIJ STAP ${it.stap.nr}: "${it.stap.vraag}" (goed: ${it.stap.goed}; het kind vulde in: ${it.stap.gegeven}; tip van de app: "${it.stap.tip || '-'}")`,
       `\nGESPREK X:\n${gesprek(x)}`, `\nGESPREK Y:\n${gesprek(y)}`, `\nUITLEGKAART:\n${it._card || '(geen)'}`].join('\n');
-    const v = await auditCall(STAPRUBRIC(it.lang), [{ role: 'user', content: user }], { json: true, maxTokens: 2500, model: JUDGE_MODEL() });
+    const v = await auditCall((it.soort === 'fout' ? FOUTRUBRIC : STAPRUBRIC)(it.lang), [{ role: 'user', content: user }], { json: true, maxTokens: 2500, model: JUDGE_MODEL() });
     if (!v || typeof v !== 'object' || !v.X || !v.Y) return { fout: 'geen oordeel' };
     const naar = (g) => (g === 'X' ? x : g === 'Y' ? y : g);
     return { [x]: v.X, [y]: v.Y, voorkeur: v.voorkeur === 'gelijk' ? 'gelijk' : naar(v.voorkeur), problemen: (v.problemen || []).map((pr) => ({ ...pr, variant: naar(pr.gesprek) })), oordeel: v.oordeel || '' };
@@ -487,14 +555,14 @@ const running = new Set();
 export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   if (!aiEnabled()) throw new Error('De AI staat uit: zet OPENAI_API_KEY (of ANTHROPIC_API_KEY).');
   lang = lang === 'af' ? 'af' : 'nl';
-  soort = ['meetlat', 'kaarten', 'stappen'].includes(soort) ? soort : 'willekeurig';
-  const plan = soort === 'stappen' ? meetlat(lang).cases.filter((c) => c.q?.guide?.length).map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'kaarten' ? kaartSjablonen(lang).map((x) => ({ tpl: x.tpl, cat: x.cat, level: x.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
+  soort = ['meetlat', 'kaarten', 'stappen', 'fouten'].includes(soort) ? soort : 'willekeurig';
+  const plan = soort === 'fouten' ? meetlat(lang).cases.filter((c) => c.q?.guide?.length).map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'stappen' ? meetlat(lang).cases.filter((c) => c.q?.guide?.length).map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'kaarten' ? kaartSjablonen(lang).map((x) => ({ tpl: x.tpl, cat: x.cat, level: x.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
   n = plan.length;
   const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
   const hergebruik = m.hergebruik !== false;
   const maxM = clean(m.max), judgeM = clean(m.judge) || process.env.AUDIT_MODEL || null, kidM = clean(m.kid) || process.env.AUDIT_KID_MODEL || null;
   const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik, meetlat_versie) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik, soort === 'meetlat' || soort === 'stappen' ? `${meetlat(lang).versie || 1}/${meetlat(lang).gemaakt}` : null])).rows[0];
+    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik, soort === 'meetlat' || soort === 'stappen' || soort === 'fouten' ? `${meetlat(lang).versie || 1}/${meetlat(lang).gemaakt}` : null])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
@@ -529,9 +597,9 @@ async function runAudit(id) {
         await bewaarTeller();
         return;
       }
-      if (job.soort === 'stappen') {
+      if (job.soort === 'stappen' || job.soort === 'fouten') {
         const g = meetlat(job.lang).cases.find((c) => c.id === p.geval);
-        try { it = await auditStap(job.lang, g, models); it.verdict = await judgeStap(it, models).catch((e) => ({ fout: e.message })); } catch (e) {
+        try { it = await (job.soort === 'fouten' ? auditFout : auditStap)(job.lang, g, models); it.verdict = await judgeStap(it, models).catch((e) => ({ fout: e.message })); } catch (e) {
           console.error('[audit] stap mislukt', p, e); it = { lang: job.lang, cat: p.cat, level: p.level, geval: p.geval, label: p.cat, verdict: { fout: e.message } };
         }
         const d = it.verdict?.nieuw && it.verdict?.oud ? (it.verdict.nieuw.stap + it.verdict.nieuw.warm) - (it.verdict.oud.stap + it.verdict.oud.warm) : 0;
@@ -553,7 +621,7 @@ async function runAudit(id) {
     });
     if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
     const items = await auditItems(id);
-    const summary = job.soort === 'kaarten' ? null : job.soort === 'stappen' ? stapSamenvatting(items) : await summarize(job.lang, items, models).catch(() => null);
+    const summary = job.soort === 'kaarten' ? null : job.soort === 'stappen' || job.soort === 'fouten' ? stapSamenvatting(items) : await summarize(job.lang, items, models).catch(() => null);
     await bewaarTeller();
     await pool.query(`UPDATE public.max_audit SET status='klaar', finished_at=now(), summary=$2 WHERE id=$1`, [id, summary ? JSON.stringify(summary) : null]);
     console.log(`[audit] #${id} klaar`);

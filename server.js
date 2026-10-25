@@ -9,7 +9,7 @@ import {
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
-import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
+import { ts, teacherName, dayNames, defaultRewards, isAF } from './src/i18n.js';
 import { aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
@@ -17,7 +17,7 @@ import { createDemoKid } from './src/demo/index.js';
 import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteAudit, auditJobs, auditJob, auditItems, compactItems, splitParts, vergelijk } from './src/audit.js';
 import { loginPage, listPage, reportPage, comparePage } from './src/audit-page.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
-import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem } from './src/signals.js';
+import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem, kindFeiten } from './src/signals.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -1003,7 +1003,7 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   // kladblok: vóór het antwoord stuurt de app het actuele kladblok mee, daarna gebruiken we het bewaarde
   const scratch = (!r && cleanScratch(req.body.scratch)) || (r ? await loadScratch(s.id, i) : null);
   const reply = await teacherTurn({
-    name: await getName(), profile: await teacherProfile(), memory: await memoryText(), today: sessionLog(s, i),
+    name: await getName(), profile: await teacherProfile(), memory: await memoryText(), today: [sessionLog(s, i), await kindFeiten(qq.cat, { af: isAF() }).catch(() => '')].filter(Boolean).join('\n\n'),
     question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception, scratch,
   });
   const { text: replyText, form, vb } = splitForm(reply);

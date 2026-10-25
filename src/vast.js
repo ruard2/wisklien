@@ -15,6 +15,8 @@ import { verklaptAntwoord } from './kwaliteit.js';
 const kies = (lijst, sleutel) => lijst[[...String(sleutel)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % lijst.length];
 const getal = (s) => { const m = String(s || '').match(/-?\d+(?:[.,]\d+)?/g); return m && m.length === 1 ? Number(m[0].replace(',', '.')) : null; };
 const vraagVan = (st) => { const a = String(st.ask).replace(/\s+—.*$/, '').trim(); return a.includes('?') ? a : a.replace(/([^.!:])$/, '$1?'); };
+// onzichtbaar label voor het gespreksplan na een fout: de vraag die we stellen met het juiste antwoord (src/foutgesprek.js)
+const label = (st) => `[VB: ${String(st.ask).replace(/\s+—.*$/, '').replace(/\s*=\s*\?.*$/, '').trim()} = ${st.display}]`;
 const isKnop = (tekst, ...knoppen) => knoppen.some((k) => String(tekst || '').trim().toLowerCase().startsWith(k.toLowerCase()));
 
 export function vasteBeurt({ question: q, phase, given, chat = [], step, misconception, scratch, af = false }) {
@@ -31,7 +33,8 @@ export function vasteBeurt({ question: q, phase, given, chat = [], step, misconc
     const gg = String(given ?? '').trim();
     if (misconception?.label) {
       const eerste = g0 ? Z(` Begin zo: ${vraagVan(g0)}`, ` Begin so: ${vraagVan(g0)}`) : Z(' Probeer het nog eens!', ' Probeer weer!');
-      return veilig(`${kies(Z(['Bijna!', 'Goed geprobeerd!', 'Kijk even mee.'], ['Amper!', 'Goed probeer!', 'Kyk saam met my.']), q.text)} ${misconception.label} ${misconception.fix || ''}${eerste}`.replace(/\s+/g, ' ').trim());
+      const t = veilig(`${kies(Z(['Bijna!', 'Goed geprobeerd!', 'Kijk even mee.'], ['Amper!', 'Goed probeer!', 'Kyk saam met my.']), q.text)} ${misconception.label} ${misconception.fix || ''}${eerste}`.replace(/\s+/g, ' ').trim());
+      return t && g0 ? `${t}\n${label(g0)}` : t;
     }
     if (gg && !/^\?+$/.test(gg)) return veilig(kies(Z([
       `${gg} klopt nog niet. Hoe heb je het uitgerekend? Vertel maar wat je deed.`,
@@ -42,7 +45,7 @@ export function vasteBeurt({ question: q, phase, given, chat = [], step, misconc
       `Hmm, ${gg} is dit nog nie. Hoe het jy by ${gg} uitgekom?`,
       `Nog nie reg nie, maar ons sal dit saam uitwerk. Hoe het jy by ${gg} uitgekom?`,
     ]), q.text));
-    if (g0) return veilig(Z(`Geeft niks, we doen het samen. Begin zo: ${vraagVan(g0)}`, `Toemaar, ons doen dit saam. Begin so: ${vraagVan(g0)}`));
+    if (g0) { const t = veilig(Z(`Geeft niks, we doen het samen. Begin zo: ${vraagVan(g0)}`, `Toemaar, ons doen dit saam. Begin so: ${vraagVan(g0)}`)); return t ? `${t}\n${label(g0)}` : t; }
     return null;
   }
 
