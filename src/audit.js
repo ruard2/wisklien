@@ -284,7 +284,7 @@ export async function auditFout(lang, p, models = {}) {
     const zonderMeter = (fn) => kidStore.run({ ...kidStore.getStore(), meter: null }, fn);
     const variant = (aan) => {
       const meter = { aanroepen: 0, invoer: 0, vast: 0, uitvoer: 0 };
-      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan, meter }, async () => {
+      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan ? (process.env.AUDIT_FOUTMODUS || 'advies') : false, meter }, async () => {
         const chat = [], turns = [], fouten = [];
         const zeg = async () => {
           try {
@@ -311,7 +311,7 @@ export async function auditFout(lang, p, models = {}) {
     };
     const [oud, nieuw] = await Promise.all([variant(false), variant(true)]);
     return {
-      soort: 'fout', lang, cat: p.cat, level: p.level, geval: p.id, tpl: q.tpl, label: catById[p.cat].label, levelName: LEVEL_NAMES[p.level], uitleg_vers: vers, pad,
+      soort: 'fout', modus: process.env.AUDIT_FOUTMODUS || 'advies', lang, cat: p.cat, level: p.level, geval: p.id, tpl: q.tpl, label: catById[p.cat].label, levelName: LEVEL_NAMES[p.level], uitleg_vers: vers, pad,
       som: describeQuestion(q), antwoord: q.display,
       fout: { gegeven: given, herkend: mis ? { label: mis.label, wat_helpt: mis.fix } : null },
       stap: { nr: 0, vraag: '(na een fout antwoord)', goed: q.display, gegeven: given, tip: null },
@@ -325,7 +325,7 @@ const FOUTRUBRIC = (lang) => `Je bent een zeer ervaren remedial teacher rekenen 
 - stap (didactiek): pakt Max de echte fout op (de herkende denkfout, of de fout in wat het kind vertelt)? Kleine stappen langs de aanpak van de UITLEGKAART en de tussenstappen van de app, concreter of een makkelijker voorbeeld als het kind het niet snapt, terug naar de som, en laat hij het kind zelf het antwoord vinden? Vraagt hij aan het eind wat er de eerste keer anders ging?
 - warm (natuurlijk): klinkt Max als een fijne, echte bijlesjuf of -meester? Persoonlijk, afwisselend, bemoedigend, niet mechanisch, kort genoeg.
 - luistert: reageert Max echt op wat het kind net zei?
-- verklapt: noemt Max het eindantwoord (of een tussenuitkomst die het kind zelf moest vinden) voordat het kind het zei?
+- verklapt: noemt Max het eindantwoord (of een tussenuitkomst die het kind zelf moest vinden) voordat het kind het zei? Voorzeggen is een ernstige didactische fout (het kind leert er niets van): verklapt Max iets, geef dan voor stap hoogstens 3, ook als de rest goed is.
 - rekenfout: staat er een rekenfout in wat Max zegt?
 Cijfers 1-5 (5 = uitstekend). Zeg welk gesprek beter is voor dit kind (of "gelijk"). Noem alleen echte problemen, met gesprek (X of Y), een letterlijk citaat en wat er mis is.
 Antwoord met één JSON-object:
@@ -336,7 +336,7 @@ const STAPRUBRIC = (lang) => `Je bent een zeer ervaren remedial teacher rekenen 
 - stap (didactiek): helpt Max precies bij díe stap? Een makkelijker voorbeeld dat echt makkelijker is en dezelfde aanpak heeft, een duidelijke brug terug naar de echte stap, concreter (geld, plaatje, kleinere stukjes) als het kind het niet snapt, voordoen als het echt niet lukt, de aanpak van de UITLEGKAART en de tip van de app. Leidt het gesprek het kind naar de oplossing van de stap?
 - warm (natuurlijk): klinkt Max als een fijne, echte bijlesjuf of -meester? Persoonlijk, afwisselend, bemoedigend, níet mechanisch of als een standaardtekst, niet steeds dezelfde zinnen. Kort genoeg voor een kind.
 - luistert: reageert Max echt op wat het kind net zei (het getal, de vraag, "snap het niet")?
-- verklapt: noemt Max de uitkomst van de stap (of het eindantwoord) voordat het kind die zelf vond?
+- verklapt: noemt Max de uitkomst van de stap (of het eindantwoord) voordat het kind die zelf vond? Voorzeggen is een ernstige didactische fout (het kind leert er niets van): verklapt Max iets, geef dan voor stap hoogstens 3, ook als de rest goed is.
 - rekenfout: staat er een rekenfout in wat Max zegt?
 Cijfers 1-5 (5 = uitstekend). Zeg welk gesprek je beter vindt voor dit kind (of "gelijk"). Noem alleen echte problemen, met gesprek (X of Y), een letterlijk citaat en wat er mis is.
 Antwoord met één JSON-object:

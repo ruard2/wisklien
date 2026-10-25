@@ -127,3 +127,45 @@ export const FOUTZETTEN_AF = {
   stap_concreet: { doel: 'Die kind verstaan hierdie stap nog nie. Help BY HIERDIE STAP, meer konkreet en op ’n ánder manier as jou vorige boodskap: wys met ’n baie klein voorbeeld hoe dit gaan (daardie voorbeeld mag jy heeltemal voordoen, mét antwoord; gebruik die makliker voorbeeld hieronder as dit daar is), of breek die stap in ’n kleiner stukkie, of gebruik die model van die kaart (geld, prentjie). Vra daarna in dieselfde boodskap dadelik die stap self (of die eerste klein stukkie daarvan).', opties: ['klein voorbeeld voordoen + "en by jou som?"', 'die stap in ’n kleiner stukkie, met ’n prentjie of geld'], regels: 'Moenie die antwoord van die stap self noem nie. Geen aparte voorbeeld waarop die kind eers moet antwoord nie: ná hierdie boodskap doen die kind die stap.' },
   goed_nu: { doel: 'Die kind het nou die REGTE finale antwoord. Sê dat dit nou klop, en vra kort wat die eerste keer anders was (noem die eerste, verkeerde antwoord).', opties: ['"Nou is dit reg! Eers het jy … gehad. Wat was toe anders?"', 'kompliment oor die aanpak + die vraag wat anders was'], regels: 'Moenie die regte getal of die som met antwoord weer neerskryf nie. "Vul dit maar in" sê jy eers daarna.' },
 };
+
+// ADVIES-modus (Na een fout #23–#26): het strakke plan voorzegt veel minder (≈ 10 tegen 30), maar de vrije Max scoort
+// beter op didactiek en luisteren, omdat hij zelf de beste zet kiest voor wat het kind net zei; het plan herhaalde zich
+// vaker. Dus: de app geeft Max wat ze ZEKER weet (nagekeken antwoord, waar jullie in de route zijn, welke getallen niet
+// mogen) en wat ze zou doen (advies), en Max kiest zelf. De verboden getallen bewaakt de app daarna wel hard.
+export function foutAdvies({ question: q, given, chat = [], name = 'het kind', af = false }) {
+  if (!(q.guide || []).length) return null;
+  const fp = foutPlan({ question: q, given, chat });
+  const laatste = chat.at(-1)?.role !== 'teacher' ? chat.at(-1)?.text || '' : '';
+  const vorigeMax = [...chat].reverse().find((m) => m.role === 'teacher');
+  const eindGoed = q.type === 'choice' ? q.options[q.answer] : q.display;
+  const zei = (x) => chat.some((m) => m.role !== 'teacher' && isZelfde(m.text, x));
+  const T = af ? {
+    kop: 'WAT DIE APP SEKER WEET (net vir jou)', na: (v, k, ok) => `Nagegaan deur die app: jy het gevra "${v.som}" (reg: ${v.uitkomst}); ${name} het gesê "${k}": ${ok ? 'REG' : 'NOG NIE REG NIE'}.`,
+    eind: `${name} het nou die REGTE finale antwoord gesê.`, gedaan: 'Klaar in die roete', nu: 'Volgende in die roete', slot: 'die slot', geheim: 'GEHEIM',
+    advies: 'Wat die app sou doen (advies)', vry: `Jy kies self wat die beste help vir wat ${name} nou sê (’n vraag van ${name}, frustrasie of ’n half reg antwoord gaan voor); die advies is net ’n wegwyser.`,
+    verbode: 'Hierdie getalle kom NIE in jou boodskap nie (die kind moet dit self vind)', vb: `Sit op die heel laaste reël, onsigbaar vir die kind, die vraag wat jy vra met die regte antwoord: [VB: <vraag> = <antwoord>].`,
+  } : {
+    kop: 'WAT DE APP ZEKER WEET (alleen voor jou)', na: (v, k, ok) => `Nagekeken door de app: je vroeg "${v.som}" (goed: ${v.uitkomst}); ${name} zei "${k}": ${ok ? 'GOED' : 'NOG NIET GOED'}.`,
+    eind: `${name} zei nu het GOEDE eindantwoord.`, gedaan: 'Klaar in de route', nu: 'Volgende in de route', slot: 'het slot', geheim: 'GEHEIM',
+    advies: 'Wat de app zou doen (advies)', vry: `Je kiest zelf wat het best helpt bij wat ${name} nu zegt (een vraag van ${name}, frustratie of een half goed antwoord gaat voor); het advies is alleen een wegwijzer.`,
+    verbode: 'Deze getallen komen NIET in je bericht (het kind moet ze zelf vinden)', vb: `Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt met het juiste antwoord: [VB: <vraag> = <antwoord>].`,
+  };
+  const L = [T.kop];
+  if (laatste && isZelfde(laatste, eindGoed) && !isZelfde(laatste, given)) L.push(`- ${T.eind}`);
+  else if (laatste && vorigeMax?.vb && (antwoordVan(laatste) != null || isZelfde(laatste, vorigeMax.vb.uitkomst))) L.push(`- ${T.na(vorigeMax.vb, laatste.slice(0, 80), isZelfde(laatste, vorigeMax.vb.uitkomst))}`);
+  const k = fp ? fp.k : 0;
+  if (k > 0) L.push(`- ${T.gedaan}: ${q.guide.slice(0, k).map((g, i) => `${i + 1}. ${g.ask.replace(/\s*=\s*\?.*$/, '')} = ${vb(g)} ✓`).join(' / ')}`);
+  const doel = doelStap(q, k);
+  L.push(`- ${T.nu}: ${doel.slot ? `${T.slot}: "${doel.ask}"` : `"${doel.ask}" (${T.geheim}: ${vb(doel)})`}${doel.tip ? ` — tip: "${doel.tip}"` : ''}`);
+  if (fp?.voorbeeld) L.push(`- ${af ? 'Makliker voorbeeld (deur die app nagewerk)' : 'Makkelijker voorbeeld (door de app nagerekend)'}: ${fp.voorbeeld.som} → ${fp.voorbeeld.uitkomst}`);
+  const t = fp && ((af ? (FOUTZETTEN_AF[fp.zet] || null) : FOUTZETTEN[fp.zet]) || null);
+  if (t) L.push(`- ${T.advies}: ${t.doel}`);
+  L.push(`- ${T.vry}`);
+  // verboden: het eindantwoord en de uitkomst van de stap waar jullie nu zijn, tenzij het kind ze zelf al zei
+  const getal = (x) => { const m = String(x).replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/-?\d+(?:,\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
+  const verboden = [];
+  for (const x of [eindGoed, doel.slot ? null : vb(doel)]) { const g = x != null ? getal(x) : null; if (g != null && Math.abs(g) > 2 && !zei(x) && !(fp?.zet === 'goed_nu')) verboden.push(g); }
+  if (verboden.length) L.push(`- ${T.verbode}: ${[...new Set(verboden)].map((x) => String(x).replace('.', ',')).join('; ')}.`);
+  L.push(`- ${T.vb}`);
+  return { blok: L.join('\n'), verboden: [...new Set(verboden)], zet: fp?.zet || null };
+}

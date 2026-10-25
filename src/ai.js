@@ -18,7 +18,7 @@ import { LERAAR_AF } from './za/leraar.js';
 import { kaartTekst } from './uitleg/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
-import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF } from './foutgesprek.js';
+import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF, foutAdvies } from './foutgesprek.js';
 import { makkelijker } from './tips.js';
 import { vasteBeurt } from './vast.js';
 
@@ -382,7 +382,10 @@ function scratchContext(name, scratch, phase) {
 // MAX_STAPPLAN=1/0 zet het voor beide talen aan of uit.
 export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (v != null) return !!v; const e = process.env.MAX_STAPPLAN; return e === '1' || e === '0' ? e === '1' : !isAF(); };
 // Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
-export const foutPlanAan = () => { const v = kidStore.getStore()?.foutPlan; if (v != null) return !!v; return process.env.MAX_FOUTPLAN === '1'; };
+// Modus: 'strak' (de app kiest de zet, Max verwoordt), 'advies' (de app geeft feiten + advies, Max kiest; verboden getallen
+// hard bewaakt) of uit. Max-test: kidStore.foutPlan (true = strak); server: MAX_FOUTPLAN=strak|advies (1 = strak).
+export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null ? v : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : null; };
+export const foutPlanAan = () => foutPlanModus() === 'strak';
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
   const plan = stapPlan({ question, step, chat });
   if (!plan) return null;
@@ -490,6 +493,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (metPlan) { const r = await stapBeurt({ name, profile, memory, today, question, step, given, chat }); if (r) return r; }
   // Gespreksplan na een fout (src/foutgesprek.js): vanaf het eerste antwoord van het kind (de opening is een vaste beurt).
   if (phase === 'wrong' && foutPlanAan() && chat.some((m) => m.role === 'teacher') && !scratch?.image) { const r = await foutBeurt({ name, profile, memory, today, question, given, chat, misconception }); if (r) return r; }
+  const advies = phase === 'wrong' && foutPlanModus() === 'advies' && chat.some((m) => m.role === 'teacher') ? foutAdvies({ question, given, chat, name, af: isAF() }) : null;
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),
@@ -508,6 +512,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
     phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.${step.tip ? ` De app gaf bij deze stap als tip: "${step.tip}". Leg het uit op dezelfde manier (zelfde route), alleen concreter.` : ''}${(() => { const v = makkelijker(step.ask, step.answer, [question.answer]); return v ? ` MAKKELIJKER VOORBEELD (door de app nagerekend, gebruik dit): ${v.vraag ? v.som : `${v.som} = ?`} (uitkomst ${v.uitkomst}). Laat ${name} eerst dít voorbeeld uitrekenen, bevestig het, en zeg dan dat de echte stap precies zo gaat.` : ''; })()}` : '',
     scratchContext(name, scratch, phase),
+    advies?.blok || '',
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
     didactiekText(question.cat, question.level, { kort: !!kaartTekst(isAF() ? 'af' : 'nl', question.tpl) }),
   ].filter(Boolean).join('\n');
@@ -538,6 +543,9 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     if (phase === 'step' && step) doelen.push([step.display, `${question.text}\n${step.ask}`]);
     const fouten = (t) => {
       const f = [];
+      const zicht = splitForm(t).text || '';
+      const verb = (advies?.verboden || []).find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
+      if (verb != null) f.push(`Het getal ${String(verb).replace('.', ',')} mag niet in je bericht: dat moet ${name} zelf vinden. Laat het weg, ook als controle, keuze, rijtje of plaatje.`);
       const hit = doelen.find(([d, som]) => verklaptAntwoord(t, d, { som, kind }));
       if (hit) f.push(`In je bericht staat het antwoord (${hit[0]}) dat ${name} zelf moet vinden. Laat dat getal weg: ook niet als keuze, in een rijtje, als controle of in een plaatje. Laat ${name} die laatste stap zelf doen.`);
       const vorig = [...chat].reverse().find((m) => m.role === 'teacher'), laatsteKind = chat.at(-1)?.role !== 'teacher' ? chat.at(-1)?.text : '';

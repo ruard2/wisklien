@@ -269,3 +269,7 @@ Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het v
 - **Afrikaanse Max in het Afrikaans**: eigen systeeminstructies (`src/za/leraar.js`), taalgids, zetten en opdrachten.
 - **Kindfeiten** (`kindFeiten` in src/signals.js): per onderwerp de denkfouten die het kind de laatste 60 dagen maakte,
   welke uitleg-vorm daarna hielp, en hoe het de laatste 14 dagen ging.
+- **Na een fout: advies-modus** (`foutAdvies` in src/foutgesprek.js, `MAX_FOUTPLAN=advies`): de vrije Max kiest zelf de
+  zet, maar krijgt wat de app zeker weet (antwoord van het kind nagekeken tegen zijn vraag, waar jullie in de route zijn,
+  het advies van het plan) en de verboden getallen worden hard bewaakt. Het strakke plan blijft beschikbaar (`strak`).
+  Na een fout #23–#26: strak voorzegt ⅓ zo vaak maar verloor op didactiek en luisteren. De Max-test vergelijkt nu oud ↔ advies.
