@@ -8,7 +8,7 @@
 import { kaartVoor } from '../uitleg/index.js';
 import { problemen } from '../kwaliteit.js';
 import { improveTips } from '../tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm, enkelvoudSom, zonderEenKeer, vereenvoudigStap } from '../util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm, enkelvoudSom, zonderEenKeer, vereenvoudigStap, stappenVolgenTussenstappen } from '../util.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
 import { mnemonicsFor } from './mnemonics.js';
 
@@ -393,7 +393,7 @@ const getalbegrip = {
       return tpl('getalbegrip.0c', { ...num(`Rond ${n} af tot die naaste 10.`, ans, [`${n} lê tussen ${lo} en ${lo + 10}.`, `Kyk na die ene: ${n % 10}. ${n % 10 >= 5 ? '5 of meer: rond op' : 'Minder as 5: rond af'}.`, `Antwoord: ${ans}.`], { visual: { kind: 'line', from: lo, to: lo + 10, mark: n, ticks: [lo, lo + 5, lo + 10] } }),
         guide: [st(`Tussen watter tiene lê ${n}? Die kleinste is …`, lo, 'Vervang die ene met 0.')], guideFinal: `Is die ene (${n % 10}) 5 of meer? Dan op na ${lo + 10}, anders af na ${lo}` });
     }
-    const base = rnd(2, 8) * 1000 + rnd(1, 9) * 100, opts = shuffle([base + rnd(10, 99), base + rnd(1, 9), base - 100 + rnd(10, 99), base + 100 + rnd(1, 9)]);
+    const base = rnd(2, 8) * 1000 + rnd(1, 8) * 100, opts = shuffle([base + rnd(10, 99), base + rnd(1, 9), base - 100 + rnd(10, 99), base + 100 + rnd(1, 9)]);
     const mx = Math.max(...opts);
     return tpl('getalbegrip.0d', { ...choice(`Watter getal is die grootste? ${list(opts)}`, opts.map((x) => f(x)), opts.indexOf(mx), ['Vergelyk eers die duisende, dan die honderde, dan die tiene.', `${f(mx)} is die grootste.`]),
       guide: [st(`Hoeveel duisende het al die getalle?`, Math.floor(base / 1000), 'Kyk na die eerste syfer.')], guideFinal: 'Vergelyk nou die honderde' });
@@ -443,7 +443,7 @@ const getalbegrip = {
     if (r < 0.55) {
       const [a, b] = pick([[4, 6], [6, 8], [6, 9], [8, 12], [10, 15], [9, 12], [4, 10], [6, 10], [8, 10], [12, 18], [6, 15], [4, 14], [10, 12], [8, 14], [9, 15], [12, 16], [3, 4], [5, 6], [6, 14], [15, 20]]), L = lcm(a, b);
       return tpl('getalbegrip.3b', { ...num(`Wat is die KGV (kleinste gemene veelvoud) van ${a} en ${b}?`, L, [`Veelvoude van ${a}: ${list(Array.from({ length: L / a }, (_, i) => a * (i + 1)))} …`, `Veelvoude van ${b}: ${list(Array.from({ length: L / b }, (_, i) => b * (i + 1)))} …`, `Die kleinste veelvoud wat in albei lyste voorkom: ${L}.`], { wrong: [W(a * b, 'Jy het die getalle net met mekaar gemaal: dit is wel \'n gemene veelvoud, maar nie die kleinste nie.', 'Skryf die veelvoude van albei uit en soek die eerste een wat in albei voorkom.')] }),
-        guide: [st(`Skryf die veelvoude van ${b}: ${b}; ${2 * b}; … Wat is die derde?`, 3 * b, `${b} × 3.`)], guideFinal: `Watter veelvoude van ${b} is ook veelvoude van ${a}?` });
+        guide: [st(`Begin by die groter getal. Die tweede veelvoud van ${b}: 2 × ${b} = ?`, 2 * b, `${b} + ${b}.`)], guideFinal: `Gaan verder in die tafel van ${b} (${b}; ${2 * b}; ${3 * b} …): watter een is die eerste wat ook in die tafel van ${a} is?` });
     }
     if (r < 0.8) {
       const sq = Math.random() < 0.6, n = sq ? rnd(2, 15) : rnd(2, 6);
@@ -1174,7 +1174,7 @@ export function generateRaw(cat, level) {
   q.shape = shapeOf(q.text);
   improveTips(q, 'af'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = (q.wrong || []).filter((w) => w && w.label && w.answer != null && !(typeof w.answer === 'number' && (Number.isNaN(w.answer) || Math.abs(w.answer - q.answer) < 1e-9)));
-  return enkelvoudSom(vereenvoudigStap(zonderEenKeer(kidify(q)), 'af'), 'af');
+  return enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'af'), 'af'), 'af');
 }
 export function generateLike(cat, level, shape, notText) {
   let last = null;

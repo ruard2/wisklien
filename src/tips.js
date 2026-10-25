@@ -163,7 +163,7 @@ function makkelijker0(ask, answer) {
   if (hf) { const n = +hf[1]; const x = n > 10 ? 10 : n > 4 ? 4 : null; if (!x || x / 2 === answer) return null; return { som: `De helft van ${x}`, uitkomst: String(x / 2), vraag: true }; }
   // tijdsduur binnen een uur: "Van 11:00 tot 11:50 = ? minuten" → "Van 3:00 tot 3:20"
   const tdu = a0.match(/(\d{1,2}):(\d{2})\s*(?:tot|→|naar)\s*(\d{1,2}):(\d{2})/);
-  if (tdu) { const m1 = +tdu[2], h2 = +tdu[3], m2 = +tdu[4]; const d = (h2 - +tdu[1]) * 60 + m2 - m1; if (d <= 10 || d > 120) return null; const k = d >= 30 ? 20 : 10; return { som: `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minuten?`, uitkomst: String(k), vraag: true }; }
+  if (tdu) { const m1 = +tdu[2], h2 = +tdu[3], m2 = +tdu[4]; const d = (h2 - +tdu[1]) * 60 + m2 - m1; if (d <= 10 || d > 120) return null; const k = d >= 30 ? 20 : 10; return { som: /\bminute\b/i.test(a0) ? `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minute?` : `Van 3:00 tot 3:${String(k).padStart(2, '0')}: hoeveel minuten?`, uitkomst: String(k), vraag: true }; }
   const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:[a-zé]+\\s*)?(?:=\\s*\\?|\\?\\s*$)`));
   if (!m) return null;
   const a = toN(m[1]), dec = m[2], op = m[3], b = toN(m[4]);
@@ -176,8 +176,10 @@ function makkelijker0(ask, answer) {
   } else if (['×', 'x', '·'].includes(op)) {
     if (a <= 2 && b <= 2) return null;
     const [klein, groot] = a <= b ? [a, b] : [b, a];
-    if (groot > 12 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
+    if (groot > 12 && groot % 10 === 0 && klein <= 10) { const r = groot % 100 === 0 ? 200 : 30; som = `${r} × ${klein === 2 ? 3 : klein}`; uit = r * (klein === 2 ? 3 : klein); } // rond getal: rond voorbeeld (900 × 8 → 200 × 8)
+    else if (groot > 12 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
     else if (groot > 10 && klein <= 10) { som = `2 × ${klein}`; uit = 2 * klein; }
+    else if (groot > 10 && klein % 10 === 0) { som = `12 × ${klein === 20 ? 30 : 20}`; uit = 12 * (klein === 20 ? 30 : 20); } // 38 × 20 → 12 × 30
     else if (groot > 10) { som = `12 × 11`; uit = 132; }
     else { som = `2 × ${groot}`; uit = 2 * groot; if (klein === 2) { som = `2 × 3`; uit = 6; } }
   } else if ([':', '÷'].includes(op)) {

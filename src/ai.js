@@ -16,6 +16,7 @@ import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten } from './kwaliteit.js';
 import { makkelijker } from './tips.js';
+import { vasteBeurt } from './vast.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
 const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
@@ -149,7 +150,8 @@ async function completeRaw(system, messages, opts = {}) {
 // ---------- echt AI-gebruik bijhouden (tokens, uit cache, kosten) ----------
 // Per dag × bron (app = echte kinderen, test = Max-test) × model. Zo zien we wat de vaste prompt echt bespaart.
 const PRIJS = { 'gpt-6-luna': [0.10, 0.01, 0.50] }; // $ per miljoen: invoer, invoer uit cache, uitvoer
-const prijsVan = (m) => PRIJS[m] || (process.env.AI_PRIJS ? process.env.AI_PRIJS.split(',').map(Number) : null);
+export const ZONDER_AI = 'zonder AI (vaste beurt)';
+const prijsVan = (m) => m === ZONDER_AI ? [0, 0, 0] : PRIJS[m] || (process.env.AI_PRIJS ? process.env.AI_PRIJS.split(',').map(Number) : null);
 function telGebruik(model, u) {
   if (!u) return;
   const cache = u.prompt_tokens_details?.cached_tokens || 0, bron = kidStore.getStore()?.cache ? 'test' : 'app';
@@ -359,6 +361,9 @@ function scratchContext(name, scratch, phase) {
 }
 
 export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception, scratch = null }) {
+  // Vaste beurt (src/vast.js): weet de app al precies wat Max moet zeggen, dan geen AI-aanroep. Telt als "zonder AI" in het gebruik.
+  const vast = process.env.VASTE_BEURTEN === '0' ? null : vasteBeurt({ question, phase, given, chat, step, misconception, scratch, af: isAF() });
+  if (vast) { telGebruik(ZONDER_AI, {}); return vast; }
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),

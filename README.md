@@ -234,3 +234,14 @@ Ga naar **`/audit`** (bijv. `https://<jouw-app>/audit`) en log in met de beheerd
 - `server.js` — API
 - `public/` — de app (HTML/CSS/JS, service worker, manifest, iconen)
 - `scripts/e2e.mjs` — end-to-end test (alleen lokaal: wist alle data!)
+
+### Stappenplan = tussenstappen (één route)
+Volgt het stappenplan van een sjabloon een andere weg dan de tussenstappen (± 30 NL- en 13 AF-sjablonen: "dus 36 : 4 = 9"
+terwijl het kind ging happen), dan bouwt `stappenVolgenTussenstappen` (src/util.js) het stappenplan op uit de tussenstappen
+met hun uitkomsten, plus de regel vooraf en de slotopmerking. Zo zeggen tussenstappen, stappenplan en Max dezelfde methode.
+
+### Vaste beurten (minder AI)
+`src/vast.js`: waar de regels precies voorschrijven wat Max zegt, antwoordt de app zelf, zonder AI-aanroep: de opening na
+een fout (met of zonder herkende denkfout, niet bij een kladblok), het makkelijker voorbeeld bij een vastgelopen tussenstap
+en de bevestiging als het kind dat goed uitrekent, "Hoe begin ik?" en "Ik snap het! 👍". Ze gaan door dezelfde
+verklap-controle. Op /audit staan ze als model "zonder AI (vaste beurt)". Uitzetten: `VASTE_BEURTEN=0`.

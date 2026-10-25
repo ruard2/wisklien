@@ -169,3 +169,37 @@ export function vereenvoudigStap(q, lang = 'nl') {
     : `Maak de breuk zo klein mogelijk: deel boven en onder door ${g}: ${m[0]} = ${b / g === 1 ? w + a / g : kort}.`);
   return q;
 }
+
+// Eén route: volgt het stappenplan (na een fout) een andere weg dan de tussenstappen die het kind zelf invult, dan bouwen we
+// het stappenplan op uit die tussenstappen (meetlat en kaartcheck: ± 30 NL- en 17 AF-sjablonen, "stappenplan · andere
+// aanpak/sprong"). De tussenstappen zijn per taal volgens de methode gemaakt (rijgen, happen, kolommen, KABV), dus zo zegt
+// de app overal hetzelfde. Een regel vooraf ("1/4 = verdeel in 4 gelijke stukken") en een slotopmerking zonder som blijven.
+export function stappenVolgenTussenstappen(q, lang = 'nl') {
+  const g = (q.guide || []).filter((s) => s.type !== 'choice');
+  if (!g.length || g.length !== (q.guide || []).length) return q; // keuzestappen zijn controles, geen route
+  const kaal = (x) => String(x ?? '').replace(/^(€\s?|R)/, '').replace(/\s*(%|°|[a-zA-Z/²³]+)$/, '').trim();
+  const tekst = (q.steps || []).join(' ');
+  if (g.every((s) => tekst.includes(kaal(s.display)))) return q; // stappenplan volgt de tussenstappen al
+  const vul = (ask, d) => {
+    const a = String(ask).replace(/\s+—.*$/, '').trim();
+    if (/=\s*\?/.test(a)) return a.replace(/=\s*\?(\s*\w+)?/, (m, eenh) => `= ${d}${eenh && !String(d).includes(eenh.trim()) ? eenh : ''}`);
+    if (/\?\s*=/.test(a) || /[×:+−]\s*\?/.test(a)) return a.replace('?', d);
+    if (/(\.\.\.|…|□)/.test(a) && !/vul in/i.test(a) && !/\?/.test(a)) {
+      const eenh = (a.match(/(?:\.\.\.|…|□)\s*([a-zA-Z²³%°]+)/) || [])[1];
+      return `${a.replace(/(\.\.\.|…|□)(\s*[a-zA-Z²³%°]+)?/, eenh && !String(d).includes(eenh) ? `${d} ${eenh}` : `${d}`)}`.replace(/\.?$/, '.');
+    }
+    if (/\.\s*$/.test(a)) return `${a.replace(/\.\s*$/, '')} → ${d}.`;
+    return `${a.replace(/[?:]\s*$/, '?')} ${d}.`;
+  };
+  const regel = (q.steps || [])[0] && !/\?\s*$/.test(q.steps[0]) && !/=\s*[\d€R−-]/.test(q.steps[0]) && !String(q.steps[0]).includes(kaal(q.display)) ? [q.steps[0]] : [];
+  const slotOpmerking = (q.steps || []).length > 1 && !/[=\d]/.test(q.steps.at(-1)) ? [q.steps.at(-1)] : [];
+  const gf = String(q.guideFinal || '').trim(), dsp = String(q.display);
+  const fin = !gf ? `Dus ${dsp}.`
+    : /(\.\.\.|…|□)/.test(gf) ? `${gf.replace(/\s*(\.\.\.|…|□)\s*%?/, ` ${dsp.replace(/\s+%/, '%')}`)}.`.replace(/=\s+/, '= ')
+    : /\?/.test(gf) ? `${gf} → ${dsp}.`
+    : /[\d)]\s*$/.test(gf) || /\d\s*[+−×:÷]\s*[€R]?\s?\d/.test(gf) ? `${gf} = ${dsp}.`
+    : `${gf}: ${dsp}.`;
+  q.steps = [...regel, ...g.map((s) => vul(s.ask, s.display)), fin, ...slotOpmerking];
+  q.stappenUitTussenstappen = true;
+  return q;
+}
