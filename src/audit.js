@@ -379,6 +379,10 @@ export async function migrateAudit() {
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS meetlat_versie text;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_nieuw int NOT NULL DEFAULT 0;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_hergebruikt int NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS public.ai_gebruik (
+      dag date NOT NULL, bron text NOT NULL, model text NOT NULL, aanroepen int NOT NULL DEFAULT 0,
+      invoer bigint NOT NULL DEFAULT 0, cache bigint NOT NULL DEFAULT 0, uitvoer bigint NOT NULL DEFAULT 0, PRIMARY KEY (dag, bron, model)
+    );
     CREATE TABLE IF NOT EXISTS public.ai_cache (
       sleutel text PRIMARY KEY, model text, antwoord jsonb NOT NULL,
       gemaakt timestamptz NOT NULL DEFAULT now(), laatst timestamptz NOT NULL DEFAULT now(), gebruikt int NOT NULL DEFAULT 0

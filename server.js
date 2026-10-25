@@ -10,7 +10,7 @@ import {
   awardBadge, getBadges,
 } from './src/engine.js';
 import { ts, teacherName, dayNames, defaultRewards } from './src/i18n.js';
-import { kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { createDemoKid } from './src/demo/index.js';
@@ -1417,7 +1417,7 @@ audit.post('/login', (req, res) => {
 });
 audit.use((req, res, next) => (parentScope(req)?.all ? next() : res.status(401).send(loginPage('', !process.env.PARENT_PIN))));
 audit.post('/logout', (req, res) => { res.setHeader('Set-Cookie', 'cp=; Path=/; Max-Age=0'); res.redirect(303, '/audit'); });
-audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null }))));
+audit.get('/', wrap(async (req, res) => res.send(listPage(await auditJobs(), { ai: aiEnabled(), model: aiModel(), judge: process.env.AUDIT_MODEL || null, gebruik: await aiGebruik(7) }))));
 audit.post('/start', wrap(async (req, res) => {
   try { res.redirect(303, `/audit/${await startAudit(req.body.lang, req.body.n, req.body.soort, { max: req.body.max, judge: req.body.judge, kid: req.body.kid, hergebruik: req.body.hergebruik === '1' })}`); } catch (e) { res.status(400).send(listPage(await auditJobs(), { ai: false, model: e.message })); }
 }));

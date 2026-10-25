@@ -34,10 +34,19 @@ export function loginPage(err = '', noPin = false) {
     : `<form method="post" action="/audit/login"><p>Beheerderspincode (PARENT_PIN):</p><input type="password" name="pin" autofocus> <button>Open</button></form>${err ? `<p class="s1">${esc(err)}</p>` : ''}`}</div>`);
 }
 
-export function listPage(jobs, { ai, model, judge }) {
+const gebruikKaart = (g = []) => {
+  if (!g.length) return '';
+  const n = (x) => Number(x).toLocaleString('nl-NL'), d = (x) => (x == null ? '?' : `$${x.toFixed(x < 1 ? 3 : 2)}`);
+  return `<div class="card"><b>AI-gebruik, laatste 7 dagen</b> <span class="small muted">(app = echte kinderen, test = Max-test)</span>
+    <table class="small" style="margin-top:6px"><tr><th>Bron</th><th>Model</th><th class="num">Aanroepen</th><th class="num">Invoer</th><th class="num">Uit cache</th><th class="num">Uitvoer</th><th class="num">Kosten</th><th class="num">Zonder cache</th></tr>
+    ${g.map((x) => `<tr><td>${esc(x.bron)}</td><td>${esc(x.model)}</td><td class="num">${n(x.aanroepen)}</td><td class="num">${n(x.invoer)}</td><td class="num">${x.invoer ? Math.round((100 * x.cache) / x.invoer) : 0}%</td><td class="num">${n(x.uitvoer)}</td><td class="num">${d(x.kosten)}</td><td class="num">${d(x.zonderCache)}</td></tr>`).join('')}</table>
+    <p class="small muted">Tokens zoals OpenAI ze telt. "Uit cache" = invoer die OpenAI al kende (90% goedkoper). Kosten met de prijs per model (gpt-6-luna: $0,10 / $0,01 / $0,50 per miljoen; ander model: zet AI_PRIJS="invoer,cache,uitvoer").</p></div>`;
+};
+export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
   const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
     <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}${j.kid_model ? ` · kind ${esc(j.kid_model)}` : ''}</td></tr>`).join('');
   return page('Max-test', `<h1>🧪 Max-test</h1>
+    ${gebruikKaart(gebruik)}
     <p class="muted">De échte Meester Max (zelfde prompts en model als in de app) krijgt een stapel sommen: "Hoe begin ik?", een fout antwoord met een kort gesprek, en vastlopen bij een tussenstap. Alles wordt bewaard en door een AI-beoordelaar nagekeken. Kinderen en ouders zien hier niets van.</p>
     <div class="card"><form method="post" action="/audit/start">
       <b>Nieuwe test</b><br><br>

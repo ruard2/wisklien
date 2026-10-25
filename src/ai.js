@@ -146,6 +146,26 @@ async function completeRaw(system, messages, opts = {}) {
   if (out != null) await pool.query('INSERT INTO public.ai_cache(sleutel, model, antwoord) VALUES ($1,$2,$3) ON CONFLICT (sleutel) DO UPDATE SET antwoord = EXCLUDED.antwoord, laatst = now()', [key, model, JSON.stringify({ v: out })]).catch((e) => console.warn('[ai-cache]', e.message));
   return out;
 }
+// ---------- echt AI-gebruik bijhouden (tokens, uit cache, kosten) ----------
+// Per dag × bron (app = echte kinderen, test = Max-test) × model. Zo zien we wat de vaste prompt echt bespaart.
+const PRIJS = { 'gpt-6-luna': [0.10, 0.01, 0.50] }; // $ per miljoen: invoer, invoer uit cache, uitvoer
+const prijsVan = (m) => PRIJS[m] || (process.env.AI_PRIJS ? process.env.AI_PRIJS.split(',').map(Number) : null);
+function telGebruik(model, u) {
+  if (!u) return;
+  const cache = u.prompt_tokens_details?.cached_tokens || 0, bron = kidStore.getStore()?.cache ? 'test' : 'app';
+  pool.query(`INSERT INTO public.ai_gebruik(dag, bron, model, aanroepen, invoer, cache, uitvoer) VALUES (CURRENT_DATE, $1, $2, 1, $3, $4, $5)
+    ON CONFLICT (dag, bron, model) DO UPDATE SET aanroepen = ai_gebruik.aanroepen + 1, invoer = ai_gebruik.invoer + $3, cache = ai_gebruik.cache + $4, uitvoer = ai_gebruik.uitvoer + $5`,
+    [bron, model, u.prompt_tokens || 0, cache, u.completion_tokens || 0]).catch(() => {});
+}
+export async function aiGebruik(dagen = 7) {
+  const r = await pool.query(`SELECT bron, model, SUM(aanroepen)::int AS aanroepen, SUM(invoer)::bigint AS invoer, SUM(cache)::bigint AS cache, SUM(uitvoer)::bigint AS uitvoer
+    FROM public.ai_gebruik WHERE dag > CURRENT_DATE - $1::int GROUP BY bron, model ORDER BY bron, model`, [dagen]).catch(() => ({ rows: [] }));
+  return r.rows.map((x) => {
+    const p = prijsVan(x.model), inv = Number(x.invoer), c = Number(x.cache), uit = Number(x.uitvoer);
+    return { ...x, invoer: inv, cache: c, uitvoer: uit, kosten: p ? ((inv - c) * p[0] + c * p[1] + uit * p[2]) / 1e6 : null, zonderCache: p ? (inv * p[0] + uit * p[2]) / 1e6 : null };
+  });
+}
+
 async function completeAI(system, messages, { json = false, maxTokens = 1200, image = null, user = null, model: forceModel = null } = {}) {
   if (mock) {
     await new Promise((r) => setTimeout(r, 400));
@@ -173,6 +193,7 @@ async function completeAI(system, messages, { json = false, maxTokens = 1200, im
         ...(user ? { safety_identifier: crypto.createHash('sha256').update(user).digest('hex').slice(0, 32) } : {}),
         store: false,
       });
+      telGebruik(model, res.usage);
       const text = res.choices?.[0]?.message?.content?.trim() || '';
       const fin = res.choices?.[0]?.finish_reason;
       const out = json ? safeJson(text) : text || null;
@@ -215,7 +236,7 @@ export function splitForm(text) {
 }
 
 // ---------- de leraar ----------
-const LERAAR = (name, profile, memory = '', today = '') => `Je bent ${teacherName()}, de persoonlijke rekenleraar van ${name}. ${name} ${SCHOOL()}, loopt achter met rekenen en is géén rekenwonder. Je bent geduldig, warm, eerlijk en een tikje grappig. Je praat met ${name} zoals een hele goede bijlesjuf of -meester: echt een gesprek, geen standaardteksten.
+const LERAAR_SJABLOON = (name) => `Je bent ${teacherName()}, de persoonlijke rekenleraar van één kind (hoe het heet en wat je over het kind weet, staat in het eerste bericht onder OVER HET KIND). Het kind ${SCHOOL()}, loopt achter met rekenen en is géén rekenwonder. Je bent geduldig, warm, eerlijk en een tikje grappig. Je praat met ${name} zoals een hele goede bijlesjuf of -meester: echt een gesprek, geen standaardteksten.
 
 HOE JE LESGEEFT
 - Kleine stapjes. Eén ding tegelijk. Stel per bericht maximaal één vraag en wacht op het antwoord.
@@ -290,8 +311,16 @@ Gebruik het model uit de didactiekkaart. Zet het eindantwoord niet in een plaatj
 
 UITLEG-VORM (onzichtbaar label)
 - Leg je in een bericht iets uit, zet dan op de allerlaatste regel precies één label: [VORM: plaatje] (tekening/model: strook, getallenlijn, pizza, tabel, blokjes), [VORM: verhaal] (situatie: geld, voetbal, eten), [VORM: regel] (rekenregel, trucje of ezelsbruggetje), [VORM: stappen] (stap voor stap rekenen) of [VORM: voorbeeld] (voordoen met makkelijkere getallen). Kies de vorm die het meest in je uitleg zit.
-- Alleen een vraag of compliment, zonder uitleg? Dan geen label. Het label wordt weggehaald voordat het kind het ziet.
-${profile ? `\nLEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : ''}${memory ? `\nJOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : ''}${today ? `\nVANDAAG IN DEZE SESSIE\n${today}` : ''}`;
+- Alleen een vraag of compliment, zonder uitleg? Dan geen label. Het label wordt weggehaald voordat het kind het ziet.`;
+// Kosten (Max-agent stap 1): de vaste instructies zijn voor elk kind en elk bericht EXACT gelijk (alleen per taal anders),
+// zodat OpenAI ze als "al gezien" rekent (90% korting) en sneller antwoordt. Alles wat per kind verschilt (naam, profiel,
+// notities, vandaag) staat vooraan in het eerste bericht. Zie aiGebruik() voor de echte cijfers.
+const vastCache = {};
+const LERAAR_VAST = () => (vastCache[isAF() ? 'af' : 'nl'] ||= LERAAR_SJABLOON('het kind'));
+const KIND = (name, profile = '', memory = '', today = '') => [`OVER HET KIND: het kind heet ${name}. Spreek ${name} aan met "je" en gebruik soms de naam.`,
+  profile ? `LEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : '', today ? `VANDAAG IN DEZE SESSIE\n${today}` : ''].filter(Boolean).join('\n');
+const metKind = (messages, kind) => { const m = messages.map((x) => ({ ...x })); const i = m.findIndex((x) => x.role === 'user'); if (i >= 0) m[i].content = `${kind}\n\n${m[i].content}`; return m; };
+const completeLeraar = (kind, messages, opts) => complete(LERAAR_VAST(), metKind(messages, kind), opts);
 
 export function describeQuestion(q) {
   let s = `Som: ${q.text}`;
@@ -367,7 +396,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  const sys = LERAAR(name, profile, memory, today), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true };
+  const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true };
+  messages.splice(0, messages.length, ...metKind(messages, KIND(name, profile, memory, today)));
   let out = await complete(sys, messages, opts);
   // Bewaking vóór het kind het ziet (src/kwaliteit.js): verklapt Max het (tussen)antwoord, of praat hij Nederlands in een
   // Afrikaans gesprek? Dan één keer opnieuw laten schrijven, met precies die opmerking erbij.
@@ -445,11 +475,11 @@ Sla stappen over als ${name} het duidelijk al kan (snel en goed). Houd elk beric
   if (!chat.length) messages.push({ role: 'user', content: '[instructie] Begin de les.' });
   for (const m of chat.slice(-14)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  let text = await complete(LERAAR(name, profile, memory), messages, { maxTokens: 600, keepForm: true });
+  let text = await completeLeraar(KIND(name, profile, memory), messages, { maxTokens: 600, keepForm: true });
   if (!text) return null;
   // vangnet: geen vraag en niet klaar? Dan meteen doorgaan, zodat het kind niet blijft hangen
   if (!/\?/.test(text.replace(/\[\[[^\]]*\]\]/g, '')) && !/\[KLAAR\]/.test(text)) {
-    const more = await complete(LERAAR(name, profile, memory), [...messages, { role: 'assistant', content: text }, { role: 'user', content: '[instructie] Je stopte zonder vraag. Ga meteen verder met de volgende stap van de les (zoals je net aankondigde) en eindig met één vraag aan het kind. Herhaal niet wat je al zei.' }], { maxTokens: 600, keepForm: true });
+    const more = await completeLeraar(KIND(name, profile, memory), [...messages, { role: 'assistant', content: text }, { role: 'user', content: '[instructie] Je stopte zonder vraag. Ga meteen verder met de volgende stap van de les (zoals je net aankondigde) en eindig met één vraag aan het kind. Herhaal niet wat je al zei.' }], { maxTokens: 600, keepForm: true });
     if (more) text = `${text}\n\n${more}`;
   }
   return { text: text.replace(/\s*\[KLAAR\]\s*/g, '').trim(), ready: /\[KLAAR\]/.test(text) };
@@ -459,7 +489,7 @@ Sla stappen over als ${name} het duidelijk al kan (snel en goed). Houd elk beric
 // rows: [{cat, label, level (0-3), levelName, score, recent: 'x/y', trend, struggling}]
 export async function planSession({ name, profile, memory, groep, rows, n }) {
   const table = rows.map((r) => `${r.cat} | ${r.label} | nu: ${r.levelName} | score ${r.score}/100 | laatste 14 dagen: ${r.recent || 'nog niet geoefend'} | trend ${r.trend ?? '-'}${r.struggling ? ' | LOOPT VAST' : ''}${r.calib ? ' | NIVEAU NOG ONZEKER' : ''}`).join('\n');
-  return complete(LERAAR(name, profile, memory), [{
+  return completeLeraar(KIND(name, profile, memory), [{
     role: 'user',
     content: `Maak het lesplan voor de oefensessie van vandaag (${n} sommen). ${name} zit in ${isAF() ? 'graad' : 'groep'} ${groep || (isAF() ? 7 : 8)}.
 Niveaus: ${[...LEVEL_NAMES].map((l, i) => `${i} = ${l}`).join(', ')} (het laatste is het eindniveau). Elk onderdeel heeft een eigen niveau.
@@ -481,7 +511,7 @@ Geef JSON: {"bericht": "...", "onderdelen": [{"cat": "cat-id", "niveau": 0-3, "a
 
 // Persoonlijk berichtje na een sessie.
 export async function reflect({ name, profile, memory, summary }) {
-  return complete(LERAAR(name, profile, memory), [{
+  return completeLeraar(KIND(name, profile, memory), [{
     role: 'user',
     content: `${summary}\n\nSchrijf ${name} een kort persoonlijk berichtje (max. 60 woorden) na deze sessie: 1) wat er echt goed ging (concreet), 2) waar jullie samen nog aan gaan werken, 3) een aanmoediging (mag grappig). Geen vragen stellen.`,
   }], { maxTokens: 300 });
@@ -490,7 +520,7 @@ export async function reflect({ name, profile, memory, summary }) {
 // Voor het kind op het voortgangsscherm: waar je goed in bent, waar we nog mee oefenen, en een aanmoediging.
 // Bewust GEEN niveaus, groepen/graden, scores of procenten: die zijn alleen voor de ouder.
 export async function kidProgressNote({ name, profile, memory, strong, practice, streak }) {
-  return complete(LERAAR(name, profile, memory), [{
+  return completeLeraar(KIND(name, profile, memory), [{
     role: 'user',
     content: `Schrijf ${name} een kort berichtje (max. 55 woorden) voor het voortgangsscherm.
 Goed in: ${strong.join(', ') || '(nog te weinig gegevens)'}.
@@ -566,7 +596,7 @@ export function profileText(p) {
 
 // Teach-back: het kind legt uit hoe het een som oploste.
 export async function teachBack({ name, profile, memory, question, explanation }) {
-  return complete(LERAAR(name, profile, memory), [{
+  return completeLeraar(KIND(name, profile, memory), [{
     role: 'user',
     content: `${describeQuestion(question)}\nJuiste antwoord: ${question.display}\nStappenplan: ${question.steps.join(' / ')}\n\n${name} had deze som goed en legt nu zelf uit hoe het ging:\n"""${explanation}"""\n\nGeef korte feedback (max 60 woorden): wat goed is aan de uitleg (noem de eigen woorden van ${name}), klopt de manier, mist er een stap? Eindig met een aanmoediging. Geen vragen terug.`,
   }], { maxTokens: 300 });
