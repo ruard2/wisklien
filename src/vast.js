@@ -3,9 +3,9 @@
 //  1. Opening na een fout mét herkende denkfout: de denkfout + wat helpt + de eerste tussenstap als vraag.
 //  2. Opening na een fout zónder herkende denkfout: "x klopt nog niet. Hoe kwam je daarop?" (zo staat het in de regels).
 //     Met een kladblok erbij niet: dan kijkt Max echt naar de uitwerking.
-//  3. Vast bij een tussenstap en de app heeft een nagerekend makkelijker voorbeeld: dat voorbeeld vragen.
-//  4. Het kind rekent dat voorbeeld goed uit: bevestigen en terug naar de echte stap.
-//  5. "Hoe begin ik?" vóór het antwoord: de eerste tussenstap (die de app zelf ook laat invullen).
+//  3. (Vast bij een tussenstap: het makkelijker voorbeeld vraagt Max zelf, met de brug erbij; zie meetlat #17/#18.)
+//  4. Het kind rekent dat voorbeeld van Max goed uit: bevestigen en terug naar de echte stap.
+//  5. ("Hoe begin ik?" blijft bij Max.)
 //  6. "Ik snap het! 👍" na de uitleg: kort compliment.
 // Alles wat niet in die vormen past (een eigen vraag of uitleg van het kind, het kladblok, een fout antwoord op het
 // voorbeeld) gaat gewoon naar Max. Elke vaste beurt gaat door dezelfde verklap-controle als een AI-beurt.
@@ -50,20 +50,16 @@ export function vasteBeurt({ question: q, phase, given, chat = [], step, misconc
   if (phase === 'step' && step) {
     const v = makkelijker(step.ask, step.answer, [q.answer]);
     if (!v) return null;
-    const som = v.vraag || v.som.includes('?') ? v.som : `${v.som} = ?`;
     const vorig = leraar.at(-1)?.text || '';
-    if (!vorig.includes(v.som)) {
-      if (laatste && !isKnop(laatste, 'Ik snap deze stap niet', 'Geef een voorbeeld', 'Ek verstaan nie hierdie stap nie', 'Gee ’n voorbeeld', "Gee 'n voorbeeld")) return null;
-      return veilig(Z(`Geen zorgen! We maken het eerst makkelijker. Reken deze eens uit: ${som}`, `Moenie worry nie! Ons maak dit eers makliker. Reken hierdie een uit: ${som}`));
-    }
+    // Het voorbeeld zelf vragen laten we aan Max: meetlat #17/#18 gaf een kaal vast voorbeeld 3,5 tegen 4,1–4,3 voor Max,
+    // omdat Max er de aanpak van de stap en de brug naar de echte stap bij zet. De app geeft Max het voorbeeld wel mee.
+    if (!vorig.includes(v.som)) return null;
     if (getal(laatste) != null && getal(laatste) === Number(v.uitkomst))
       return veilig(Z(`Ja, precies! De echte stap gaat net zo: ${vraagVan(step)}`, `Ja, presies! Die regte stap werk net so: ${vraagVan(step)}`));
     return null;
   }
 
-  // 5: "Hoe begin ik?" vóór het antwoord
-  if (phase === 'before' && g0 && kind.length === 1 && !leraar.length && isKnop(laatste, 'Hoe begin ik', 'Hoe begin ek'))
-    return veilig(`${Z('Begin zo:', 'Begin so:')} ${vraagVan(g0)}${g0.tip ? ` ${Z('Tip:', 'Wenk:')} ${g0.tip}` : ''}`);
+  // "Hoe begin ik?" blijft bij Max (meetlat #17: vast 4,64 tegen Max 4,88; het kind ziet de eerste tussenstap al als hint).
 
   // 6: "Ik snap het! 👍"
   if (leraar.length && isKnop(laatste, 'Ik snap het!', 'Ek verstaan dit!'))

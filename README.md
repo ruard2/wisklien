@@ -242,6 +242,7 @@ met hun uitkomsten, plus de regel vooraf en de slotopmerking. Zo zeggen tussenst
 
 ### Vaste beurten (minder AI)
 `src/vast.js`: waar de regels precies voorschrijven wat Max zegt, antwoordt de app zelf, zonder AI-aanroep: de opening na
-een fout (met of zonder herkende denkfout, niet bij een kladblok), het makkelijker voorbeeld bij een vastgelopen tussenstap
-en de bevestiging als het kind dat goed uitrekent, "Hoe begin ik?" en "Ik snap het! 👍". Ze gaan door dezelfde
+een fout (met of zonder herkende denkfout, niet bij een kladblok), de bevestiging als het kind het makkelijker voorbeeld
+goed uitrekent, en "Ik snap het! 👍". Het voorbeeld zelf en "Hoe begin ik?" doet Max weer (meetlat #17/#18: vast 3,5
+tegen Max 4,1–4,3 bij de stap; Max zet de aanpak en de brug naar de echte stap erbij). Ze gaan door dezelfde
 verklap-controle. Op /audit staan ze als model "zonder AI (vaste beurt)". Uitzetten: `VASTE_BEURTEN=0`.

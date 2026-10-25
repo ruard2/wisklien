@@ -171,13 +171,23 @@ function makkelijker0(ask, answer) {
   const f = (x) => String(x).replace('.', ',');
   if (dec) { // kommagetal × heel getal: 0,6 × 20 → 0,6 × 2
     if (!['×', 'x', '·'].includes(op) || b < 3) return null;
+    if ([10, 100, 1000].includes(b)) { const y = dec.length > 1 ? 1.25 : 0.4; if (Math.round(y * b * 1000) / 1000 === answer) return null; return { som: `${f(y)} × ${b}`, uitkomst: f(Math.round(y * b * 1000) / 1000) }; } // × 10 blijft × 10
     const x = Number(`${a}.${dec}`), k = b % 10 && b % 10 !== b ? b % 10 : 2;
     som = `${f(x)} × ${k}`; uit = Math.round(x * k * 1000) / 1000;
   } else if (['×', 'x', '·'].includes(op)) {
     if (a <= 2 && b <= 2) return null;
     const [klein, groot] = a <= b ? [a, b] : [b, a];
+    // keer 10/100: de 10 blijft staan, in dezelfde volgorde (10 × 3 → 10 × 2, niet "2 × 10"; meetlat #17)
+    const macht = [10, 100, 1000].includes(a) ? 'a' : [10, 100, 1000].includes(b) ? 'b' : null;
+    if (macht) {
+      const t = macht === 'a' ? a : b, ander = macht === 'a' ? b : a, k = ander === 2 ? 3 : 2;
+      if (ander <= 2 || k * t === answer) return null;
+      return { som: macht === 'a' ? `${t} × ${k}` : `${k} × ${t}`, uitkomst: String(k * t) };
+    }
+    // twee tafelgetallen (9 × 6): een ánder tafelfeit helpt niet; dan geeft Max zelf de route van de tip (10 × 6 − 6)
+    if (groot <= 10) return null;
     if (groot > 12 && groot % 10 === 0 && klein <= 10) { const r = groot % 100 === 0 ? 200 : 30; som = `${r} × ${klein === 2 ? 3 : klein}`; uit = r * (klein === 2 ? 3 : klein); } // rond getal: rond voorbeeld (900 × 8 → 200 × 8)
-    else if (groot > 12 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
+    else if (groot > 12 && klein <= 10) { const k = klein === 1 ? 2 : klein; som = `11 × ${k}`; uit = 11 * k; } // splitsen in 10 en 1: 29 × 8 → 11 × 8 // zelfde aanpak (splitsen), kleiner getal
     else if (groot > 10 && klein <= 10) { som = `2 × ${klein}`; uit = 2 * klein; }
     else if (groot > 10 && klein % 10 === 0) { som = `12 × ${klein === 20 ? 30 : 20}`; uit = 12 * (klein === 20 ? 30 : 20); } // 38 × 20 → 12 × 30
     else if (groot > 10) { som = `12 × 11`; uit = 132; }
@@ -185,11 +195,18 @@ function makkelijker0(ask, answer) {
   } else if ([':', '÷'].includes(op)) {
     if (b < 2 || a <= b) return null;
     const k = Math.round(a / b) === 2 ? 3 : 2;
+    if (b * k >= a) return null; // 16 : 8 → geen "24 : 8" (groter, meetlat AF #18)
     som = `${b * k} ${op} ${b}`; uit = k;
   } else {
     // plus en min: ronde getallen blijven rond (900 + 100 → 200 + 100), het getal wordt kleiner, over het tiental / lenen blijft
     const plus = op === '+';
     if (!plus && b > a) return null;
+    for (const p of [1000, 100]) if (b >= p && b % p === 0 && a % p !== 0 && a > p) {
+      for (const k of plus ? [1, 2] : [2, 3, 4]) {
+        const X = k * p + (a % p), Y = p, U = plus ? X + Y : X - Y;
+        if (X < a && U !== answer && X !== answer && Y !== answer && U > 0) return { som: `${X} ${plus ? '+' : '−'} ${Y}`, uitkomst: String(U) };
+      }
+    }
     let z = 0; while (a % 10 ** (z + 1) === 0 && b % 10 ** (z + 1) === 0 && b > 0) z++;
     const A = a / 10 ** z, B = b / 10 ** z, p10 = 10 ** z;
     const kandidaten = [];
@@ -204,7 +221,7 @@ function makkelijker0(ask, answer) {
     }
     for (const [[x, y]] of kandidaten) {
       const X = x * p10, Y = y * p10, U = plus ? X + Y : X - Y;
-      if (U < 0 || (X >= a && Y >= b) || U === answer || X === answer || Y === answer || (plus && X + Y >= a + b)) continue;
+      if (U <= 0 || X === Y || (X >= a && Y >= b) || U === answer || X === answer || Y === answer || (plus && X + Y >= a + b)) continue;
       som = `${X} ${plus ? '+' : '−'} ${Y}`; uit = U; break;
     }
   }

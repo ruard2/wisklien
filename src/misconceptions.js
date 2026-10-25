@@ -15,7 +15,7 @@ export function misconceptionsFor(q) {
   // --- breuken optellen/aftrekken: boven én onder opgeteld ---
   if ((m = t.match(/^(\d+)\/(\d+) ([+−]) (\d+)\/(\d+) =$/))) {
     const [a, b, op, c, d] = [+m[1], +m[2], m[3], +m[4], +m[5]];
-    if (op === '+') out.push(W([a + c, b + d], 'Je hebt de getallen boven én onder de streep opgeteld.', 'Maak eerst de stukjes even groot (zelfde getal onder de streep). Alleen de bovenste getallen tel je op.'));
+    if (op === '+') out.push(W([a + c, b + d], 'Je hebt de getallen boven én onder de streep opgeteld.', b === d ? `De stukjes zijn al even groot (allebei ${b}e delen). Het getal onder de streep blijft ${b}: tel alleen de bovenste getallen op.` : 'Maak eerst de stukjes even groot (zelfde getal onder de streep). Alleen de bovenste getallen tel je op.'));
     else if (b !== d) out.push(W([Math.abs(a - c), Math.abs(b - d)], 'Je hebt boven en onder de streep allebei afgetrokken.', 'Maak eerst de stukjes even groot. Daarna trek je alleen de bovenste getallen af.'));
     if (b !== d) out.push(W([op === '+' ? a + c : Math.abs(a - c), Math.max(b, d)], 'Je hebt alleen de bovenste getallen samen genomen, maar de stukjes waren nog niet even groot.', 'Zoek eerst een getal waar beide onderste getallen in passen.'));
   }
@@ -27,7 +27,7 @@ export function misconceptionsFor(q) {
   if ((m = t.match(/^Hoeveel is (\d+)% van (\d+)\?$/))) {
     const [p, b] = [+m[1], +m[2]];
     const route = { 50: `50% is de helft: deel ${b} door 2.`, 25: `25% is een kwart: deel ${b} door 4.`, 75: `75% is drie kwart: eerst een kwart (${b} : 4), dan keer 3.`, 10: `10% is 1 van elke 10: deel ${b} door 10.`, 1: `1% is 1 van elke 100: deel ${b} door 100.`, 100: '100% is het hele getal.' }[p]
-      || (p % 10 === 0 ? `Begin met 10%: deel ${b} door 10, en dan keer ${p / 10}.` : p === 5 ? `5% is de helft van 10%: eerst ${b} : 10, dan de helft.` : `Begin met 1%: deel ${b} door 100, en dan keer ${p}.`);
+      || (p % 10 === 0 ? `Begin met 10%: deel ${b} door 10, en dan keer ${p / 10}.` : p === 5 ? `5% is de helft van 10%: eerst ${b} : 10, dan de helft.` : p > 10 && p % 10 === 5 ? `Begin met 10%: deel ${b} door 10. ${p}% = ${Math.floor(p / 10)} × 10% en nog 5% (de helft van 10%).` : p > 10 ? `Begin met 10%: deel ${b} door 10. ${p}% = ${Math.floor(p / 10)} × 10% en nog ${p % 10} × 1% (1% = ${b} : 100).` : `Begin met 1%: deel ${b} door 100, en dan keer ${p}.`);
     out.push(W(p, 'Je hebt alleen het procent opgeschreven, niet uitgerekend hoeveel dat is.', `${p}% is ${p} van elke 100. ${route}`));
     if (b % p === 0) out.push(W(b / p, `Je hebt ${b} gedeeld door ${p}.`, 'Bij procenten deel je eerst door 100 (of door 10 voor 10%), en dan keer het procent.'));
     out.push(W(b - p, 'Je hebt het procent ervan afgehaald.', 'Een procent is een deel van het getal, geen getal om af te trekken.'));
@@ -73,7 +73,7 @@ export function misconceptionsFor(q) {
   if ((m = t.match(/is (\d+) m lang en (\d+) m breed\. Hoe groot is de (oppervlakte|omtrek)/))) {
     const [l, b] = [+m[1], +m[2]];
     if (m[3] === 'oppervlakte') out.push(W(2 * (l + b), 'Je hebt de omtrek (de rand rondom) uitgerekend.', 'Oppervlakte = de vloer vol tegels: lengte × breedte.'));
-    else { out.push(W(l * b, 'Je hebt de oppervlakte (de vloer) uitgerekend.', 'Omtrek = de rand rondom: tel alle 4 de zijden op.')); out.push(W(l + b, 'Je hebt maar 2 kanten opgeteld.', 'Een rechthoek heeft 4 kanten: 2 lange en 2 korte.')); }
+    else { out.push(W(l * b, 'Je hebt de oppervlakte (de vloer) uitgerekend.', 'Omtrek = de rand rondom: eerst lengte + breedte (een halve rand), en dat keer 2.')); out.push(W(l + b, 'Je hebt maar 2 kanten opgeteld.', 'Een rechthoek heeft 4 kanten: 2 lange en 2 korte.')); }
   }
   // --- plaatswaarde: het cijfer in plaats van de waarde ---
   if ((m = t.match(/^Hoeveel is de (\d) waard in het getal/))) {

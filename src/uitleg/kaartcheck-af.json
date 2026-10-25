@@ -1,5 +1,5 @@
 {
- "bron": "Kaartcheck #11 (gpt-6-luna, versie 1ced81f)",
+ "bron": "Kaartcheck #16 (gpt-6-luna, versie c4983da)",
  "gemaakt": "2026-10-25",
  "kaarten": {
   "breuke.0b": {
@@ -44,11 +44,13 @@
    "aanpak": [
     "Kyk of die noemers dieselfde is: die dele is ewe groot.",
     "Tel die tellers op.",
-    "Hou die noemer dieselfde."
+    "Hou die noemer dieselfde.",
+    "Vereenvoudig die breuk as teller en noemer deur dieselfde getal gedeel kan word."
    ],
    "model": "’n Breukstrook wat in ewe groot dele verdeel is.",
    "valkuilen": [
-    "Noemers ook opgetel → die noemer bly dieselfde; tel net die tellers op."
+    "Noemers ook opgetel → hou die noemer dieselfde; tel net die tellers op.",
+    "Vergeet om te vereenvoudig → kyk of teller en noemer deur dieselfde getal gedeel kan word."
    ],
    "concreter": "Verdeel ’n strook in ewe groot dele en wys hoe die tellers die dele aandui; gebruik ’n pizza as dit help."
   },
@@ -56,16 +58,16 @@
    "naam": "Gemengde getalle optel",
    "aanpak": [
     "Tel die heelgetalle bymekaar.",
-    "Tel die breuke bymekaar; die noemer bly dieselfde.",
-    "As die breuk ’n hele getal vorm, voeg dit by die heelgetal.",
+    "Tel die breuke bymekaar; as die noemers dieselfde is, bly die noemer dieselfde.",
+    "As die breuksom 1 of meer is, skryf dit as ’n heelgetal plus die oorblywende breuk en voeg die heelgetal by.",
     "Vereenvoudig die breuk indien moontlik en skryf die gemengde getal."
    ],
-   "model": "Tel heelgetalle en breuke afsonderlik; maak ’n hele getal uit die breukdeel by die heelgetal en vereenvoudig.",
+   "model": "Tel heelgetalle en breuke afsonderlik; ruil ’n hele breukdeel vir ’n heelgetal en vereenvoudig die oorblywende breuk.",
    "valkuilen": [
-    "Vergeet om die breuk te vereenvoudig → kyk of die teller en noemer deur dieselfde getal gedeel kan word.",
-    "Vergeet ’n hele getal wat uit die breuke vorm → voeg dit by die heelgetal."
+    "Vergeet om die breuk te vereenvoudig → kyk of teller en noemer deur dieselfde getal gedeel kan word.",
+    "Vergeet die heelgetal wat uit die breuksom gevorm word → voeg dit by die heelgetalle en hou die oorblywende breuk."
    ],
-   "concreter": "Gebruik ’n pizzamodel om die breukdele te tel en ’n hele pizza raak te sien."
+   "concreter": "Gebruik ’n pizzamodel om die breukdele te tel, ’n hele pizza raak te sien en die oorblywende deel te wys."
   },
   "breuke.2d": {
    "naam": "Breuk van ’n bedrag (woordsom)",
@@ -174,14 +176,14 @@
    "naam": "Deling met res (woordsom)",
    "aanpak": [
     "Soek in die maaltafel die grootste produk wat nie groter as die deeltal is nie.",
-    "Die faktor sê hoeveel elkeen kry. Trek die produk van die deeltal af om die res te kry."
+    "Die kwosiënt sê hoeveel elkeen kry. Trek die produk van die deeltal af om die res te kry."
    ],
-   "model": "Gelyke verdeling met voorwerpe; die produk is wat uitgedeel word en die res bly oor.",
+   "model": "Verdeel voorwerpe gelyk tussen groepe: die kwosiënt wys hoeveel elke groep kry; wat nie uitgedeel kan word nie, is die res.",
    "valkuilen": [
     "Kies ’n produk wat groter as die deeltal is → kies die grootste produk wat nie groter is nie.",
-    "Sê die produk is wat elkeen kry → kyk hoeveel keer die deler in die produk pas."
+    "Dink die produk is wat elkeen kry → gebruik die kwosiënt; dit sê hoeveel elkeen kry."
    ],
-   "concreter": "Verdeel voorwerpe gelyk tussen groepe; wys wat elke groep kry en wat oorbly."
+   "concreter": "Verdeel voorwerpe gelyk tussen groepe; wys hoeveel elke groep kry en wat oorbly."
   },
   "deling.1b": {
    "naam": "Deling deur opbreek",
@@ -215,7 +217,7 @@
     "Werk van links na regs. Neem genoeg syfers van die deeltal sodat die deler daarin pas.",
     "Bepaal hoeveel keer die deler daarin pas; skryf daardie syfer in die antwoord.",
     "Maal, trek die deelproduk af en bring die volgende syfer af. Herhaal; skryf 0 in die antwoord as die deler nie in die huidige getal pas nie.",
-    "Kontroleer met maal; skryf enige res indien daar een is."
+    "Kontroleer: antwoord × deler + res = deeltal. Skryf enige res indien daar een is."
    ],
    "model": "Die langdeling-uitleg soos in die werkboek.",
    "valkuilen": [
@@ -246,20 +248,22 @@
    "model": "Teken plekke in busse as groepies: elke volle groep is een bus; leerders wat oorbly, benodig saam nog ’n bus.",
    "valkuilen": [
     "Res weggelaat → kyk of daar leerders oorbly; indien wel, tel nog een bus by.",
-    "Res groter as of gelyk aan die deeltal → kyk weer na die deling; die res moet kleiner as die deler wees."
+    "Res groter as of gelyk aan die deler → kyk weer na die deling; die res moet kleiner as die deler wees."
    ],
    "concreter": "Gebruik tellers as leerders en houers as busse. Plaas die tellers in groepies volgens die plekke per bus; enige tellers wat oorbly, gaan in nog ’n bus."
   },
   "deling.3b": {
    "naam": "Langdeling (groot getal)",
    "aanpak": [
-    "Deel, maal, trek af, bring die volgende syfer af.",
-    "As die deler nie ingaan nie, skryf 0 in die antwoord en bring die volgende syfer af.",
+    "Werk van links na regs. Neem genoeg syfers om ’n getal te vorm waarin die deler kan ingaan.",
+    "Deel, maal en trek af; bring die volgende syfer af.",
+    "As die huidige getal kleiner as die deler is, skryf 0 in daardie plek van die antwoord en bring die volgende syfer af. Dit geld eers nadat die antwoord begin het.",
     "Kontroleer deur die antwoord met die deler te vermenigvuldig."
    ],
-   "model": "Werk van links na regs. Deel, maal en trek af; bring dan die volgende syfer af. Skryf die antwoord se syfers in volgorde.",
+   "model": "Deel, maal en trek af; bring dan die volgende syfer af. Skryf die antwoord se syfers in volgorde en behou ’n 0 waar ’n plekwaarde nodig is.",
    "valkuilen": [
-    "Die deler gaan nie in die huidige getal nie → skryf 0 in die antwoord voordat jy die volgende syfer afbring."
+    "Die eerste syfer(s) is kleiner as die deler → neem nog ’n syfer af voordat jy met die antwoord begin.",
+    "Die deler pas nie in ’n huidige getal ná die antwoord begin het nie → skryf 0 in daardie plek voordat jy die volgende syfer afbring."
    ],
    "concreter": "Oefen die deel- en vermenigvuldigingsfeite eers met kleiner getalle."
   },
@@ -359,25 +363,25 @@
    "naam": "Desimaal ÷ heelgetal (woordsom)",
    "aanpak": [
     "Bepaal hoeveel gelyke dele daar is.",
-    "Skryf die desimale getal as tiendes en deel die tiendes.",
-    "Skryf die antwoord weer as ’n desimale getal met die regte eenheid."
+    "Skryf die hoeveelheid as tiendes en deel die tiendes.",
+    "Skryf die antwoord as ’n desimale getal met die regte eenheid."
    ],
-   "model": "Gebruik ’n lengtestrook: verdeel die totale lengte gelyk en dink in tiendes.",
+   "model": "Wys die hoeveelheid as ’n strook of ander gepaste model en verdeel dit in gelyke dele; dink in tiendes.",
    "valkuilen": [
     "Vergeet die desimale komma → skryf die antwoord in tiendes terug as ’n desimale getal."
    ],
-   "concreter": "Verdeel ’n lengtestrook in gelyke dele; wys die lengte in tiendes."
+   "concreter": "Verdeel ’n gepaste voorstelling van die hoeveelheid in gelyke dele; wys hoe die tiendes verdeel word."
   },
   "digiWoorde.a": {
    "naam": "Digitale tyd in woorde",
    "aanpak": [
-    "As die uurgetal groter as 12 is, trek 12 af en gebruik nm.",
-    "Sê die minute by die uur: gebruik “oor” tot by die halfuur; daarna kan jy die minute tot die volgende uur sê. :45 is “kwart voor” die volgende uur."
+    "Bepaal die uur in 12-uur-tyd en of dit vm. of nm. is; vir uurgetalle van 13–23, trek 12 af en gebruik nm.",
+    "Sê die minute by die uur: voor :30 gebruik “oor”; by :30 sê “half”; ná :30 sê hoeveel minute dit tot die volgende uur is. :45 is “kwart voor” die volgende uur."
    ],
-   "model": "’n Horlosie met wysers: die lang wyser tel in spronge van 5 minute.",
+   "model": "’n Horlosie met wysers: die lang wyser tel minute in spronge van 5.",
    "valkuilen": [
-    "’n Uurgetal groter as 12 net so gebruik → trek 12 af.",
-    "Minute ná die halfuur as “oor” die huidige uur sê → tel hoeveel minute tot die volgende uur."
+    "’n Uurgetal van 13–23 net so gebruik → trek 12 af.",
+    "Minute ná :30 as “oor” die huidige uur sê → tel hoeveel minute tot die volgende uur."
    ],
    "concreter": "Wys met die lang wyser waar die minute is en met die kort wyser na watter uur dit oor of voor is."
   },
@@ -398,12 +402,14 @@
   "finansies.0b": {
    "naam": "Pryse optel (rande en sent)",
    "aanpak": [
-    "Tel eers die rande op.",
-    "Tel dan die sente op en skryf die totale bedrag met rand en sent."
+    "Tel die randbedrae op.",
+    "Tel die sentbedrae op. Ruil elke 100 sent vir R1 en tel dit by die randtotaal.",
+    "Skryf die totale bedrag met rand en sent."
    ],
-   "model": "Gebruik geld: note of R1-munte vir die rande en sentemunte vir die sente.",
+   "model": "Gebruik speelgeld: note of R1-munte vir rande en sentemunte vir sente.",
    "valkuilen": [
-    "Rande en sente deurmekaar tel → tel hulle eers apart op."
+    "Rande en sente deurmekaar tel → tel hulle eers apart op.",
+    "100 sent vergeet om te ruil → 100 sent is R1."
    ],
    "concreter": "Gebruik speelgeld of teken note, R1-munte en sentemunte."
   },
@@ -448,14 +454,15 @@
    "naam": "Wisselkoers",
    "aanpak": [
     "Kyk hoeveel rand $1 werd is.",
-    "Maal die dollarbedrag met die koers; breek die bedrag volgens plekwaarde op.",
-    "Tel die deelprodukte op."
+    "Maal die dollarbedrag met die koers; breek die koers in tiene en ene op.",
+    "Bereken die deelprodukte en tel hulle op."
    ],
-   "model": "Verhoudingstabel: skaal die dollarbedrag en randbedrag met dieselfde faktor.",
+   "model": "Plekwaarde- of deelprodukmodel: wys die koers as tiene en ene en bereken elke deel apart.",
    "valkuilen": [
-    "Deel in plaas van maal → Maal die dollarbedrag met die randwaarde van $1."
+    "Deel in plaas van maal → Maal die dollarbedrag met die randwaarde van $1.",
+    "Breek die dollarbedrag op in plaas van die koers → Wys die koers as tiene en ene, byvoorbeeld 21 = 20 + 1."
    ],
-   "concreter": "Gebruik ’n verhoudingstabel om te wys dat elke dollar dieselfde randwaarde het."
+   "concreter": "Gebruik ’n plekwaardetabel of ’n deelprodukmodel om te wys dat elke dollar dieselfde randwaarde het."
   },
   "finansies.3c": {
    "naam": "Afstand teen ’n konstante spoed (km per uur)",
@@ -485,16 +492,15 @@
   "getalbegrip.0c": {
    "naam": "Afronding tot die naaste 10",
    "aanpak": [
-    "Kyk na die ene. As dit 0 is, is die getal reeds ’n tiental en bly dit dieselfde.",
-    "Anders: bepaal tussen watter twee tiene die getal lê.",
+    "Bepaal tussen watter twee tiene die getal lê.",
     "Kyk na die ene: 5 of meer, rond op; minder as 5, rond af."
    ],
    "model": "Getallelyn",
    "valkuilen": [
     "Kyk na die tiene in plaas van die ene → gebruik die ene om te besluit of jy op- of afrond.",
-    "Dink dat ’n getal wat op 0 eindig tussen twee verskillende tiene lê → dit is reeds ’n tiental en bly dieselfde."
+    "Kies nie die twee aangrensende tiene nie → wys hulle op ’n getallelyn."
    ],
-   "concreter": "Gebruik ’n getallelyn om die twee naaste tiene te wys."
+   "concreter": "Gebruik ’n getallelyn om die twee aangrensende tiene te wys."
   },
   "getalbegrip.0d": {
    "naam": "Getalle vergelyk",
@@ -617,14 +623,16 @@
   "klokWoorde.a": {
    "naam": "Tyd in woorde",
    "aanpak": [
-    "Hoeveel minute ná die heel uur is dit?",
-    "Voor half sê jy “oor” die uur wat verby is; presies half sê jy “half” die volgende uur; ná half sê jy “voor” die volgende uur."
+    "Lees die minute op die lang wyser; elke getal is 5 minute.",
+    "Voor half: sê hoeveel minute dit ná die uur is, gevolg deur “oor” en die uur wat verby is.",
+    "Presies half: sê “half” en die volgende uur.",
+    "Ná half: bepaal hoeveel minute tot die volgende uur oor is en sê dit met “voor” en die volgende uur."
    ],
-   "model": "’n Horlosie met wysers: die lang wyser tel in spronge van 5 minute.",
+   "model": "’n Horlosie met wysers; die lang wyser tel in spronge van 5 minute.",
    "valkuilen": [
-    "“Half vyf” as 5:30 gelees → dit is 4:30; wys op die horlosie dat “half” na die volgende uur verwys."
+    "“Half vyf” as 5:30 gelees → dit is 4:30; “half” verwys na die volgende uur."
    ],
-   "concreter": "Wys die tyd op ’n horlosie."
+   "concreter": "Wys die tyd op ’n horlosie en volg die lang wyser se minute."
   },
   "meetkunde.0b": {
    "naam": "Kubusse: vlakke, rande en hoekpunte tel",
@@ -746,16 +754,16 @@
    "concreter": "Gebruik ’n kan, bottel of fles as houer."
   },
   "meting.3b": {
-   "naam": "Stukke uit ’n tou of lint (eenhede, res)",
+   "naam": "Stukke uit ’n lengte materiaal (eenhede, res)",
    "aanpak": [
-    "Skakel albei lengtes na dieselfde eenheid om.",
+    "Skakel die totale lengte en die lengte van een stuk na dieselfde eenheid om.",
     "Deel die totale lengte deur die lengte van een stuk; tel net die hele stukke."
    ],
-   "model": "Totale lengte = hele stukke + res.",
+   "model": "Totale lengte = (aantal heel stukke × lengte van een stuk) + res.",
    "valkuilen": [
     "Rond die antwoord op weens die res → die res is nie ’n ekstra hele stuk nie."
    ],
-   "concreter": "Gebruik ’n meetlint en wys die hele stukke en die oorblywende deel."
+   "concreter": "Gebruik ’n meetlint of teken die materiaal. Wys die heel stukke en die deel wat oorbly."
   },
   "omtrek.0a": {
    "naam": "Omtrek van ’n reghoek",
@@ -823,14 +831,14 @@
   "optel.2b": {
    "naam": "Kolomaftrekking met omruil",
    "aanpak": [
-    "Skryf die getalle onder mekaar, met plekwaardes in lyn; begin by die ene.",
+    "Skryf die getalle onder mekaar met plekwaardes in lyn; begin by die ene.",
     "Trek die onderste syfer van die boonste af.",
     "As dit nie kan nie, ruil 1 eenheid uit die kolom links om vir 10 eenhede in hierdie kolom; verminder die linkerkolom met 1."
    ],
    "model": "Plekwaardekolomme en base-tien-blokke; ruil tussen aangrensende kolomme.",
    "valkuilen": [
-    "Kleinste syfer van die grootste aftrek → trek die onderste syfer van die boonste af.",
-    "Vergeet die linkerkolom met 1 te verminder → merk die nuwe syfer daar."
+    "Trek die kleiner syfer van die groter af → trek altyd die onderste syfer van die boonste af.",
+    "Vergeet om die linkerkolom met 1 te verminder → merk die nuwe syfer daar."
    ],
    "concreter": "Wys die omruil met blokke: 1 eenheid uit die kolom links word 10 eenhede in die huidige kolom."
   },
@@ -981,16 +989,17 @@
   "persentasie.3b": {
    "naam": "Punte as persentasie",
    "aanpak": [
-    "Skryf die behaalde punte as teller en die totale punte as noemer.",
+    "Skryf behaalde punte as teller en totale punte as noemer.",
     "Vereenvoudig die breuk indien moontlik.",
-    "Maak die noemer 100 deur teller en noemer met dieselfde getal te vermenigvuldig.",
-    "Skryf die teller as ’n persentasie."
+    "As jy die noemer met ’n heelgetal tot 100 kan maak, vermenigvuldig teller en noemer met dieselfde getal.",
+    "As dit nie kan nie, deel die teller deur die noemer en vermenigvuldig met 100.",
+    "Skryf die antwoord as ’n persentasie."
    ],
-   "model": "Behaalde punte/totale punte = breuk; ’n breuk met noemer 100 gee die persentasie.",
+   "model": "Behaalde punte/totale punte = breuk. ’n Breuk met noemer 100 wys die persentasie; anders bereken jy teller ÷ noemer × 100.",
    "valkuilen": [
     "Ruil behaalde punte en totale punte om → skryf eers wat die totaal is; dit hoort onder die breukstreep."
    ],
-   "concreter": "Gebruik ’n breukstrook of ’n 100-rooster om te wys dat die breuk en die persentasie dieselfde deel voorstel."
+   "concreter": "Gebruik ’n breukstrook of 100-rooster om te wys dat die breuk en die persentasie dieselfde deel voorstel."
   },
   "persentasie.3c": {
    "naam": "Prysverhoging",
@@ -1161,6 +1170,193 @@
     "Optel in plaas van vermenigvuldig → bepaal hoeveel gelyke groepe daar is en hoeveel in elke groep."
    ],
    "concreter": "Gebruik ’n eenvoudige tekening of voorwerpe om die gelyke groepe te wys."
+  },
+  "breuke.0a": {
+   "naam": "Breuk van ’n getal",
+   "aanpak": [
+    "Deel die getal deur die noemer om die grootte van een groep te kry.",
+    "Vermenigvuldig die grootte van een groep met die teller."
+   ],
+   "model": "’n Breukstrook met ewe groot dele, of groepe voorwerpe: die noemer wys hoeveel ewe groot dele daar is; die teller wys hoeveel dele jy neem.",
+   "valkuilen": [
+    "Vermenigvuldig met die noemer in plaas daarvan om te deel → deel eers deur die noemer.",
+    "Vergeet die teller → neem soveel groepe as wat die teller aandui."
+   ],
+   "concreter": "Gebruik groepe voorwerpe: verdeel dit eers gelykop volgens die noemer en neem dan die aantal groepe wat die teller aandui."
+  },
+  "data.2a": {
+   "naam": "Mediaan",
+   "aanpak": [
+    "Rangskik die getalle van klein na groot.",
+    "Tel hoeveel getalle daar is. By ’n onewe aantal: kies die middelste getal. By ’n ewe aantal: tel die twee middelste getalle bymekaar en deel deur 2."
+   ],
+   "model": "Skryf die getalle in volgorde en merk die middelste plek of plekke.",
+   "valkuilen": [
+    "Getalle nie gerangskik nie → rangskik eers van klein na groot.",
+    "Net een middelste getal gekies by ’n ewe aantal → gebruik die twee middelste getalle en bereken hul gemiddelde."
+   ],
+   "concreter": "Skryf elke getal op ’n kaartjie, rangskik die kaartjies en vind die middelste plek of plekke."
+  },
+  "data.3d": {
+   "naam": "Waarskynlikheid as breuk",
+   "aanpak": [
+    "Tel hoeveel moontlike uitkomste daar altesaam is.",
+    "Tel hoeveel uitkomste gunstig is.",
+    "Skryf gunstige uitkomste / al die uitkomste as ’n breuk.",
+    "Vereenvoudig die breuk indien moontlik."
+   ],
+   "model": "Gunstige uitkomste / al die uitkomste",
+   "valkuilen": [
+    "Die teller en noemer omruil → skryf eers die gunstige uitkomste bo en die totale uitkomste onder."
+   ],
+   "concreter": "Skryf of teken al die moontlike uitkomste en omkring dié wat by die vraag pas."
+  },
+  "desimale.0a": {
+   "naam": "Rande na sent",
+   "aanpak": [
+    "1. R1 = 100 sent.",
+    "2. Skakel die rande om na sent: vermenigvuldig met 100.",
+    "3. Tel die sent-deel by."
+   ],
+   "model": "Gebruik rand- en sentmunte om te wys dat rand en sent albei geldbedrae is, maar in verskillende eenhede.",
+   "valkuilen": [
+    "Rand en sent deurmekaar → skakel eers die rande na sent om en tel dan die sent-deel by."
+   ],
+   "concreter": "Gebruik R1-munte en sentmunte om die twee dele van die bedrag te wys."
+  },
+  "desimale.3d": {
+   "naam": "Afronding tot een desimale plek",
+   "aanpak": [
+    "Kyk na die tweede syfer ná die komma (die honderdstes).",
+    "As dit 5 of meer is, verhoog die tiendesyfer met 1.",
+    "As dit minder as 5 is, hou die tiendesyfer dieselfde. Skryf die getal met een syfer ná die komma."
+   ],
+   "model": "Plekwaardetabel: merk die tiendes en honderdstes; gebruik die honderdstesyfer om die tiendes af te rond.",
+   "valkuilen": [
+    "Kyk na die verkeerde syfer → tel vanaf die komma: tiendes eerste, honderdstes tweede.",
+    "Rond die verkeerde kant toe → 5 of meer: op; minder as 5: af."
+   ],
+   "concreter": "Wys die syfers in ’n plekwaardetabel of op ’n getallelyn."
+  },
+  "getalbegrip.1c": {
+   "naam": "Getal skryf uit plekwaarde",
+   "aanpak": [
+    "Teken ’n plekwaardetabel: D, H, T, E.",
+    "Plaas elke gegewe syfer in die regte kolom; skryf 0 waar ’n plek leeg is.",
+    "Lees die getal van links na regs."
+   ],
+   "model": "Plekwaardetabel met D, H, T en E.",
+   "valkuilen": [
+    "’n Plek oorslaan of 0 vergeet → skryf ’n syfer in elke kolom, ook 0."
+   ],
+   "concreter": "Gebruik geld: R1-munte, R10-, R100- en R1 000-note."
+  },
+  "meetkunde.0d": {
+   "naam": "Vlakke of hoekpunte van ’n kubus",
+   "aanpak": [
+    "Kyk of die vraag oor vlakke of hoekpunte gaan.",
+    "Vlakke: tel die plat kante; ’n dobbelsteen het 6.",
+    "Hoekpunte: tel bo en onder (4 bo en 4 onder)."
+   ],
+   "model": "’n Dobbelsteen",
+   "valkuilen": [
+    "Vlakke en hoekpunte verwar → kyk of jy plat kante of punte moet tel.",
+    "Rande en vlakke verwar → vlakke is die plat kante."
+   ],
+   "concreter": "Hou ’n dobbelsteen vas en tel die gevraagde vlakke of hoekpunte."
+  },
+  "meetkunde.2a": {
+   "naam": "Vlakke, rande en hoekpunte van ’n prisma of piramide",
+   "aanpak": [
+    "Kyk na die grondvlak: herken die vorm en tel sy rande en hoekpunte.",
+    "Piramide: tel die grondvlak en die driehoekige syvlakke; tel die grondvlak se rande en die rande van elke hoekpunt na die punt bo; tel die punt bo as ’n ekstra hoekpunt.",
+    "Prisma: tel die twee ewe groot, parallelle eindvlakke en die verbindende syvlakke; tel die rande en hoekpunte op albei eindvlakke en die verbindingsrande."
+   ],
+   "model": "Teken of bou die liggaam en merk die vlakke, rande en hoekpunte terwyl jy tel.",
+   "valkuilen": [
+    "Tel ’n rand of hoekpunt twee keer → merk elkeen een keer op die tekening of model.",
+    "Tel net die grondvlak → kyk ook na die syvlakke en verbindings."
+   ],
+   "concreter": "Bou dit met strooitjies en klei, of teken dit en merk elke deel terwyl jy tel."
+  },
+  "meetkunde.3c": {
+   "naam": "Gelykbenige driehoek",
+   "aanpak": [
+    "Trek die tophoek van 180° af om die twee basishoeke saam te kry.",
+    "Deel die oorblywende hoekgrootte deur 2."
+   ],
+   "model": "Teken ’n driehoek. Merk die twee ewe groot basishoeke en wys dat die drie hoeke saam 180° is.",
+   "valkuilen": [
+    "Vergeet om te deel deur 2 → Die antwoord is vir albei basishoeke saam; hulle is ewe groot."
+   ],
+   "concreter": "Teken die driehoek en merk die gelyke basishoeke."
+  },
+  "meting.1b": {
+   "naam": "Gemengde getal na die klein eenheid (bv. ℓ na mℓ)",
+   "aanpak": [
+    "Skakel die hele eenhede om deur met 1 000 te vermenigvuldig.",
+    "Skakel die halwe eenheid om: die helfte van 1 000 is 500.",
+    "Tel die twee hoeveelhede bymekaar."
+   ],
+   "model": "Wys een hele eenheid en ’n halwe eenheid met ’n maatstrook of eenheidkaart.",
+   "valkuilen": [
+    "Vergeet om die hele eenhede om te skakel → vermenigvuldig dit met 1 000.",
+    "Skakel die halwe eenheid verkeerd om → dink aan die helfte van 1 000.",
+    "Tel net een deel by → tel die omgeskakelde hele en halwe eenhede saam."
+   ],
+   "concreter": "Wys die eenheid as 1 000 kleiner eenhede; verdeel dit in twee gelyke dele om die halwe eenheid te sien."
+  },
+  "omtrek.3c": {
+   "naam": "Breedte uit die oppervlakte",
+   "aanpak": [
+    "Oppervlakte = lengte × breedte; skryf die gegewe lengte × □ = oppervlakte.",
+    "Deel die oppervlakte deur die lengte om die breedte te kry."
+   ],
+   "model": "’n Reghoekrooster: die lengte wys hoeveel blokkies in ’n ry is; die breedte wys hoeveel rye daar is. Totale blokkies = lengte × breedte.",
+   "valkuilen": [
+    "Trek af in plaas van deel → die breedte is die ontbrekende faktor; deel die oppervlakte deur die lengte.",
+    "Verwar lengte en breedte → kyk watter maat gegee is en watter een gevra word."
+   ],
+   "concreter": "Teken ’n rooster en merk die bekende lengte langs een kant. Die totale aantal blokkies is die oppervlakte; bepaal hoeveel rye nodig is."
+  },
+  "oondSom.a": {
+   "naam": "Hoe laat klaar (oond)",
+   "aanpak": [
+    "Kyk hoeveel minute daar tot die volgende heel uur is.",
+    "As die baktyd korter is, tel dit direk by die begintyd.",
+    "As die baktyd langer is, tel eers tot die heel uur; trek dié minute van die baktyd af en tel die res by die heel uur."
+   ],
+   "model": "Tydlyn met die begintyd en, wanneer nodig, die volgende heel uur as stop.",
+   "valkuilen": [
+    "Dink ’n uur het 100 minute → onthou: 1 uur = 60 minute.",
+    "Tel verby die heel uur sonder om die minute te hergroepeer → gebruik die heel uur as stop."
+   ],
+   "concreter": "Wys die begintyd en die baktyd op ’n tydlyn; merk die volgende heel uur as die baktyd daar verbygaan."
+  },
+  "patrone.1b": {
+   "naam": "Vloeidiagram (twee reëls)",
+   "aanpak": [
+    "Begin met die insetgetal en pas die eerste reël toe.",
+    "Gebruik die uitkoms as inset vir die tweede reël en pas dit toe."
+   ],
+   "model": "Masjien-prentjie: volg die pyle een vir een en dra elke uitkoms aan na die volgende reël.",
+   "valkuilen": [
+    "Reëls omruil → Volg die pyle van inset na uitset.",
+    "Die oorspronklike insetgetal weer by die tweede reël gebruik → Gebruik die eerste reël se uitkoms."
+   ],
+   "concreter": "Wys die getal ná elke reël as ’n tussenstap."
+  },
+  "vermenigvuldig.1c": {
+   "naam": "× 10, 100, 1 000",
+   "aanpak": [
+    "×10: skuif elke syfer een plek links in die plekwaardetabel; skryf een nul agteraan.",
+    "×100: skuif elke syfer twee plekke links; skryf twee nulle agteraan. ×1 000: skuif elke syfer drie plekke links; skryf drie nulle agteraan."
+   ],
+   "model": "Plekwaardetabel",
+   "valkuilen": [
+    "Nul(le) vergeet → Kyk hoeveel nulle die vermenigvuldiger het."
+   ],
+   "concreter": "Geld: 10, 100 of 1 000 keer soveel rand."
   }
  }
 }
