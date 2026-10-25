@@ -1,5 +1,5 @@
 // HTML voor de Max-test (/audit): lijst met tests en het rapport per test. Alleen voor de beheerder.
-import { itemScore } from './audit.js';
+import { itemScore, stapSamenvatting as stapSamenvattingLokaal } from './audit.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const CSS = `
@@ -43,7 +43,7 @@ const gebruikKaart = (g = []) => {
     <p class="small muted">Tokens zoals OpenAI ze telt. "Uit cache" = invoer die OpenAI al kende (90% goedkoper). Kosten met de prijs per model (gpt-6-luna: $0,10 / $0,01 / $0,50 per miljoen; ander model: zet AI_PRIJS="invoer,cache,uitvoer").</p></div>`;
 };
 export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
-  const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
+  const rows = jobs.map((j) => `<tr><td><a href="/audit/${j.id}">#${j.id}</a></td><td>${new Date(j.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })}</td><td>${j.lang === 'af' ? '🇿🇦 AF' : '🇳🇱 NL'}</td><td>${j.soort === 'meetlat' ? '📏 meetlat' : j.soort === 'kaarten' ? '🗂️ kaartcheck' : j.soort === 'stappen' ? '🪜 tussenstappen' : '🎲 willekeurig'}${j.versie ? ` <span class="small muted">${esc(j.versie)}</span>` : ''}</td>
     <td class="num">${j.done}/${j.n}</td><td>${esc(j.status)}${j.error ? ` <span class="muted small">${esc(j.error)}</span>` : ''}</td><td class="small muted">${esc(j.model || '')}${j.judge_model && j.judge_model !== j.model ? ` · beoordelaar ${esc(j.judge_model)}` : ''}${j.kid_model ? ` · kind ${esc(j.kid_model)}` : ''}</td></tr>`).join('');
   return page('Max-test', `<h1>🧪 Max-test</h1>
     ${gebruikKaart(gebruik)}
@@ -51,7 +51,7 @@ export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
     <div class="card"><form method="post" action="/audit/start">
       <b>Nieuwe test</b><br><br>
       Taal <select name="lang"><option value="nl">Nederlands</option><option value="af">Afrikaans</option></select>
-      &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option><option value="kaarten">🗂️ Kaartcheck (elke soort som: kaart ↔ vaste uitleg)</option></select>
+      &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option><option value="kaarten">🗂️ Kaartcheck (elke soort som: kaart ↔ vaste uitleg)</option><option value="stappen">🪜 Tussenstappen: oude Max ↔ Max met gespreksplan</option></select>
       &nbsp; Aantal <select name="n">${[10, 25, 50, 100, 150, 200].map((n) => `<option ${n === 100 ? 'selected' : ''}>${n}</option>`).join('')}</select>
       <details style="margin-top:10px"><summary class="small"><b>Modellen</b> (goedkoper testen)</summary>
         <div class="small" style="display:grid;gap:6px;margin-top:8px;grid-template-columns:auto 1fr;align-items:center">
@@ -64,7 +64,7 @@ export function listPage(jobs, { ai, model, judge, gebruik = [] }) {
       </details>
       <label class="small" style="display:block;margin-top:10px"><input type="checkbox" name="hergebruik" value="1" checked> ♻️ <b>Hergebruik eerdere AI-antwoorden</b> (goedkoper): wat sinds een vorige test niet veranderd is (zelfde som, kaart, prompt, gesprek en model), wordt niet opnieuw gevraagd en kost niets. Uitvinken = alles vers (om te zien hoeveel Max van keer tot keer verschilt).</label>
       <br><button ${ai ? '' : 'disabled'}>Start</button>
-      <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist. <b>Kaartcheck</b>: één AI-oordeel per soort som (± 150): past de uitlegkaart bij alle sommen van die soort en volgt de vaste uitleg de kaart? Geeft verbeterde kaarten; zonder Max en zonder kind, dus goedkoop.</p>
+      <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist. <b>Kaartcheck</b>: één AI-oordeel per soort som (± 150): past de uitlegkaart bij alle sommen van die soort en volgt de vaste uitleg de kaart? Geeft verbeterde kaarten; zonder Max en zonder kind, dus goedkoop. <b>Tussenstappen</b>: alleen het gesprek als een kind vastloopt bij een tussenstap (± 150 gevallen van de meetlat), twee keer: de oude Max en Max met gespreksplan (de app kiest de zet, Max verwoordt). Eén beoordelaar vergelijkt ze blind op didactiek, warmte en luisteren.</p>
       <p class="small muted">Model: ${esc(model || 'AI staat uit')}${judge ? ` · beoordelaar: ${esc(judge)}` : ''}. Per som ± 7 AI-aanroepen; 100 sommen duurt ± 20-40 minuten. Je kunt deze pagina sluiten: de test loopt door op de server.</p>
     </form></div>
     ${jobs.filter((j) => j.soort === 'meetlat' && j.status === 'klaar').length >= 2 ? `<div class="card"><form method="get" action="/audit/vergelijk"><b>Twee meetlat-runs vergelijken</b><br><br>
@@ -112,6 +112,7 @@ function itemHTML(it, i) {
 
 export function reportPage(job, items, nParts = 0) {
   if (job.soort === 'kaarten') return kaartPage(job, items, nParts);
+  if (job.soort === 'stappen') return stappenPage(job, items, nParts);
   const judged = items.filter((it) => it.verdict?.cijfers);
   const byCat = {};
   for (const it of judged) (byCat[it.label] ||= []).push(it);
@@ -201,4 +202,39 @@ function kaartPage(job, items, nParts) {
     ${slecht.map(kaartje).join('')}
     <details><summary>Kaarten die passen (${items.length - slecht.length})</summary>${items.filter((it) => !slecht.includes(it)).map(kaartje).join('')}</details>`;
   return page(`Kaartcheck #${job.id}`, body, running ? 20 : 0);
+}
+
+// Tussenstappen-test: oud ↔ nieuw naast elkaar
+function stappenPage(job, items, nParts) {
+  const verschil = (it) => { const v = it.verdict || {}; return v.oud && v.nieuw ? (v.nieuw.stap + v.nieuw.warm) - (v.oud.stap + v.oud.warm) : 0; };
+  const running = job.status === 'bezig';
+  const S = job.summary || stapSamenvattingLokaal(items);
+  const rij = (l, k, beter = 'hoog') => { const a = S.oud?.[k], b = S.nieuw?.[k]; const d = typeof a === 'number' && typeof b === 'number' ? b - a : null;
+    const goed = d == null || d === 0 ? '' : (beter === 'hoog' ? d > 0 : d < 0) ? 's5' : 's1';
+    return `<tr><td>${l}</td><td class="num">${a ?? '–'}</td><td class="num">${b ?? '–'}</td><td class="num ${goed}">${d == null ? '' : (d > 0 ? '+' : '') + (Number.isInteger(d) ? d : d.toFixed(2))}</td></tr>`; };
+  const kosten = (v) => S[v] ? (((S[v].invoer - (S[v].vast || 0)) * 0.10) + (S[v].vast || 0) * 0.01 + S[v].uitvoer * 0.50) / 1e6 : null; // gpt-6-luna; systeemprompt uit de cache
+  const gesprek = (t) => (t || []).map((x) => `<div class="bubble ${x.wie === 'max' ? 'max' : 'kid'}">${x.zet ? `<span class="chip">${esc(x.zet)}</span>` : ''}${esc(x.tekst)}${x.vb ? `<div class="small muted">voorbeeld: ${esc(x.vb.som)} = ${esc(x.vb.uitkomst)}</div>` : ''}</div>`).join('');
+  const itemHTML = (it) => { const v = it.verdict || {}; const c = (k) => v[k] ? `stap ${sc(v[k].stap)} · warm ${sc(v[k].warm)} · luistert ${sc(v[k].luistert)}${v[k].verklapt ? ' · <span class="chip bad">verklapt</span>' : ''}${v[k].rekenfout ? ' · <span class="chip bad">rekenfout</span>' : ''}` : '';
+    return `<details class="card item"><summary><span class="score ${verschil(it) < 0 ? 's1' : 's5'}">${v.voorkeur === 'nieuw' ? '🆕' : v.voorkeur === 'oud' ? '⏪' : '='}</span><b>${esc(it.tpl || it.geval)}</b> <span class="muted small">${esc(it.label)} · ${esc(it.levelName || '')} · pad ${esc(it.pad || '')}</span></summary>
+      <p class="small">${esc(it.som || '')}<br><b>Stap:</b> ${esc(it.stap?.vraag || '')} (goed: ${esc(it.stap?.goed || '')})</p>
+      <p class="small muted">${esc(v.oordeel || v.fout || '')}</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">
+        <div><h3>⏪ Oud</h3><div class="small">${c('oud')}</div>${gesprek(it.varianten?.oud?.turns)}</div>
+        <div><h3>🆕 Nieuw (gespreksplan)</h3><div class="small">${c('nieuw')}</div>${gesprek(it.varianten?.nieuw?.turns)}</div>
+      </div>
+      ${(v.problemen || []).map((p) => `<div class="prob e2"><span class="chip">${esc(p.variant)}</span><span class="chip">${esc(p.soort)}</span> “${esc(p.citaat)}” — ${esc(p.uitleg)}</div>`).join('')}</details>`; };
+  const body = `<p><a href="/audit">‹ Alle tests</a></p>
+    <h1>🪜 Tussenstappen #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'}</h1>
+    <p class="muted">${esc(job.model || '')} · versie ${esc(job.versie || '?')} · status: <b>${esc(job.status)}</b> · ${items.length} van ${job.n} gevallen
+      ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : ` · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
+    ${items.length ? `<div class="card"><b>⬇️ Downloaden voor Claude</b> ${Array.from({ length: nParts }, (_, i) => `<a href="/audit/${job.id}/deel/${i + 1}">deel ${i + 1}</a>`).join(' · ')} <span class="small muted"> · of <a href="/audit/${job.id}.json">alles in één bestand</a></span></div>` : ''}
+    <div class="card"><table><tr><th></th><th class="num">⏪ Oud</th><th class="num">🆕 Nieuw</th><th class="num">Verschil</th></tr>
+      ${rij('Didactiek bij de stap', 'stap')}${rij('… als het lukt', 'stap_lukt')}${rij('… als het moeilijk blijft', 'stap_moeilijk')}${rij('Warm / natuurlijk', 'warm')}${rij('Luistert', 'luistert')}${rij('Verklapt (aantal)', 'verklapt', 'laag')}${rij('Rekenfout (aantal)', 'rekenfout', 'laag')}
+      ${rij('Max-aanroepen', 'aanroepen', 'laag')}${rij('Invoer (± tokens)', 'invoer', 'laag')}${rij('Uitvoer (± tokens)', 'uitvoer', 'laag')}
+      <tr><td>Geschatte kosten (systeemprompt uit cache)</td><td class="num">${kosten('oud') == null ? '–' : '$' + kosten('oud').toFixed(3)}</td><td class="num">${kosten('nieuw') == null ? '–' : '$' + kosten('nieuw').toFixed(3)}</td><td></td></tr></table>
+      <p class="small">Voorkeur van de beoordelaar: 🆕 nieuw ${S.voorkeur?.nieuw ?? 0} · ⏪ oud ${S.voorkeur?.oud ?? 0} · gelijk ${S.voorkeur?.gelijk ?? 0} (van ${S.n ?? 0})</p>
+      <p class="small muted">Zetten van het plan: ${Object.entries(S.zetten || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n}`).join(' · ') || '–'}</p></div>
+    <h2>Grootste verschillen</h2>
+    ${[...items].sort((a, b) => verschil(a) - verschil(b)).map(itemHTML).join('')}`;
+  return page(`Tussenstappen #${job.id}`, body, running ? 20 : 0);
 }

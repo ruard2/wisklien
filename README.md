@@ -246,3 +246,11 @@ een fout (met of zonder herkende denkfout, niet bij een kladblok), de bevestigin
 goed uitrekent, en "Ik snap het! 👍". Het voorbeeld zelf en "Hoe begin ik?" doet Max weer (meetlat #17/#18: vast 3,5
 tegen Max 4,1–4,3 bij de stap; Max zet de aanpak en de brug naar de echte stap erbij). Ze gaan door dezelfde
 verklap-controle. Op /audit staan ze als model "zonder AI (vaste beurt)". Uitzetten: `VASTE_BEURTEN=0`.
+
+### Gespreksplan bij een tussenstap (proef)
+`src/stapgesprek.js`: als het kind vastloopt bij een tussenstap, kiest de app per beurt de didactische zet (voorbeeld →
+brug terug, of bij "snap het niet" concreter → voordoen → samen doen; fout antwoord → wijzen waar het verschilt; goed →
+"vul maar in") en welke getallen er niet in mogen. Max verwoordt de zet (toon, woorden, verhaaltje of plaatje kiest hij
+zelf). Heeft de app geen makkelijker voorbeeld, dan bedenkt Max er een en zet het onzichtbaar als `[VB: vraag = uitkomst]`
+erbij; de app rekent het na en kijkt daarmee het antwoord van het kind na. Een eigen vraag van het kind gaat naar de gewone
+Max. Aan in de app met `MAX_STAPPLAN=1` (nog uit). Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).

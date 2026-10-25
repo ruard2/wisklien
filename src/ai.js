@@ -14,7 +14,8 @@ import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
-import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten } from './kwaliteit.js';
+import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic } from './kwaliteit.js';
+import { stapPlan, getallenRegel, getallen as getallenIn } from './stapgesprek.js';
 import { makkelijker } from './tips.js';
 import { vasteBeurt } from './vast.js';
 
@@ -134,18 +135,23 @@ async function complete(system, messages, opts = {}) {
 // of het gesprek, dan is de vraag anders en wordt er gewoon opnieuw gevraagd. kidStore.cache = { nieuw, hergebruikt } telt mee.
 async function completeRaw(system, messages, opts = {}) {
   const st = kidStore.getStore();
-  if (!st?.cache) return completeAI(system, messages, opts);
+  // meter (Max-test): omvang van elke aanroep in tokens (± 4 tekens per token), ook als het antwoord uit de cache komt,
+  // zodat twee manieren eerlijk te vergelijken zijn
+  // vast = de systeemprompt (voor elk bericht gelijk, dus bij OpenAI uit de cache: 90% goedkoper)
+  if (st?.meter) { st.meter.aanroepen++; st.meter.invoer += Math.round((system.length + JSON.stringify(messages).length) / 4); st.meter.vast = (st.meter.vast || 0) + Math.round(system.length / 4); }
+  const uit = (r) => { if (st?.meter && r != null) st.meter.uitvoer += Math.round(JSON.stringify(r).length / 4); return r; };
+  if (!st?.cache) return uit(await completeAI(system, messages, opts));
   const model = opts.model || st.aiModel || (mock ? 'mock' : openai ? await openaiModel() : process.env.AI_MODEL || 'claude-opus-5-5');
   const key = crypto.createHash('sha256').update(JSON.stringify([openai ? 'openai' : 'anthropic', model, system, messages, !!opts.json, opts.maxTokens || 1200, opts.image ? crypto.createHash('sha256').update(opts.image).digest('hex') : null])).digest('hex');
   // lezen: false = alles vers vragen (vinkje uit), maar wel opslaan, zodat een volgende test het kan hergebruiken
   if (st.cache.lezen !== false) try {
     const r = await pool.query('UPDATE public.ai_cache SET gebruikt = gebruikt + 1, laatst = now() WHERE sleutel = $1 RETURNING antwoord', [key]);
-    if (r.rows.length) { st.cache.hergebruikt++; return r.rows[0].antwoord.v; }
+    if (r.rows.length) { st.cache.hergebruikt++; return uit(r.rows[0].antwoord.v); }
   } catch (e) { console.warn('[ai-cache]', e.message); }
   const out = await completeAI(system, messages, opts);
   st.cache.nieuw++;
   if (out != null) await pool.query('INSERT INTO public.ai_cache(sleutel, model, antwoord) VALUES ($1,$2,$3) ON CONFLICT (sleutel) DO UPDATE SET antwoord = EXCLUDED.antwoord, laatst = now()', [key, model, JSON.stringify({ v: out })]).catch((e) => console.warn('[ai-cache]', e.message));
-  return out;
+  return uit(out);
 }
 // ---------- echt AI-gebruik bijhouden (tokens, uit cache, kosten) ----------
 // Per dag × bron (app = echte kinderen, test = Max-test) × model. Zo zien we wat de vaste prompt echt bespaart.
@@ -232,9 +238,11 @@ function safeJson(text) {
 
 // Het onzichtbare uitleg-label eraf halen: { text, form }
 export function splitForm(text) {
-  if (!text) return { text, form: null };
+  if (!text) return { text, form: null, vb: null };
   const m = String(text).match(/\[VORM:\s*(plaatje|verhaal|regel|stappen|voorbeeld)\s*\]/i);
-  return { text: String(text).replace(/\s*\[VORM:[^\]]*\]\s*/gi, ' ').trim(), form: m ? m[1].toLowerCase() : null };
+  // [VB: vraag = uitkomst]: het voorbeeld dat Max zelf bedacht (gespreksplan bij een tussenstap; het kind ziet het niet)
+  const v = String(text).match(/\[VB:\s*([^\]]*?)\s*=\s*([^\]=]+?)\s*\]/i);
+  return { text: String(text).replace(/\s*\[(VORM|VB):[^\]]*\]\s*/gi, ' ').trim(), form: m ? m[1].toLowerCase() : null, vb: v ? { som: v[1].trim(), uitkomst: v[2].trim() } : null };
 }
 
 // ---------- de leraar ----------
@@ -360,10 +368,75 @@ function scratchContext(name, scratch, phase) {
         : `Kijk mee in de uitwerking tot nu toe en help vanaf daar verder (niet het antwoord verklappen).`].join('\n');
 }
 
+// Aan/uit: in de Max-test per variant (kidStore.stapPlan), anders MAX_STAPPLAN=1 op de server.
+export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; return v != null ? !!v : process.env.MAX_STAPPLAN === '1'; };
+async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
+  const plan = stapPlan({ question, step, chat });
+  if (!plan) return null;
+  const { verboden } = getallenRegel({ question, step, chat, plan });
+  const vb = plan.voorbeeld;
+  const ctx = [
+    'GESPREKSPLAN (alleen voor jou): de app bepaalt WAT je in dit bericht doet, jij bepaalt HOE je het zegt. Volg de OPDRACHT precies; de algemene regels gelden verder gewoon.',
+    describeQuestion(question),
+    `Het kind rekent in tussenstappen en zit vast bij de stap: "${step.ask}". Goed is ${plan.goedStap} (GEHEIM: noem dit niet, het kind moet het zelf vinden). In het vakje vulde het kind eerst in: "${given || '?'}".`,
+    step.tip ? `Aanpak van de app bij deze stap (tip): "${step.tip}". Volg deze route.` : '',
+    vb ? `MAKKELIJKER VOORBEELD${vb.vanApp ? ' (door de app nagerekend)' : ' (dat jij eerder gaf)'}: ${vb.som} — uitkomst ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (noem die uitkomst niet)'}.` : '',
+    kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
+    plan.eerdereZetten.length ? `Wat je eerder in dit gesprek deed: ${plan.eerdereZetten.join(' → ')}.` : '',
+  ].filter(Boolean).join('\n');
+  const opdracht = `[app, onzichtbaar voor het kind] OPDRACHT: ${plan.doel} Kies zelf één manier: ${plan.opties.join(' OF ')}. ${plan.regels}${verboden.length ? ` Deze getallen komen NIET in je bericht: ${verboden.join(', ')}.` : ''}
+STIJL: 1 tot 3 korte zinnen (hooguit ± 45 woorden), warm en natuurlijk, zoals een goede bijlesjuf of -meester praat. Reageer eerst op wat ${name} net zei (gebruik de woorden of het getal van ${name}). Begin anders dan je vorige bericht. Hooguit één vraag, aan het eind. Gebruik soms de naam.`;
+  const hist = chat.slice(-10);
+  const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
+  hist.forEach((m, i) => messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: i === hist.length - 1 ? `${m.text}\n\n${opdracht}` : m.text }));
+  const sys = LERAAR_VAST(), opts = { maxTokens: 400, keepForm: true };
+  const msgs = metKind(messages, KIND(name, profile, memory, today));
+  let out = await complete(sys, msgs, opts);
+  if (typeof out !== 'string') return out;
+  const kindTekst = chat.filter((m) => m.role !== 'teacher').map((m) => m.text).join(' \n ');
+  const vorig = [...chat].reverse().find((m) => m.role === 'teacher');
+  const fouten = (t) => {
+    const f = [], { text: zicht, vb: eigen } = splitForm(t);
+    const hit = verboden.find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
+    if (hit != null) f.push(`Het getal ${String(hit).replace('.', ',')} mag niet in je bericht (dat moet ${name} zelf vinden).`);
+    else if (plan.zet !== 'klaar' && verklaptAntwoord(zicht, plan.goedStap, { som: `${question.text}\n${step.ask}`, kind: kindTekst })) f.push(`In je bericht staat de uitkomst van de stap (${plan.goedStap}). Laat die weg.`);
+    if (ZETTEN_VB.has(plan.zet)) {
+      if (!eigen) f.push('Zet op de allerlaatste regel je voorbeeld met uitkomst: [VB: <vraag> = <uitkomst>].');
+      else {
+        if (checkArithmetic(`${eigen.som} = ${eigen.uitkomst}`).length) f.push(`Je voorbeeld klopt niet: ${eigen.som} is niet ${eigen.uitkomst}. Kies een voorbeeld en reken het goed uit.`);
+        const u = getallenIn(eigen.uitkomst)[0];
+        if (u != null && [...getallenIn(plan.goedStap), ...getallenIn(question.display)].some((g) => Math.abs(g - u) < 1e-9)) f.push('Je voorbeeld heeft dezelfde uitkomst als de echte stap of de som. Kies andere getallen.');
+      }
+    }
+    if (vorig && /snap|verstaan|weet/i.test(chat.at(-1)?.text || '') && zelfdeVraag(vorig.text, zicht)) f.push('Je stelt bijna dezelfde vraag als in je vorige bericht. Kies een ándere, kleinere of concretere vraag.');
+    if (zicht.split(/\s+/).length > 70) f.push('Je bericht is te lang: hooguit 3 korte zinnen.');
+    const pf = plaatjeFouten(zicht);
+    if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}).`);
+    const nl = isAF() ? nederlandsInAfrikaans(zicht) : [];
+    if (nl.length) f.push(`Schrijf in zuiver, eenvoudig Afrikaans (niet: ${nl.join(', ')}).`);
+    return f;
+  };
+  const f1 = fouten(out);
+  if (f1.length) {
+    const opnieuw = await complete(sys, [...msgs, { role: 'assistant', content: out }, { role: 'user', content: `[controle] ${f1.join(' ')} Schrijf je bericht opnieuw en geef alleen het nieuwe bericht.` }], opts).catch(() => null);
+    if (typeof opnieuw === 'string' && opnieuw.trim()) out = opnieuw;
+    const f2 = fouten(out);
+    console.log(`[max-plan] ${plan.zet}: ${f1.map((x) => x.slice(0, 40)).join(' | ')} → herschreven${f2.length ? ' (nog niet helemaal)' : ''}`);
+    // een voorbeeld dat nog steeds niet klopt, gebruikt het plan niet (dan kan het het antwoord van het kind niet nakijken)
+    if (f2.some((x) => /voorbeeld/i.test(x))) out = out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim();
+  }
+  return out;
+}
+const ZETTEN_VB = new Set(['eigen_voorbeeld']);
+
 export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception, scratch = null }) {
   // Vaste beurt (src/vast.js): weet de app al precies wat Max moet zeggen, dan geen AI-aanroep. Telt als "zonder AI" in het gebruik.
-  const vast = process.env.VASTE_BEURTEN === '0' ? null : vasteBeurt({ question, phase, given, chat, step, misconception, scratch, af: isAF() });
+  const metPlan = phase === 'step' && step && stapPlanAan();
+  const vast = process.env.VASTE_BEURTEN === '0' ? null : vasteBeurt({ question, phase, given, chat, step: metPlan ? null : step, misconception, scratch, af: isAF() });
   if (vast) { telGebruik(ZONDER_AI, {}); return vast; }
+  // Gespreksplan bij een tussenstap (src/stapgesprek.js): de app kiest de zet, Max verwoordt. Geen zet (eigen vraag van
+  // het kind e.d.)? Dan de gewone Max hieronder.
+  if (metPlan) { const r = await stapBeurt({ name, profile, memory, today, question, step, given, chat }); if (r) return r; }
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),

@@ -1006,9 +1006,9 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
     name: await getName(), profile: await teacherProfile(), memory: await memoryText(), today: sessionLog(s, i),
     question: qq, levelName: LEVEL_NAMES[qq.level], phase, given, chat: qq.chat, step, misconception: qq.misconception, scratch,
   });
-  const { text: replyText, form } = splitForm(reply);
+  const { text: replyText, form, vb } = splitForm(reply);
   if (form) await q(`INSERT INTO explanations(cat, form, session_id, idx) VALUES ($1,$2,$3,$4)`, [qq.cat, form, s.id, i]);
-  if (replyText) qq.chat.push({ role: 'teacher', text: replyText, phase });
+  if (replyText) qq.chat.push({ role: 'teacher', text: replyText, phase, ...(vb ? { vb } : {}) }); // vb: voorbeeld van Max, voor het gespreksplan
   logEvent('gesprek', { som: qq.text, juist: qq.display, gegeven: given ?? null, fase: phase, stap: step?.ask || null, kind: message || (mode === 'start' ? '(opent gesprek na fout)' : mode === 'step' ? '(vast bij tussenstap)' : ''),
     max: replyText || null, vorm: form || null, denkfout: qq.misconception?.label || null, beurt: qq.chat.length }, { cat: qq.cat, level: qq.level, session: s.id });
   qq.chat = qq.chat.slice(-24);
