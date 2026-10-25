@@ -529,7 +529,9 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   }[phase];
 
   const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen. Ik help stap voor stap.' }];
-  if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}` });
+  // na een fout: ook de opening krijgt het onzichtbare vraaglabel, zodat de app het antwoord van het kind kan nakijken
+  const label = phase === 'wrong' ? Z(' Stel je een vraag met een uitkomst, zet dan op de allerlaatste regel, onzichtbaar voor het kind: [VB: <vraag> = <antwoord>].', ' Vra jy ’n vraag met ’n antwoord, sit dan op die heel laaste reël, onsigbaar vir die kind: [VB: <vraag> = <antwoord>].') : '';
+  if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}${label}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
   const sys = LERAAR_VAST(), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true };

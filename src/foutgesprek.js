@@ -8,7 +8,7 @@
 // het over. Een eigen vraag van het kind, of iets wat de app niet kan nakijken, gaat naar de gewone Max.
 import { makkelijker } from './tips.js';
 import { snaptNiet } from './kwaliteit.js';
-import { antwoordVan, isZelfde, WEET_NIET } from './stapgesprek.js';
+import { antwoordVan, isZelfde, WEET_NIET, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
 
 const GOKT = /gegokt|gegok|geraai|raai|zomaar|maar wat|weet (ik )?niet (meer|precies)|weet nie (meer|mooi)|geen idee|ek weet nie|vergist|vergis|snel gedaan|vinnig gedoen|fout gemaak|in mijn hoofd|in my kop/i;
 const VRAAG = /^\s*(waarom|hoe(?!\s+kwam)|wat|wie|welke|wanneer|kan|mag|moet|hoekom|watter|is dit omdat)\b/i;
@@ -69,7 +69,7 @@ export function foutPlan({ question: q, given, chat = [] }) {
     if (!vorigeMax) return null; // het kind begon zelf: gewone Max
     const doel = doelStap(q, s.k);
     if (vorigeZet === 'eigen_voorbeeld' && vorigeMax.vb) s.vb = vorigeMax.vb;
-    if (vorigeZet === 'opening') s.fase = vorigeMax.vb ? 'vraag' : 'hoe';
+    if (vorigeZet === 'opening') s.fase = vorigeMax.vb || !/hoe (kwam|heb|deed|ben)|hoe het jy|hoe kom jy|wat het jy gedoen|wat deed je/i.test(vorigeMax.text) ? 'vraag' : 'hoe';
     const verwacht = vorigeMax.vb || (s.fase === 'voorbeeld' ? s.vb : s.fase === 'vraag' ? { som: doel.ask, uitkomst: vb(doel) } : null);
     const heeftAntwoord = antwoordVan(tekst) != null || (verwacht && isZelfde(tekst, verwacht.uitkomst));
     const eind = isZelfde(tekst, q.type === 'choice' ? q.options[q.answer] : q.display) && !isZelfde(tekst, given);
@@ -158,7 +158,7 @@ export function foutAdvies({ question: q, given, chat = [], name = 'het kind', a
   const doel = doelStap(q, k);
   L.push(`- ${T.nu}: ${doel.slot ? `${T.slot}: "${doel.ask}"` : `"${doel.ask}" (${T.geheim}: ${vb(doel)})`}${doel.tip ? ` — tip: "${doel.tip}"` : ''}`);
   if (fp?.voorbeeld) L.push(`- ${af ? 'Makliker voorbeeld (deur die app nagewerk)' : 'Makkelijker voorbeeld (door de app nagerekend)'}: ${fp.voorbeeld.som} → ${fp.voorbeeld.uitkomst}`);
-  const t = fp && ((af ? (FOUTZETTEN_AF[fp.zet] || null) : FOUTZETTEN[fp.zet]) || null);
+  const t = fp && (af ? FOUTZETTEN_AF[fp.zet] || ZETTEN_AF[fp.zet] : FOUTZETTEN[fp.zet] || ZETTEN[fp.zet]);
   if (t) L.push(`- ${T.advies}: ${t.doel}`);
   L.push(`- ${T.vry}`);
   // verboden: het eindantwoord en de uitkomst van de stap waar jullie nu zijn, tenzij het kind ze zelf al zei

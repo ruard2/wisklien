@@ -31,6 +31,10 @@ export function vasteBeurt({ question: q, phase, given, chat = [], step, misconc
   // 1 + 2: opening na een fout (de app opent het gesprek zelf, zonder bericht van het kind)
   if (phase === 'wrong' && !leraar.length && !kind.length && !metKlad) {
     const gg = String(given ?? '').trim();
+    // Met een herkende denkfout opent Max zelf (meetlat #13/#14 → #17/#18/#21: de vaste opening "denkfout + wat helpt +
+    // eerste stap" scoorde lager: NL 3,90 → 3,71, AF 4,11 → 4,00; het las als een lesje). Zonder denkfout blijft de vaste
+    // vraag "Hoe kwam je op …?" (even goed: NL 4,38 → 4,42), en die is verreweg de meest voorkomende opening.
+    if (misconception?.label && process.env.VASTE_OPENING_DENKFOUT !== '1') return null;
     if (misconception?.label) {
       const eerste = g0 ? Z(` Begin zo: ${vraagVan(g0)}`, ` Begin so: ${vraagVan(g0)}`) : Z(' Probeer het nog eens!', ' Probeer weer!');
       const t = veilig(`${kies(Z(['Bijna!', 'Goed geprobeerd!', 'Kijk even mee.'], ['Amper!', 'Goed probeer!', 'Kyk saam met my.']), q.text)} ${misconception.label} ${misconception.fix || ''}${eerste}`.replace(/\s+/g, ' ').trim());
