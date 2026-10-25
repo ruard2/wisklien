@@ -234,6 +234,21 @@ function makkelijker0(ask, answer) {
     // plus en min: ronde getallen blijven rond (900 + 100 → 200 + 100), het getal wordt kleiner, over het tiental / lenen blijft
     const plus = op === '+';
     if (!plus && b > a) return null;
+    // Zelfde opbouw, kleinere getallen (meetlat #32: "279 − 240" kreeg "19 − 10", "1134 − 1120" kreeg "34 − 10": dat lijkt
+    // niet op de stap en past niet bij de tip "eerst 200, dan 40"). Haal van allebei een rond stuk af (honderden of
+    // duizenden), zodat de tientallen en eenheden (en dus lenen/onthouden) hetzelfde blijven, en maak de uitkomst anders.
+    const rondStuk = (x) => { for (let q = 10 ** (String(x).length - 1); q >= 100; q /= 10) { const c = q * (Math.floor(x / q) - 1); if (c > 0) return c; } return 0; };
+    if (b >= 100 && a >= 100) {
+      const cB = rondStuk(b), cA = plus ? rondStuk(a) : cB;
+      if (cB > 0 && cA > 0) for (const s of plus ? [0, 10, 20] : [10, 20, -10]) {
+        const X = a - cA - (plus ? 0 : s), Y = b - cB - (plus ? s : 0), U = plus ? X + Y : X - Y;
+        const lenen = (x, y) => (Math.floor(x / 10) % 10) < (Math.floor(y / 10) % 10);
+        if (X <= 0 || Y <= 0 || U <= 0 || U === answer || X === answer || Y === answer || (X >= a && Y >= b) || (X > 0.6 * a && X >= 300)) continue; // echt kleiner
+        if (!plus && lenen(X, Y) !== lenen(a, b)) continue;
+        if (plus && ((X % 100) + (Y % 100) >= 100) !== ((a % 100) + (b % 100) >= 100)) continue;
+        return { som: `${X} ${plus ? '+' : '−'} ${Y}`, uitkomst: String(U) };
+      }
+    }
     for (const p of [1000, 100]) if (b >= p && b % p === 0 && a % p !== 0 && a > p) {
       for (const k of plus ? [1, 2] : [2, 3, 4]) {
         const X = k * p + (a % p), Y = p, U = plus ? X + Y : X - Y;
