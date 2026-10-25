@@ -144,6 +144,23 @@ export function detectMisconception(q, given, check) {
   if (raak.length > 1) return null;
   // Algemeen (elke soort som met een getal als antwoord): precies 10, 100 of 1000 keer te groot of te klein = de komma
   // (of een nul) op de verkeerde plek. Meetlat AF #5: "3732" bij 373,2 en "3310"-achtige fouten bleven onherkend.
+  // Komma weggelaten (Na een fout AF #29: "445" bij R44,50 en "3088" bij 308,8 kregen "10 keer te groot", terwijl het kind
+  // gewoon de komma (en bij geld de nul van de centen) wegliet): het antwoord met dezelfde cijfers zonder komma.
+  if (q.type === 'number' && typeof q.answer === 'number' && !Number.isInteger(q.answer)) {
+    const geld = /^(€|R)/.test(String(q.display).trim());
+    const cijfers = (x) => String(x).replace(/[^\d,.]/g, '').replace(/[.,]/g, '');
+    const juist2 = q.answer.toFixed(2).replace('.', ''), juist = String(q.answer).replace('.', '');
+    const kind = cijfers(String(given).replace(/^\s*(€|R)\s*/i, ''));
+    const zonderNul = juist2.replace(/0$/, '');
+    if (!/[.,]/.test(String(given)) && kind && (kind === juist || kind === juist2 || kind === zonderNul) && Number(kind) !== q.answer) {
+      if (isAF()) return geld
+        ? { label: 'Jy het die komma weggelaat: die rande en die sent staan aan mekaar geskryf.', fix: 'Skryf eers die rande, dan ’n komma, dan altyd twee syfers vir die sent (R44,50).' }
+        : { label: 'Jy het die komma vergeet.', fix: 'Beraam eers: omtrent hoe groot moet die antwoord wees? Sit dan die komma sodat dit pas.' };
+      return geld
+        ? { label: 'Je hebt de komma weggelaten: de euro’s en de centen staan aan elkaar.', fix: 'Schrijf eerst de euro’s, dan een komma, dan altijd twee cijfers voor de centen (€ 44,50).' }
+        : { label: 'Je bent de komma vergeten.', fix: 'Hoe groot moet het antwoord ongeveer zijn (reken met ronde getallen)? Zet de komma dan zo dat het klopt.' };
+    }
+  }
   if (q.type === 'number' && typeof q.answer === 'number' && q.answer !== 0) {
     for (const k of [10, 100, 1000]) for (const groter of [true, false]) {
       const probe = { ...q, answer: round(groter ? q.answer * k : q.answer / k, 6) };

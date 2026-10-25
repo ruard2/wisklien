@@ -384,7 +384,7 @@ export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (
 // Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
 // Modus: 'strak' (de app kiest de zet, Max verwoordt), 'advies' (de app geeft feiten + advies, Max kiest; verboden getallen
 // hard bewaakt) of uit. Max-test: kidStore.foutPlan (true = strak); server: MAX_FOUTPLAN=strak|advies (1 = strak).
-export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null ? v : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : x === 'bewaking' ? 'bewaking' : null; };
+export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null && v !== false ? v : v === false ? 'uit' : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : x === 'bewaking' || x == null ? 'bewaking' : null; }; // standaard: bewaking (Na een fout #29/#30: didactiek gelijk, objectief voorzeggen 22–24 → 2)
 export const foutPlanAan = () => foutPlanModus() === 'strak';
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
   const plan = stapPlan({ question, step, chat });

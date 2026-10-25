@@ -273,3 +273,6 @@ Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het v
   zet, maar krijgt wat de app zeker weet (antwoord van het kind nagekeken tegen zijn vraag, waar jullie in de route zijn,
   het advies van het plan) en de verboden getallen worden hard bewaakt. Het strakke plan blijft beschikbaar (`strak`).
   Na een fout #23–#26: strak voorzegt ⅓ zo vaak maar verloor op didactiek en luisteren. De Max-test vergelijkt nu oud ↔ advies.
+- **Na een fout: bewaking staat aan** (NL en AF; Na een fout #29/#30): de vrije Max met alleen de harde getallenbewaking.
+  Didactiek gelijk aan de vrije Max, objectief voorzeggen 22–24 → 2 van de ± 150 gesprekken, ± 7% duurder.
+  `MAX_FOUTPLAN=uit|strak|advies|bewaking`. Plus: "komma weggelaten" (445 bij R44,50) als eigen denkfout in plaats van "10 keer te groot".
