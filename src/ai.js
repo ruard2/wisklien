@@ -384,7 +384,7 @@ export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (
 // Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
 // Modus: 'strak' (de app kiest de zet, Max verwoordt), 'advies' (de app geeft feiten + advies, Max kiest; verboden getallen
 // hard bewaakt) of uit. Max-test: kidStore.foutPlan (true = strak); server: MAX_FOUTPLAN=strak|advies (1 = strak).
-export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null ? v : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : null; };
+export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null ? v : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : x === 'bewaking' ? 'bewaking' : null; };
 export const foutPlanAan = () => foutPlanModus() === 'strak';
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
   const plan = stapPlan({ question, step, chat });
@@ -483,6 +483,22 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
 }
 const ZETTEN_VB = new Set(['eigen_voorbeeld']);
 
+// Getallen die het kind zelf moet vinden: het eindantwoord en de uitkomsten van de tussenstappen, behalve getallen die al in
+// de som of in de vraag van de stap staan, die het kind zelf al noemde, of kleine getallen (≤ 10) die geen eindantwoord zijn.
+export function bewaakteGetallen(q, chat = []) {
+  const kind = chat.filter((m) => m.role !== 'teacher').map((m) => m.text).join(' ');
+  const gezien = new Set([...getallenIn(q.text), ...getallenIn(kind)].map((x) => Math.round(x * 1e6)));
+  const uit = [];
+  const eind = typeof q.answer === 'number' ? q.answer : getallenIn(q.display)[0];
+  if (eind != null && Math.abs(eind) > 2 && !gezien.has(Math.round(eind * 1e6))) uit.push(eind);
+  for (const g of q.guide || []) {
+    if (g.type !== 'number' || typeof g.answer !== 'number') continue;
+    const x = g.answer;
+    if (Math.abs(x) <= 10 || gezien.has(Math.round(x * 1e6)) || getallenIn(g.ask).some((y) => Math.abs(y - x) < 1e-9)) continue;
+    uit.push(x);
+  }
+  return [...new Set(uit)];
+}
 export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception, scratch = null }) {
   // Vaste beurt (src/vast.js): weet de app al precies wat Max moet zeggen, dan geen AI-aanroep. Telt als "zonder AI" in het gebruik.
   const metPlan = phase === 'step' && step && stapPlanAan();
@@ -494,6 +510,9 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   // Gespreksplan na een fout (src/foutgesprek.js): vanaf het eerste antwoord van het kind (de opening is een vaste beurt).
   if (phase === 'wrong' && foutPlanAan() && chat.some((m) => m.role === 'teacher') && !scratch?.image) { const r = await foutBeurt({ name, profile, memory, today, question, given, chat, misconception }); if (r) return r; }
   const advies = phase === 'wrong' && foutPlanModus() === 'advies' && chat.some((m) => m.role === 'teacher') ? foutAdvies({ question, given, chat, name, af: isAF() }) : null;
+  // BEWAKING-modus (Na een fout #27/#28): de vrije Max, met alleen de harde getallenbewaking: het eindantwoord en de
+  // uitkomsten van de tussenstappen mogen niet in zijn bericht zolang het kind ze niet zelf zei. Geen extra blok in de prompt.
+  const bewaakt = phase === 'wrong' && foutPlanModus() === 'bewaking' ? bewaakteGetallen(question, chat) : [];
   const ctx = [
     'CONTEXT (alleen voor jou):',
     describeQuestion(question),
@@ -546,7 +565,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     const fouten = (t) => {
       const f = [];
       const zicht = splitForm(t).text || '';
-      const verb = (advies?.verboden || []).find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
+      const verb = [...(advies?.verboden || []), ...bewaakt].find((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9));
       if (verb != null) f.push(`Het getal ${String(verb).replace('.', ',')} mag niet in je bericht: dat moet ${name} zelf vinden. Laat het weg, ook als controle, keuze, rijtje of plaatje.`);
       const hit = doelen.find(([d, som]) => verklaptAntwoord(t, d, { som, kind }));
       if (hit) f.push(`In je bericht staat het antwoord (${hit[0]}) dat ${name} zelf moet vinden. Laat dat getal weg: ook niet als keuze, in een rijtje, als controle of in een plaatje. Laat ${name} die laatste stap zelf doen.`);

@@ -14,7 +14,7 @@
 // Draait op de server (pagina /audit, alleen beheerder) of lokaal: node scripts/max-audit.mjs
 import { kidStore, pool } from './db.js';
 import { generate, hintsFor, detectMisconception, checkAnswer, catById, CATEGORIES, LEVEL_NAMES, didactiekText } from './curriculum.js';
-import { teacherTurn, splitForm, auditCall, describeQuestion, aiEnabled, aiModel } from './ai.js';
+import { teacherTurn, splitForm, auditCall, describeQuestion, aiEnabled, aiModel, bewaakteGetallen } from './ai.js';
 import { stapPlan } from './stapgesprek.js';
 import { foutPlan } from './foutgesprek.js';
 import { kaartTekst } from './uitleg/index.js';
@@ -284,7 +284,7 @@ export async function auditFout(lang, p, models = {}) {
     const zonderMeter = (fn) => kidStore.run({ ...kidStore.getStore(), meter: null }, fn);
     const variant = (aan) => {
       const meter = { aanroepen: 0, invoer: 0, vast: 0, uitvoer: 0 };
-      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan ? (process.env.AUDIT_FOUTMODUS || 'advies') : false, meter }, async () => {
+      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan ? (process.env.AUDIT_FOUTMODUS || 'bewaking') : false, meter }, async () => {
         const chat = [], turns = [], fouten = [];
         const zeg = async () => {
           try {
@@ -311,7 +311,7 @@ export async function auditFout(lang, p, models = {}) {
     };
     const [oud, nieuw] = await Promise.all([variant(false), variant(true)]);
     return {
-      soort: 'fout', modus: process.env.AUDIT_FOUTMODUS || 'advies', lang, cat: p.cat, level: p.level, geval: p.id, tpl: q.tpl, label: catById[p.cat].label, levelName: LEVEL_NAMES[p.level], uitleg_vers: vers, pad,
+      soort: 'fout', modus: process.env.AUDIT_FOUTMODUS || 'bewaking', lang, cat: p.cat, level: p.level, geval: p.id, tpl: q.tpl, label: catById[p.cat].label, levelName: LEVEL_NAMES[p.level], uitleg_vers: vers, pad,
       som: describeQuestion(q), antwoord: q.display,
       fout: { gegeven: given, herkend: mis ? { label: mis.label, wat_helpt: mis.fix } : null },
       stap: { nr: 0, vraag: '(na een fout antwoord)', goed: q.display, gegeven: given, tip: null },
@@ -367,7 +367,32 @@ export function stapSamenvatting(items) {
     aanroepen: items.reduce((a, it) => a + (it.varianten?.[v]?.meter?.aanroepen || 0), 0), invoer: items.reduce((a, it) => a + (it.varianten?.[v]?.meter?.invoer || 0), 0), vast: items.reduce((a, it) => a + (it.varianten?.[v]?.meter?.vast || 0), 0), uitvoer: items.reduce((a, it) => a + (it.varianten?.[v]?.meter?.uitvoer || 0), 0) });
   const zetten = {};
   for (const it of items) for (const t of it.varianten?.nieuw?.turns || []) if (t.zet) zetten[t.zet] = (zetten[t.zet] || 0) + 1;
-  return { n: ok.length, oud: per('oud'), nieuw: per('nieuw'), voorkeur: { oud: ok.filter((it) => it.verdict.voorkeur === 'oud').length, nieuw: ok.filter((it) => it.verdict.voorkeur === 'nieuw').length, gelijk: ok.filter((it) => it.verdict.voorkeur === 'gelijk').length }, zetten };
+  // objectief voorzeggen (de app telt zelf, geen beoordelaar): noemt Max het eindantwoord of de uitkomst van een tussenstap
+  // vóórdat het kind die zei? Alleen voor de test na een fout (daar hoort het kind alles zelf te vinden).
+  const getalIn = (t) => (String(t || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/\d+(?:,\d+)?/g) || []).map((x) => Number(x.replace(',', '.')));
+  const telZelf = (v) => items.filter((it) => {
+    if (it.soort !== 'fout' || !it.varianten?.[v]) return false;
+    const q = { text: it.som, answer: Number(String(it.antwoord).replace(/[^\d,.-]/g, '').replace(',', '.')), display: it.antwoord, guide: (it.tussenstappen || []).map((g) => ({ ask: g.vraag, answer: Number(String(g.antwoord).replace(/[^\d,.-]/g, '').replace(',', '.')), type: /\d/.test(String(g.antwoord)) ? 'number' : 'text' })) };
+    const chat = [];
+    for (const t of it.varianten[v].turns) {
+      if (t.wie === 'max') { const verb = bewaakteGetallen(q, chat); if (verb.some((x) => getalIn(t.tekst).some((g) => Math.abs(g - x) < 1e-9))) return true; chat.push({ role: 'teacher', text: t.tekst }); }
+      else chat.push({ role: 'kid', text: t.tekst });
+    }
+    return false;
+  }).length;
+  const O = per('oud'), N = per('nieuw');
+  O.zelfVerklapt = telZelf('oud'); N.zelfVerklapt = telZelf('nieuw');
+  const kost = (x) => ((x.invoer - (x.vast || 0)) * 0.10 + (x.vast || 0) * 0.01 + x.uitvoer * 0.50) / 1e6;
+  // vooraf afgesproken beslisregels (25-10-2026): minder voorzeggen, niet meer rekenfouten, niet duurder, didactiek niet
+  // duidelijk slechter (verschil kleiner dan 0,15 telt als gelijk)
+  const regels = [
+    ['minder voorzeggen', N.zelfVerklapt + N.verklapt < O.zelfVerklapt + O.verklapt],
+    ['niet meer rekenfouten (1 marge)', N.rekenfout <= O.rekenfout + 1],
+    ['niet duurder', kost(N) <= kost(O) * 1.05],
+    ['didactiek niet slechter', N.stap != null && O.stap != null && N.stap - O.stap > -0.15],
+  ];
+  const beslissing = { regels: regels.map(([r, ok]) => ({ regel: r, ok })), aan: regels.every(([, ok]) => ok), kosten: { oud: kost(O), nieuw: kost(N) } };
+  return { n: ok.length, oud: O, nieuw: N, beslissing, voorkeur: { oud: ok.filter((it) => it.verdict.voorkeur === 'oud').length, nieuw: ok.filter((it) => it.verdict.voorkeur === 'nieuw').length, gelijk: ok.filter((it) => it.verdict.voorkeur === 'gelijk').length }, zetten };
 }
 
 // Plaatjes van Max leesbaar voor de beoordelaar (meetlat #6: "[[getallenlijn: 640 | 650 | 642]]" werd gelezen als
