@@ -89,6 +89,19 @@ const BEDOELING = {
   nl: { fout: 'Beantwoord de vraag van de meester, maar FOUT (een fout die een kind echt maakt).', snapniet: 'Zeg dat je het niet snapt, in je eigen woorden (bijv. "huh?" of "snap ik niet").', goed: 'Beantwoord de vraag van de meester GOED, kort. (Vraagt hij hoe je op je eerste antwoord kwam: vertel dan eerlijk je foute manier.)' },
   af: { fout: 'Antwoord die vraag van Meneer, maar VERKEERD (’n fout wat ’n kind regtig maak).', snapniet: 'Sê jy verstaan dit nie, in jou eie woorde.', goed: 'Antwoord die vraag van Meneer REG, kort. (Vra hy hoe jy by jou eerste antwoord gekom het: vertel eerlik jou verkeerde manier.)' },
 };
+// Vaste uitleg van het kind bij "Hoe kwam je op …?": de denkfout in ik-vorm, of (onbekende fout) een eerlijk "weet niet precies".
+export function kindLegtUit(lang, sleutel, label) {
+  const af = lang === 'af';
+  // alleen labels die een handeling beschrijven ("Je hebt … opgeteld"); "Je antwoord is 10 keer te groot" zegt een kind niet
+  const L = String(label || '');
+  if (af ? /^Jy (het|is)\b/.test(L) && !/\b(jy|jou)\b/.test(L.slice(3)) : /^Je (hebt|bent)\b/.test(L) && !/\b(je|jij|jouw)\b/.test(L.slice(3)))
+    return af ? L.replace(/^Jy het/, 'Ek het').replace(/^Jy is/, 'Ek is') : L.replace(/^Je hebt/, 'Ik heb').replace(/^Je bent/, 'Ik ben');
+  const opties = af
+    ? ['Ek het dit in my kop uitgewerk, maar ek weet nie meer mooi hoe nie.', 'Ek het maar gedink dis so, ek het ’n bietjie geraai.', 'Ek het dit vinnig gedoen, miskien het ek ’n fout gemaak.']
+    : ['Ik heb het in mijn hoofd uitgerekend, maar ik weet niet meer precies hoe.', 'Ik dacht dat het zo was, ik heb een beetje gegokt.', 'Ik heb het snel gedaan, misschien heb ik me vergist.'];
+  let h = 0; for (const c of String(sleutel)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return opties[h % opties.length];
+}
 async function kidSays(lang, q, chat, bedoeling = null, fout = null) {
   const af = lang === 'af';
   const sys = af
@@ -152,7 +165,11 @@ export async function auditOne(lang, p, models = {}) {
     const r1 = await call('fout-1', () => maxSays({ phase: 'wrong', given, chat, misconception: mis }));
     if (r1?.text) {
       chat.push({ role: 'teacher', text: r1.text }); turns.push({ wie: 'max', tekst: r1.text, vorm: r1.vorm, ms: r1.ms });
-      const k1 = await call('kind-1', async () => ({ text: p.kind1 || await kidSays(lang, q, chat, p.bedoeling || null, { given, label: mis?.label || null }) }));
+      // Vraagt Max hoe het kind aan het foute antwoord kwam, dan antwoordt het kind met een vaste, eerlijke uitleg die
+      // bij de fout past (meetlat #6-#8: het AI-kind gaf in ± 25% van de gevallen ineens de góéde manier, een gesprek dat
+      // bij echte kinderen bijna nooit voorkomt). Vast = herhaalbaar, gratis, en elke run hetzelfde.
+      const vraagtHoe = /hoe (kwam|heb|deed|ben|bedoel)|hoe het jy|hoe kom jy|wat het jy gedoen|wat deed je/i.test(r1.text);
+      const k1 = await call('kind-1', async () => ({ text: p.kind1 || (vraagtHoe ? kindLegtUit(lang, p.id || q.text, mis?.label || (w.kind === 'denkfout' ? (q.wrong || []).find((x) => String(x.answer) === String(w.raw).replace(',', '.'))?.label : null)) : null) || await kidSays(lang, q, chat, p.bedoeling || null, { given, label: mis?.label || null }) }));
       if (k1?.text) {
         chat.push({ role: 'kid', text: k1.text }); turns.push({ wie: 'kind', tekst: k1.text });
         const r2 = await call('fout-2', () => maxSays({ phase: 'wrong', given, chat: [...chat], misconception: mis }));

@@ -14,7 +14,7 @@ import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
-import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal } from './kwaliteit.js';
+import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten } from './kwaliteit.js';
 import { makkelijker } from './tips.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
@@ -385,6 +385,8 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       // en Max zegt alleen "Dis reg! Vul dit maar in." zonder het verschil te benoemen.
       if (phase === 'wrong' && given != null && laatsteKind && noemtGetal(laatsteKind, question.display) && !noemtGetal(t, given) && /\b(klopt|precies|goed|juist|reg|presies|korrek)\b/i.test(t))
         f.push(`${name} zegt nu het goede antwoord, maar vulde eerst "${given}" in. Zeg dat het nu klopt én vraag kort wat er de eerste keer anders ging (noem "${given}"). Zeg pas daarna dat ${name} het kan invullen.`);
+      const pf = plaatjeFouten(t);
+      if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}). Maak het plaatje opnieuw: [[getallenlijn: begin | eind | stip]] met begin < eind en de stip ertussen, of laat het plaatje weg.`);
       const nl = isAF() ? nederlandsInAfrikaans(t) : [];
       if (nl.length) f.push(`Je bericht bevat Nederlandse of Engelse woorden (${nl.join(', ')}). Schrijf alles in zuiver, eenvoudig Afrikaans (bv. klop, amper, presies, watter, jy, nie, dink, nou, uitgereken, eers, moenie worry nie).`);
       return f;

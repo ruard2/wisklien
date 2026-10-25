@@ -8,7 +8,7 @@
 import { kaartVoor } from '../uitleg/index.js';
 import { problemen } from '../kwaliteit.js';
 import { improveTips } from '../tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm, enkelvoudSom } from '../util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm, enkelvoudSom, zonderEenKeer } from '../util.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
 import { mnemonicsFor } from './mnemonics.js';
 
@@ -1174,7 +1174,7 @@ export function generateRaw(cat, level) {
   q.shape = shapeOf(q.text);
   improveTips(q, 'af'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = (q.wrong || []).filter((w) => w && w.label && w.answer != null && !(typeof w.answer === 'number' && (Number.isNaN(w.answer) || Math.abs(w.answer - q.answer) < 1e-9)));
-  return enkelvoudSom(kidify(q), 'af');
+  return enkelvoudSom(zonderEenKeer(kidify(q)), 'af');
 }
 export function generateLike(cat, level, shape, notText) {
   let last = null;

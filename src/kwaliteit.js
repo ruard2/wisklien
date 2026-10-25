@@ -102,6 +102,8 @@ export function problemen(q, { hints = null } = {}) {
     if (!KOLOM.test(s) && /(?<![\d,.])\d[\d.\s]*\s[+−-]\s0(?![\d,])|(?:in|op:?) (\d[\d ]*) \+ 0\b|\+ 0 (cent|minuten|minute|sent)\b/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
     const m = s.match(/van (€\s?|R\s?)?([\d.,: ]+?) (?:naar|tot) (€\s?|R\s?)?([\d.,: ]+?)(?=[ =?,.]|$)/);
     if (/\((deel deur|gedeeld door|delen door) 1\)|[+−-] (R|€ ?)0(?![\d,])/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
+    // "1 × 11 = 11" als losse stap (meetlat #8: breuk 1/8 van 88 → "Dan 1/8 deel: 1 × 11"): zinloos, het antwoord staat er al
+    if (/(?<![\d,.])1 × \d+(?:[  ]\d{3})*(?![\d,])\s*(=|\?|$)|(?<![\d,.])\d+ × 1(?![\d,])\s*(=|\?|$)/.test(s) && !/tafel|×\s*1\s*0/.test(s) && !/(?<![\d,.])1 ×|× 1(?![\d,])/.test(q.text || '') && !/\bdus\b/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
     if (m && m[2].trim() === m[4].trim()) add('nul-stap', `[${waar}] ${strip(s)}`);
   }
   // Enkelvoud na 1 (meetlat AF #7: "1 dele is ingekleur", "1 honderdstes"; NL #6: "1 honderdtallen")
@@ -165,4 +167,20 @@ export function noemtGetal(text, display) {
   if (!a) return false;
   const e = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[  ]/g, '[  ]?');
   return new RegExp(`(^|[^\\w,./:])${e}(?![\\w]|[,.:]\\d|/\\d)`, 'i').test(String(text || ''));
+}
+
+// ---------- bewaking van Max: kloppen zijn plaatjes? ----------
+// Meetlat #8: "[[getallenlijn: -7 | 0 | 11]]" (stip buiten de lijn), eerder "[[getallenlijn: 640 | 650 | 642]]" goed, maar
+// ook lijnen van groot naar klein. Getallenlijn/tijdlijn: begin < eind en elke stip ertussen.
+const getal = (x) => { const t = String(x).trim().replace(/[  ]/g, '').replace('−', '-'); if (/^\d{1,2}:\d{2}$/.test(t)) { const [h, m] = t.split(':').map(Number); return h * 60 + m; } const n = Number(t.replace(',', '.')); return Number.isFinite(n) ? n : null; };
+export function plaatjeFouten(text) {
+  const f = [];
+  for (const m of String(text || '').matchAll(/\[\[\s*(getallenlijn|tijdlijn)\s*:\s*([^\]]+)\]\]/gi)) {
+    const [a, b, c = ''] = m[2].split('|').map((x) => x.trim());
+    const A = getal(a), B = getal(b);
+    if (A == null || B == null) continue;
+    if (A >= B) { f.push(`${m[1]} van ${a} tot ${b}: het begin moet kleiner zijn dan het eind`); continue; }
+    for (const p of c.split(';').map((x) => x.trim()).filter(Boolean)) { const P = getal(p); if (P != null && (P < A || P > B)) f.push(`${m[1]} van ${a} tot ${b}: ${p} ligt daar niet tussen`); }
+  }
+  return f;
 }

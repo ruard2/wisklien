@@ -134,3 +134,18 @@ export function enkelvoudSom(q, lang = 'nl') {
   for (const w of q.wrong || []) { w.label = f(w.label); w.fix = f(w.fix); }
   return q;
 }
+
+// Zinloze "× 1"-stappen weghalen (meetlat #8: "Dan 1/8 deel: 1 × 11 = 11", "Sem krijgt 1 deel: 1 × 8 = 8"). Geldt voor
+// alle sjablonen: "1 × 8 = 8" in een stap wordt gewoon "8"; een tussenstap die alleen "1 × 50 = ?" vraagt, valt weg als er
+// nog andere tussenstappen zijn. Behalve als de som zelf over × 1 gaat (tafel van 1).
+const G = String.raw`\d+(?:[  ]\d{3})*(?:,\d+)?`;
+export function zonderEenKeer(q) {
+  const somGaatErOver = /(?<![\d,.])1 ×|× 1(?![\d,])/.test(q.text || '');
+  if (somGaatErOver) return q;
+  const weg = (t) => (typeof t !== 'string' ? t : t.replace(new RegExp(`(?<![\\d,.])1 × (${G}) = (${G})`, 'g'), (m, a, b) => (a === b ? b : m)).replace(new RegExp(`(?<![\\d,.])(${G}) × 1 = (${G})(?![\\d,])`, 'g'), (m, a, b) => (a === b ? b : m)));
+  q.steps = (q.steps || []).map(weg).filter((s) => !/^\s*[\d  ,]+\s*(?:[a-zA-Z€°]*\.?)\s*$/.test(s) || (q.steps || []).length <= 1);
+  const triviaal = (s) => s.type === 'number' && new RegExp(`(?<![\\d,.])1 × ${G}\\s*=\\s*\\?|(?<![\\d,.])${G} × 1\\s*=\\s*\\?`).test(s.ask);
+  if ((q.guide || []).some(triviaal)) { q.guide = q.guide.filter((s) => !triviaal(s)); if (!q.guide.length) q.guideFinal = null; }
+  if (typeof q.guideFinal === 'string') q.guideFinal = q.guideFinal.replace(new RegExp(`\\s*[:=]\\s*(?:1 × ${G}|${G} × 1)\\s*$`), '');
+  return q;
+}

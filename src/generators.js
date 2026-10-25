@@ -16,7 +16,7 @@
 import { kaartVoor } from './uitleg/index.js';
 import { problemen } from './kwaliteit.js';
 import { improveTips } from './tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm, enkelvoudSom } from './util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm, enkelvoudSom, zonderEenKeer } from './util.js';
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
@@ -140,7 +140,7 @@ function splitMul(a, b) {
 }
 // Kolomsgewijs delen: "happen"
 function happen(a, d) {
-  const steps = [`Delen met happen: haal steeds een zo groot mogelijke hap van ${fmt(d)} eraf.`];
+  const steps = [`Delen met happen: haal steeds een handige grote hap eraf: een makkelijke keersom met ${fmt(d)} (10 ×, 50 ×, 100 × …) die nog past.`];
   const guide = [];
   let rest = a, total = 0;
   const haps = [];
@@ -251,7 +251,7 @@ const optellen = {
 // het antwoord maar er niet gelijk aan (dan zou de stap het antwoord verklappen). Max-meetlat #4: "1/3 van 33 → 5 × 3?"
 // was een omweg; bij 33 is 10 × 3 het logische anker.
 function anker(d, q) {
-  const c = [10, 5, 2, 1].find((k) => k < q) ?? null;
+  const c = [10, 5, 2].find((k) => k < q) ?? null; // geen 1 × : dat is geen hulp
   if (!c) return { guide: [], guideFinal: null };
   const tip = { 10: `Zet een nul achter ${d}.`, 5: `De helft van 10 × ${d}.`, 2: `Het dubbele van ${d}.`, 1: `1 keer ${d} is ${d} zelf.` }[c];
   return { guide: [st(`${c} × ${d} = ?`, c * d, tip)], guideFinal: `${d * q} is meer dan ${c * d}. Hoe vaak past ${d} in ${d * q}` };
@@ -1502,7 +1502,7 @@ export function generateRaw(cat, level) {
   improveTips(q, 'nl'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = misconceptionsFor(q);
   addVisual(q);
-  return enkelvoudSom(kidify(q), 'nl');
+  return enkelvoudSom(zonderEenKeer(kidify(q)), 'nl');
 }
 // Een som van dezelfde soort (voor herhaling en voorbeelden). Valt terug op een gewone som.
 export function generateLike(cat, level, shape, notText) {
