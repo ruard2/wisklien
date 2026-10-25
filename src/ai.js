@@ -368,8 +368,10 @@ function scratchContext(name, scratch, phase) {
         : `Kijk mee in de uitwerking tot nu toe en help vanaf daar verder (niet het antwoord verklappen).`].join('\n');
 }
 
-// Aan/uit: in de Max-test per variant (kidStore.stapPlan), anders MAX_STAPPLAN=1 op de server.
-export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; return v != null ? !!v : process.env.MAX_STAPPLAN === '1'; };
+// Aan/uit: in de Max-test per variant (kidStore.stapPlan), anders zie hieronder.
+// Standaard: aan voor NL (Tussenstappen #20: beter op alles, rekenfouten gelijk), AF nog uit tot de volgende test.
+// MAX_STAPPLAN=1/0 zet het voor beide talen aan of uit.
+export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (v != null) return !!v; const e = process.env.MAX_STAPPLAN; return e === '1' || e === '0' ? e === '1' : !isAF(); };
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
   const plan = stapPlan({ question, step, chat });
   if (!plan) return null;

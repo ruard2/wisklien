@@ -253,4 +253,4 @@ brug terug, of bij "snap het niet" concreter → voordoen → samen doen; fout a
 "vul maar in") en welke getallen er niet in mogen. Max verwoordt de zet (toon, woorden, verhaaltje of plaatje kiest hij
 zelf). Heeft de app geen makkelijker voorbeeld, dan bedenkt Max er een en zet het onzichtbaar als `[VB: vraag = uitkomst]`
 erbij; de app rekent het na en kijkt daarmee het antwoord van het kind na. Een eigen vraag van het kind gaat naar de gewone
-Max. Aan in de app met `MAX_STAPPLAN=1` (nog uit). Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).
+Max. Aan voor NL (Tussenstappen #20), AF nog uit; `MAX_STAPPLAN=1`/`0` zet het voor beide talen aan of uit. Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).

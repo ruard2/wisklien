@@ -11,7 +11,10 @@ import { makkelijker } from './tips.js';
 import { snaptNiet } from './kwaliteit.js';
 
 const norm = (x) => String(x ?? '').toLowerCase().replace(/[€r$]\s?(?=\d)/g, '').replace(/\s+/g, ' ').trim();
-const getallen = (s) => (String(s ?? '').replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/-?\d+(?:[.,]\d+)?/g) || []).map((x) => Number(x.replace(',', '.')));
+// getallen in een tekst, ook als woord ("2 kom drie keer voor" → 2 en 3; Tussenstappen AF #22 zag alleen de 2)
+const WOORDGETAL = { nul: 0, een: 1, één: 1, twee: 2, drie: 3, vier: 4, vijf: 5, vyf: 5, zes: 6, ses: 6, zeven: 7, sewe: 7, acht: 8, ag: 8, negen: 9, nege: 9, tien: 10, elf: 11, twaalf: 12 };
+const getallen = (s) => (String(s ?? '').replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/-?\d+(?:[.,]\d+)?|\b(?:nul|één|twee|drie|vier|vijf|vyf|zes|ses|zeven|sewe|acht|negen|nege|tien|elf|twaalf)\b|\b(?:een|ag)\b(?=\s+(?:keer|maal|stuk|stukke|stukken|kere|ure|uur|minute|minuten|euro|rand|combinaties|kombinasies))/gi) || [])
+  .map((x) => (/\d/.test(x) ? Number(x.replace(',', '.')) : WOORDGETAL[x.toLowerCase()]));
 // Het getal dat het kind als antwoord bedoelt: na het laatste "=", anders het laatste getal
 function antwoordVan(s) {
   const t = String(s ?? '');
@@ -44,7 +47,7 @@ export const ZETTEN = {
     vb: true,
   },
   vb_fout: {
-    doel: 'Het kind gaf een fout antwoord op het voorbeeld. Zeg vriendelijk dat het nog niet klopt en help bij HET VOORBEELD (niet de echte stap): één kleiner stapje of een concrete hulp (vingers, geld, een plaatje), en vraag het voorbeeld opnieuw.',
+    doel: 'Het kind gaf een fout antwoord op het voorbeeld. Zeg vriendelijk dat het nog niet klopt en help bij HETZELFDE VOORBEELD (dezelfde getallen; geen nieuw voorbeeld en nog niet de echte stap): één kleiner stapje of een concrete hulp (geld, een plaatje, tellen), en vraag het voorbeeld opnieuw. Zeg niets onwaars over het getal van het kind (2 deelt wél in 8 en 12, het is alleen niet de grootste) en raad niet hoe het kind eraan kwam.',
     opties: ['maak het voorbeeld in twee kleinere stukjes', 'gebruik geld of een plaatje bij het voorbeeld'],
     regels: 'Reageer op het getal dat het kind noemde (zeg het getal). Noem de uitkomst van het voorbeeld nog niet.',
   },
@@ -54,8 +57,8 @@ export const ZETTEN = {
     regels: 'Gebruik niet dezelfde uitleg als in je vorige bericht. Noem de uitkomst van het voorbeeld nog niet.',
   },
   vb_voordoen: {
-    doel: 'Het voorbeeld lukt nog niet. Doe HET VOORBEELD nu zelf helemaal voor, kort en stap voor stap (mag met de uitkomst van het voorbeeld). Vraag daarna de ECHTE stap: "doe jij het nu precies zo bij …".',
-    opties: ['voordoen in 2-3 korte stapjes', 'voordoen met een plaatje erbij'],
+    doel: 'Het voorbeeld lukt nog niet. Doe HET VOORBEELD nu zelf helemaal voor, kort en stap voor stap, met een concrete hulp (geld, een plaatje, tellen op de getallenlijn) en mét de uitkomst. Zet daarna alleen het EERSTE kleine stukje van de echte stap klaar volgens de tip (bijv. "Bij jouw som: eerst 279 − 200. Hoeveel is dat?") en vraag dat stukje. Vraag niet de hele echte stap in één keer: dit kind loopt vast.',
+    opties: ['voordoen in 2-3 korte stapjes, dan het eerste stukje van de echte stap', 'voordoen met een plaatje erbij, dan het eerste stukje van de echte stap'],
     regels: 'De uitkomst van het VOORBEELD mag je nu noemen; de uitkomst van de echte stap niet.',
     vbUitkomst: true,
   },
