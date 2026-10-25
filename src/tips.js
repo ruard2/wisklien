@@ -25,10 +25,12 @@ const TXT = {
     nul: (a, b, k) => `Reken eerst ${a} × ${b}, en zet er dan ${k === 1 ? 'een nul' : `${k} nullen`} achter.`,
     deel: (a, b) => `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op: ${b}, ${2 * b}, ${3 * b}, … tot je bij ${a} bent.`,
     deelGroot: (a, b) => `Welk getal keer ${b} is ${a}? Probeer eerst 10 × ${b} = ${10 * b}: is dat te veel of te weinig?`,
-    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: eerst ${t} eraf, dan nog ${e}.` : `Spring terug op de getallenlijn: vanaf ${a} ${b} terug.`),
+    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: eerst ${a} − ${t}, dan daar nog ${e} af.` : `Spring terug op de getallenlijn: vanaf ${a} ${b} terug.`),
     minBrug: (a, b) => `Vul aan: van ${b} naar ${a}, hoeveel is dat? Spring eerst naar een rond getal.`,
-    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${t} erbij, dan nog ${e}.` : `Spring vooruit op de getallenlijn: vanaf ${a} ${b} verder.`),
+    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${a} + ${t}, dan daar nog ${e} bij.` : `Spring vooruit op de getallenlijn: vanaf ${a} ${b} verder.`),
     een: 'Iets 1 keer is gewoon dat getal zelf.',
+    desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en schrijf dat dan als kommagetal.`,
+    desPlus: (op) => (op === '+' ? 'Komma onder komma: tel eerst de hele getallen op, dan wat achter de komma staat. Samen meer dan een hele achter de komma? Dan komt er 1 bij de helen.' : 'Komma onder komma: haal eerst de hele getallen eraf, dan wat achter de komma staat. Lukt dat niet? Wissel dan 1 hele in voor 10 tienden of 100 honderdsten.'),
     alles: 'Je haalt er precies evenveel af als er is. Hoeveel blijft er dan over?',
     sprong: (p, op) => (p % 1000 === 0 ? `Spring in sprongen van 1000: ${p / 1000} ${p === 1000 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : p % 100 === 0 ? `Spring in sprongen van 100: ${p / 100} ${p === 100 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : p % 10 === 0 ? `Spring in sprongen van 10: ${p / 10} ${p === 10 ? 'sprong' : 'sprongen'} ${op === '+' ? 'vooruit' : 'terug'}.` : `Spring ${op === '+' ? 'vooruit' : 'terug'} op de getallenlijn.`),
   },
@@ -42,10 +44,12 @@ const TXT = {
     nul: (a, b, k) => `Reken eers ${a} × ${b}, en sit dan ${k === 1 ? '’n nul' : `${k} nulle`} agter.`,
     deel: (a, b) => `Watter getal maal ${b} is ${a}? Sê die tafel van ${b}: ${b}; ${2 * b}; ${3 * b}; … tot jy by ${a} kom.`,
     deelGroot: (a, b) => `Watter getal maal ${b} is ${a}? Probeer eers 10 × ${b} = ${10 * b}: is dit te veel of te min?`,
-    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: eers ${t}, dan nog ${e}.` : `Spring terug op die getallelyn: van ${a} af ${b} terug.`),
+    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: eers ${a} − ${t}, dan daarvan nog ${e} af.` : `Spring terug op die getallelyn: van ${a} af ${b} terug.`),
     minBrug: (a, b) => `Tel aan: van ${b} tot ${a}, hoeveel is dit? Spring eers na ’n ronde getal.`,
-    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${t} by, dan nog ${e}.` : `Spring vorentoe op die getallelyn: van ${a} af ${b} verder.`),
+    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${a} + ${t}, dan daarby nog ${e}.` : `Spring vorentoe op die getallelyn: van ${a} af ${b} verder.`),
     een: 'Iets 1 keer is net daardie getal self.',
+    desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en skryf dit dan as ’n desimale getal.`,
+    desPlus: (op) => (op === '+' ? 'Kommas onder mekaar: tel eers die heelgetalle op, dan wat ná die komma staan. Is dit saam meer as een heel ná die komma? Dan kom daar 1 by die heelgetalle.' : 'Kommas onder mekaar: trek eers die heelgetalle af, dan wat ná die komma staan. Gaan dit nie? Ruil dan 1 heel om vir 10 tiendes of 100 honderdstes.'),
     alles: 'Jy trek presies soveel af as wat daar is. Hoeveel bly dan oor?',
     sprong: (p, op) => (p % 1000 === 0 ? `Spring in spronge van 1000: ${p / 1000} ${p === 1000 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : p % 100 === 0 ? `Spring in spronge van 100: ${p / 100} ${p === 100 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : p % 10 === 0 ? `Spring in spronge van 10: ${p / 10} ${p === 10 ? 'sprong' : 'spronge'} ${op === '+' ? 'vorentoe' : 'terug'}.` : `Spring ${op === '+' ? 'vorentoe' : 'terug'} op die getallelyn.`),
   },
@@ -54,6 +58,12 @@ const TXT = {
 // Concrete tip voor "a op b = ?" (gehele getallen). null = geen voorstel.
 export function betterTip(ask, lang = 'nl') {
   const T = TXT[lang] || TXT.nl;
+  ask = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, ''); // geld: R745 + R569 → 745 + 569
+  // kommagetallen (meetlat AF #7: "0,6 × 20 = ?" kreeg als tip het antwoord in tiendes)
+  const dm = ask.match(/(\d+,(\d{1,2}))\s*[×x·]\s*(\d+)\s*=\s*\?/);
+  if (dm) { const d = dm[2].length, n = Math.round(Number(dm[1].replace(',', '.')) * 10 ** d); return T.desMaal(dm[1], dm[3], n, lang === 'af' ? (d === 1 ? 'tiendes' : 'honderdstes') : (d === 1 ? 'tienden' : 'honderdsten')); }
+  const dp = ask.match(/(\d+,\d+)\s*([+−–-])\s*(\d+,\d+)\s*=\s*\?/);
+  if (dp) return T.desPlus(dp[2] === '+' ? '+' : '−');
   // "3 × ? = 12": welk getal keer 3 is 12?
   const miss = String(ask).match(new RegExp(`${NUM}\\s*[×x·]\\s*\\?\\s*=\\s*${NUM}`));
   if (miss) { const a = toN(miss[1]), c = toN(miss[2]); return a > 0 && c > 0 ? T.deel(c, a) : null; }
@@ -100,14 +110,69 @@ export function betterTip(ask, lang = 'nl') {
 }
 
 // Vervangt vage tips in de tussenstappen van een som (in place)
+const KOLOMSTAP = /^(Eenheden|Tientallen|Honderdtallen|Duizendtallen|Tienduizendtallen|Honderdduizendtallen|Ene|Tiene|Honderde|Duisende|Tienduisende|Honderdduisende|Tienden|Honderdsten|Tiendes|Honderdstes)\b/i;
 export function improveTips(q, lang = 'nl') {
   for (const s of q.guide || []) {
     // ook korte tips zonder getal ("Trek het eraf.", "De bovenste getallen.", "Tel stap voor stap."; meetlat #6): als er een
     // concrete aanpak voor de som in de stap is, krijgt het kind die
     const kort = String(s.tip || '').trim().split(/\s+/).length <= 5 && !/\d/.test(s.tip || '');
-    if (s.type !== 'number' || !(isVagueTip(s.tip) || kort)) continue;
+    // Structureel (meetlat AF #7, 17 sjablonen): een tip zonder één getal zegt niet hoe je DEZE som uitrekent ("Wat oorbly,
+    // moet kleiner as die deler wees." bij 65 − 50). Staat er een som in de stap, dan krijgt het kind de rekenaanpak.
+    // Kolomstappen ("Ene: 4 + 6 = ?") houden hun tip over oordragen/omruilen: daar hoort de kolommethode bij.
+    const zonderGetal = !/\d/.test(s.tip || '') && !KOLOMSTAP.test(String(s.ask));
+    if (s.type !== 'number' || !(isVagueTip(s.tip) || kort || zonderGetal)) continue;
     const t = betterTip(s.ask, lang);
     if (t) { s.tip = t; s.tipAuto = true; } // tipAuto: gemaakt door betterTip, noemt nooit een uitkomst
   }
   return q;
+}
+
+// Een makkelijker voorbeeld van dezelfde soort stap, door de app uitgerekend (dus zonder rekenfout), voor Max als het kind
+// vastloopt bij een tussenstap. Meetlat #6/#7: in 55% van de gevallen gaf Max geen makkelijker voorbeeld, of een met
+// dezelfde getallen. Zelfde bewerking, kleinere getallen, en met dezelfde "moeilijkheid" (over het tiental, lenen).
+// Geeft { som, uitkomst } of null. Nooit dezelfde uitkomst als de echte stap.
+export function makkelijker(ask, answer) {
+  const a0 = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '');
+  const gat = a0.match(new RegExp(`${NUM}\\s*[×x·]\\s*\\?\\s*=\\s*${NUM}`));
+  if (gat) { const x = toN(gat[1]); const k = toN(gat[2]) / x === 2 ? 3 : 2; return { som: `${x} × ? = ${x * k}`, uitkomst: String(k) }; }
+  const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:=\\s*\\?|\\?\\s*$)`));
+  if (!m) return null;
+  const a = toN(m[1]), dec = m[2], op = m[3], b = toN(m[4]);
+  let som = null, uit = null;
+  const f = (x) => String(x).replace('.', ',');
+  if (dec) { // kommagetal × heel getal: 0,6 × 20 → 0,6 × 2
+    if (!['×', 'x', '·'].includes(op) || b < 3) return null;
+    const x = Number(`${a}.${dec}`), k = b % 10 && b % 10 !== b ? b % 10 : 2;
+    som = `${f(x)} × ${k}`; uit = Math.round(x * k * 1000) / 1000;
+  } else if (['×', 'x', '·'].includes(op)) {
+    if (a <= 2 && b <= 2) return null;
+    const [klein, groot] = a <= b ? [a, b] : [b, a];
+    if (groot > 10 && klein <= 10) { som = `12 × ${klein}`; uit = 12 * klein; } // zelfde aanpak (splitsen), kleiner getal
+    else if (groot > 10) { som = `12 × 11`; uit = 132; }
+    else { som = `2 × ${groot}`; uit = 2 * groot; if (klein === 2) { som = `2 × 3`; uit = 6; } }
+  } else if ([':', '÷'].includes(op)) {
+    if (b < 2 || a <= b) return null;
+    const k = Math.round(a / b) === 2 ? 3 : 2;
+    som = `${b * k} ${op} ${b}`; uit = k;
+  } else {
+    // plus en min: ronde getallen blijven rond (900 + 100 → 200 + 100), het getal wordt kleiner, over het tiental / lenen blijft
+    const plus = op === '+';
+    if (!plus && b > a) return null;
+    let z = 0; while (a % 10 ** (z + 1) === 0 && b % 10 ** (z + 1) === 0 && b > 0) z++;
+    const A = a / 10 ** z, B = b / 10 ** z, p10 = 10 ** z;
+    const kandidaten = [];
+    if (A < 10 && B < 10) { if (z === 0) return null; if (plus) { kandidaten.push([A + B >= 10 ? [8, 3] : [2, 1]], [[2, 1]]); } else kandidaten.push([[Math.min(A, 5), Math.max(1, Math.min(B, Math.min(A, 5) - 1))]], [[5, 2]]); }
+    else for (const t of [10, 20, 30]) {
+      const x = plus ? (A >= 20 ? t + (A % 10) : A) : t + (A % 10) + (A % 10 < B % 10 && B >= 10 ? 10 : 0);
+      const y = B >= 20 ? 10 + (B % 10) : B >= 10 && !plus ? B % 10 + 10 : B;
+      kandidaten.push([[x, y]]);
+    }
+    for (const [[x, y]] of kandidaten) {
+      const X = x * p10, Y = y * p10, U = plus ? X + Y : X - Y;
+      if (U < 0 || (X >= a && Y >= b) || U === answer || (plus && X + Y >= a + b)) continue;
+      som = `${X} ${plus ? '+' : '−'} ${Y}`; uit = U; break;
+    }
+  }
+  if (som == null || uit === answer || String(uit) === String(answer)) return null;
+  return { som, uitkomst: f(uit) };
 }

@@ -16,7 +16,7 @@
 import { kaartVoor } from './uitleg/index.js';
 import { problemen } from './kwaliteit.js';
 import { improveTips } from './tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm, enkelvoudSom } from './util.js';
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
@@ -1502,7 +1502,7 @@ export function generateRaw(cat, level) {
   improveTips(q, 'nl'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = misconceptionsFor(q);
   addVisual(q);
-  return kidify(q);
+  return enkelvoudSom(kidify(q), 'nl');
 }
 // Een som van dezelfde soort (voor herhaling en voorbeelden). Valt terug op een gewone som.
 export function generateLike(cat, level, shape, notText) {

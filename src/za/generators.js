@@ -8,7 +8,7 @@
 import { kaartVoor } from '../uitleg/index.js';
 import { problemen } from '../kwaliteit.js';
 import { improveTips } from '../tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm } from '../util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm, enkelvoudSom } from '../util.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
 import { mnemonicsFor } from './mnemonics.js';
 
@@ -733,7 +733,7 @@ const patrone = {
     }
     if (r < 0.7) {
       const k = rnd(2, 5), c = rnd(1, 9), x = rnd(3, 12);
-      return tpl('patrone.1b', { ...num(`Vloeidiagram: inset ${x} → × ${k} → + ${c} → uitset □. Wat is die uitset?`, x * k + c, [`Eers × ${k}: ${x} × ${k} = ${x * k}.`, `Dan + ${c}: ${x * k} + ${c} = ${x * k + c}.`], { wrong: [W(x * (k + c), 'Jy het die reëls in die verkeerde volgorde gedoen.', 'Doen die reëls van links na regs, een vir een.')] }),
+      return tpl('patrone.1b', { ...num(`Vloeidiagram: inset ${x} → × ${k} → + ${c} → uitset □. Wat is die uitset?`, x * k + c, [`Eers × ${k}: ${x} × ${k} = ${x * k}.`, `Dan + ${c}: ${x * k} + ${c} = ${x * k + c}.`], { wrong: [W((x + c) * k, `Jy het die reëls in die verkeerde volgorde gedoen (eers + ${c}, dan × ${k}).`, 'Doen die reëls van links na regs, een vir een: eers die eerste reël.'), W(x * (k + c), `Jy het die twee getalle van die reëls eers saamgetel (${k} + ${c}).`, `Elke reël is ’n eie stap: eers × ${k}, dan die antwoord + ${c}.`)] }),
         guide: [st(`Eerste reël: ${x} × ${k} = ?`, x * k, `Tafel van ${k}.`)], guideFinal: `Tweede reël: ${x * k} + ${c}` });
     }
     const s = rnd(1, 5), seq = [s, s * 2, s * 4, s * 8];
@@ -1174,7 +1174,7 @@ export function generateRaw(cat, level) {
   q.shape = shapeOf(q.text);
   improveTips(q, 'af'); // vage tips ("Tafel van 3.") → concrete aanpak
   q.wrong = (q.wrong || []).filter((w) => w && w.label && w.answer != null && !(typeof w.answer === 'number' && (Number.isNaN(w.answer) || Math.abs(w.answer - q.answer) < 1e-9)));
-  return kidify(q);
+  return enkelvoudSom(kidify(q), 'af');
 }
 export function generateLike(cat, level, shape, notText) {
   let last = null;

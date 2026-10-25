@@ -113,3 +113,24 @@ export function metZaad(seed, fn) {
   Math.random = rand;
   try { return fn(); } finally { Math.random = orig; }
 }
+
+// Enkelvoud na "1" (meetlat #6/#7: "1 dele is ingekleur", "1 honderdtallen", "1 tiendes"). Op alle teksten van een som
+// toegepast, zodat sjablonen gewoon `${n} tienden` mogen schrijven en het toch klopt bij n = 1.
+const EV = {
+  nl: { tienden: 'tiende', honderdsten: 'honderdste', duizendsten: 'duizendste', delen: 'deel', stukken: 'stuk', kinderen: 'kind', groepjes: 'groepje', eenheden: 'eenheid', tientallen: 'tiental', honderdtallen: 'honderdtal', duizendtallen: 'duizendtal', tienduizendtallen: 'tienduizendtal' },
+  af: { dele: 'deel', tiendes: 'tiende', honderdstes: 'honderdste', duisendstes: 'duisendste', tiene: 'tien', honderde: 'honderd', duisende: 'duisend', tienduisende: 'tienduisend', stukke: 'stuk', groepe: 'groep', kinders: 'kind' },
+};
+export function enkelvoud(text, lang = 'nl') {
+  if (typeof text !== 'string') return text;
+  const m = EV[lang] || EV.nl;
+  return text.replace(new RegExp(`(?<![\\d,.])1 (${Object.keys(m).join('|')})\\b`, 'g'), (x, w) => `1 ${m[w]}`);
+}
+export function enkelvoudSom(q, lang = 'nl') {
+  const f = (t) => enkelvoud(t, lang);
+  q.text = f(q.text);
+  q.steps = (q.steps || []).map(f);
+  for (const s of q.guide || []) { s.ask = f(s.ask); s.tip = f(s.tip); if (s.options) s.options = s.options.map(f); }
+  q.guideFinal = f(q.guideFinal);
+  for (const w of q.wrong || []) { w.label = f(w.label); w.fix = f(w.fix); }
+  return q;
+}

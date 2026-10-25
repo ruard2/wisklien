@@ -66,6 +66,7 @@ export const REGELS = {
   'nul-stap': 'stap met + 0, − 0 of "van X naar X" (zinloos)',
   'dubbele-stap': 'twee keer dezelfde stap achter elkaar',
   'hint-verklapt': 'hint noemt het eindantwoord',
+  taal: 'enkelvoud/meervoud klopt niet ("1 dele", "1 honderdtallen")',
 };
 const strip = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const esc = (d) => String(d).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -102,6 +103,12 @@ export function problemen(q, { hints = null } = {}) {
     const m = s.match(/van (€\s?|R\s?)?([\d.,: ]+?) (?:naar|tot) (€\s?|R\s?)?([\d.,: ]+?)(?=[ =?,.]|$)/);
     if (/\((deel deur|gedeeld door|delen door) 1\)|[+−-] (R|€ ?)0(?![\d,])/.test(s)) add('nul-stap', `[${waar}] ${strip(s)}`);
     if (m && m[2].trim() === m[4].trim()) add('nul-stap', `[${waar}] ${strip(s)}`);
+  }
+  // Enkelvoud na 1 (meetlat AF #7: "1 dele is ingekleur", "1 honderdstes"; NL #6: "1 honderdtallen")
+  const MV = /(?<![\d,.])1 (dele|tiendes|honderdstes|duisendstes|tiene|honderde|duisende|stukke|groepe|kinders|honderdtallen|tientallen|duizendtallen|eenheden|tienden|honderdsten|duizendsten|stukken|delen|kinderen|groepjes)\b/;
+  for (const [waar, t] of [...(q.steps || []).map((x) => ['stappenplan', x]), ...(q.guide || []).flatMap((x) => [['tussenstap', x.ask], ['tip', x.tip || '']]), ['slot', q.guideFinal || '']]) {
+    const m = String(t).match(MV);
+    if (m) add('taal', `[${waar}] "${m[0]}" in: ${strip(t).slice(0, 70)}`);
   }
   const st = (q.steps || []).map(strip);
   for (let i = 1; i < st.length; i++) if (st[i] && st[i] === st[i - 1]) add('dubbele-stap', st[i]);
@@ -150,4 +157,12 @@ export function zelfdeVraag(vorig, nieuw) {
   if (a.size < 3 || b.size < 3) return false;
   const samen = [...a].filter((x) => b.has(x)).length;
   return samen / (a.size + b.size - samen) >= 0.6;
+}
+
+// Staat dit antwoord (getal, breuk, tijd of woord) als los geheel in de tekst?
+export function noemtGetal(text, display) {
+  const a = String(display ?? '').replace(/\s*(°C?|cm²|m²|cm|km\/u|km|kg|g|ℓ|mℓ|ml|liter|minuten|minute|min|uur|dm|mm|m³|m|%)\s*$/, '').replace(/^(€|R)\s*/, '').trim();
+  if (!a) return false;
+  const e = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[  ]/g, '[  ]?');
+  return new RegExp(`(^|[^\\w,./:])${e}(?![\\w]|[,.:]\\d|/\\d)`, 'i').test(String(text || ''));
 }

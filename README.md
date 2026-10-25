@@ -209,6 +209,9 @@ Max en de vaste uitleg worden systematisch beter, niet per losse fout:
 
 - **Meetlat v2 met zaad**: elk geval heeft een zaad, waarmee de test de som elke keer precies opnieuw maakt met de generator van nú. Verbeteringen in stappenplan, tussenstappen en tips tellen dus mee. Levert de generator een andere som op (omdat die soort som veranderd is), dan gebruikt de test de bevroren som. Vergelijken met een run op meetlat v1 of met andere modellen geeft een waarschuwing.
 
+- **Analyse van een run** (`node scripts/analyse-meetlat.mjs max-test-N-xx.json --md rapport.md`): zet elk probleem van de beoordelaar tegen de code van nú (som opnieuw met het zaad: is de geciteerde tekst er nog?), groepeert open problemen per bron × soort over alle sjablonen (patronen → gedeelde code), en meet zelf, zonder beoordelaar: tegenspraak niet benoemd, herhaalde vraag, antwoord verklapt, tussenstap-hulp zonder makkelijker voorbeeld, Nederlands in Afrikaans.
+- **Gedeelde mechanismen** (gelden voor alle sommen en niveaus): `improveTips` vervangt elke tip zonder getal door een rekenaanpak voor de som in die stap (ook kommagetallen en geld); `enkelvoudSom` zet "1 dele/1 honderdtallen" om naar enkelvoud; `makkelijker()` maakt bij elke tussenstap een kleiner voorbeeld van dezelfde soort (nagerekend) dat Max krijgt als het kind vastloopt; een denkfout die bij twee oorzaken past, wordt niet als zeker gemeld; de bewaking van Max let ook op tegenspraak ("Dis reg!" terwijl het kind eerst iets anders invulde).
+
 **Zo verbeter je Max**: meetlat draaien → rapport (en "Downloaden voor Claude") → kaarten/prompt/generators aanpassen → opnieuw meetlat → vergelijken. Alleen als het beter wordt (en niets slechter), gaat het erin. Elke fout die je met code kunt vangen, wordt een regel in de poort.
 
 ## Max-test: de uitleg van Max laten nakijken (alleen beheerder)

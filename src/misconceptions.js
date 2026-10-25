@@ -133,10 +133,15 @@ export function misconceptionsFor(q) {
 
 // Welke denkfout past bij dit foute antwoord? (check = checkAnswer uit generators.js)
 export function detectMisconception(q, given, check) {
+  // Past het antwoord bij twee verschillende denkfouten, dan weten we het niet zeker (meetlat AF #7: patrone.1b, deling.2c):
+  // geen label, zodat Max vraagt hoe het kind het deed in plaats van een verkeerde oorzaak te noemen.
+  const raak = [];
   for (const w of q.wrong || []) {
     const probe = { ...q, answer: w.answer, requireSimplest: false, commonMultipleOf: undefined };
-    if (check(probe, given).correct) return { label: w.label, fix: w.fix };
+    if (check(probe, given).correct && !raak.some((x) => x.label === w.label)) raak.push(w);
   }
+  if (raak.length === 1) return { label: raak[0].label, fix: raak[0].fix };
+  if (raak.length > 1) return null;
   // Algemeen (elke soort som met een getal als antwoord): precies 10, 100 of 1000 keer te groot of te klein = de komma
   // (of een nul) op de verkeerde plek. Meetlat AF #5: "3732" bij 373,2 en "3310"-achtige fouten bleven onherkend.
   if (q.type === 'number' && typeof q.answer === 'number' && q.answer !== 0) {
