@@ -308,17 +308,17 @@ export function didactiekText(cat, level = 2) {
   if (!d) return '';
   const L = Math.max(0, Math.min(3, level));
   const nu = d.niveaus[L], lager = L > 0 ? d.niveaus[L - 1] : null;
-  return `DIDAKTIESE KAART "${cat}" (zo leren Suid-Afrikaanse skole het volgens KABV en de DBE-werkboeke; volg dit, verzin geen andere methode, gebruik GEEN Nederlandse methodes)
+  return `DIDAKTIESE KAART "${cat}" (so leer Suid-Afrikaanse skole dit volgens KABV en die DBO-werkboeke; volg dit, moenie ’n ander metode uitdink nie, gebruik GEEN Nederlandse metodes nie)
 Kern: ${d.kern}
 Voorkennis: ${d.voorkennis}
-Modelle (gebruik deze, liefst met een plaatje): ${d.modellen.join('; ')}
-Woorde (zo op school gebruikt; leg ze zo uit): ${Object.entries(d.woorden).map(([w, u]) => `${w} = ${u}`).join('; ')}
+Modelle (gebruik hierdie, verkieslik met ’n prentjie): ${d.modellen.join('; ')}
+Woorde (soos op skool gebruik; verduidelik hulle so): ${Object.entries(d.woorden).map(([w, u]) => `${w} = ${u}`).join('; ')}
 Aanpak op ${NIVEAU[L]}-vlak (${nu.doel}):
 ${nu.aanpak.map((a, i) => `  ${i + 1}. ${a}`).join('\n')}
   Voorbeeld: ${nu.voorbeeld}
-${lager ? `Lukt het niet? Stap terug naar ${NIVEAU[L - 1]}: ${lager.aanpak.join(' ')} (bv. ${lager.voorbeeld})` : ''}
+${lager ? `Lukt dit nie? Stap terug na ${NIVEAU[L - 1]}: ${lager.aanpak.join(' ')} (bv. ${lager.voorbeeld})` : ''}
 Tipiese foute en wat help: ${d.fouten.map((f) => `${f.fout} → ${f.hulp}`).join(' | ')}
 Kontrole agterna: ${d.controle}
-Niet doen: ${[...d.vermijd, 'een andere aanpak dan hierboven bedenken'].join('; ')}
+Moenie: ${[...d.vermijd, '’n ander aanpak as hierbo uitdink'].join('; ')}
 Algemeen: ${ALGEMEEN.stappe} ${ALGEMEEN.notasie}`;
 }

@@ -1,6 +1,7 @@
 // Bekende denkfouten herkennen aan het foute antwoord (zonder AI).
 // Per soort som: welke foute antwoorden horen bij welke denkfout, en wat helpt.
 import { round } from './util.js';
+import { isAF } from './i18n.js';
 
 const n = (s) => Number(String(s).replace(/\s| /g, '').replace('−', '-').replace(',', '.'));
 const W = (answer, label, fix) => ({ answer, label, fix });
@@ -135,6 +136,22 @@ export function detectMisconception(q, given, check) {
   for (const w of q.wrong || []) {
     const probe = { ...q, answer: w.answer, requireSimplest: false, commonMultipleOf: undefined };
     if (check(probe, given).correct) return { label: w.label, fix: w.fix };
+  }
+  // Algemeen (elke soort som met een getal als antwoord): precies 10, 100 of 1000 keer te groot of te klein = de komma
+  // (of een nul) op de verkeerde plek. Meetlat AF #5: "3732" bij 373,2 en "3310"-achtige fouten bleven onherkend.
+  if (q.type === 'number' && typeof q.answer === 'number' && q.answer !== 0) {
+    for (const k of [10, 100, 1000]) for (const groter of [true, false]) {
+      const probe = { ...q, answer: round(groter ? q.answer * k : q.answer / k, 6) };
+      if (!check(probe, given).correct) continue;
+      const komma = !Number.isInteger(q.answer) || !Number.isInteger(probe.answer);
+      const x = k === 1000 ? '1 000' : String(k);
+      if (isAF()) return komma
+        ? { label: `Jou antwoord is ${x} keer te ${groter ? 'groot' : 'klein'}: die komma staan op die verkeerde plek.`, fix: 'Beraam eers: omtrent hoe groot moet die antwoord wees? Sit dan die komma sodat dit pas.' }
+        : { label: `Jou antwoord is ${x} keer te ${groter ? 'groot' : 'klein'}: daar is ${groter ? '’n nul te veel' : '’n nul te min'}.`, fix: 'Beraam eers: omtrent hoe groot moet die antwoord wees? Tel dan die nulle.' };
+      return komma
+        ? { label: `Je antwoord is ${x} keer te ${groter ? 'groot' : 'klein'}: de komma staat op de verkeerde plek.`, fix: 'Hoe groot moet het antwoord ongeveer zijn (reken met ronde getallen)? Zet de komma dan zo dat het klopt.' }
+        : { label: `Je antwoord is ${x} keer te ${groter ? 'groot' : 'klein'}: er is ${groter ? 'een nul te veel' : 'een nul te weinig'}.`, fix: 'Hoe groot moet het antwoord ongeveer zijn (reken met ronde getallen)? Tel dan de nullen.' };
+    }
   }
   return null;
 }

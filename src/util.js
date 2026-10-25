@@ -103,3 +103,13 @@ export const hhmm = (min) => {
 // (sleutels gesorteerd: de database bewaart JSON in een andere volgorde)
 const stable = (v) => (Array.isArray(v) ? `[${v.map(stable).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${k}:${stable(v[k])}`).join(',')}}` : JSON.stringify(v ?? null));
 export const sumKey = (q) => `${q.text}|${q.visual ? stable(q.visual) : ''}|${q.options ? [...q.options].sort().join('/') : ''}`;
+
+// Herhaalbaar toeval: fn() draait met een vaste reeks "willekeurige" getallen (zaad). Zo maakt de meetlat elke keer
+// dezelfde som, maar met de uitleg (stappen, tussenstappen, tips) van de huidige generator. Alles synchroon.
+export function metZaad(seed, fn) {
+  let a = (Number(seed) >>> 0) || 1;
+  const rand = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const orig = Math.random;
+  Math.random = rand;
+  try { return fn(); } finally { Math.random = orig; }
+}

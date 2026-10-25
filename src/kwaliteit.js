@@ -129,3 +129,12 @@ export function verklaptAntwoord(text, display, { som = '', kind = '' } = {}) {
   if (a.replace(/\D/g, '').length >= 2 && !los.test(som) && los.test(text)) return 'zwak';
   return null;
 }
+
+// ---------- bewaking van Max: Nederlands in een Afrikaans gesprek? ----------
+// Meetlat AF #5: "Dat is hem!", "Welke een", "Hoe het je …", "Denk nou", "Nu jij". Woorden die in het Afrikaans niet bestaan
+// (of daar iets anders zijn); bij een treffer schrijft Max zijn bericht één keer opnieuw in zuiver Afrikaans.
+const NL_WOORDEN = /\b(je|jij|jouw|niet|klopt|bijna|welke|denk|nu|wij|zo|deze|kunt|kun|heb|hebt|zijn|precies|snap|uitgerekend|gedaan|goed zo|dat is hem|vul het|eens kijken|hoeveel is het|eerst|samen|stukjes|getallen|cijfer|cijfers|natuurlijk|eigenlijk|helemaal|zeker|stress)\b/gi;
+export function nederlandsInAfrikaans(text) {
+  const t = String(text || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/"[^"]*"|“[^”]*”/g, ' '); // plaatjes en aanhalingen (woorden van het kind) niet
+  return [...new Set([...t.matchAll(NL_WOORDEN)].map((m) => m[0].toLowerCase()))];
+}

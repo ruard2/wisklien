@@ -3,12 +3,14 @@
 // Twee runs op dezelfde meetlat zijn daardoor vergelijkbaar (/audit → Meetlat, en "vergelijk").
 //   node scripts/maak-meetlat.mjs        → src/meetlat/nl.json.gz en af.json.gz
 // Opnieuw maken alleen als er sjablonen bij zijn gekomen; oude runs zijn dan niet meer 1-op-1 te vergelijken.
+// Elk geval heeft een zaad: de Max-test maakt de som daarmee opnieuw, zodat verbeteringen in de vaste uitleg (stappen,
+// tussenstappen, tips) meetellen. Komt er een andere som uit (generator veranderd), dan gebruikt hij de bevroren som.
 process.env.DATABASE_URL ||= 'postgresql://niet-nodig@localhost/x';
 import fs from 'node:fs';
 import { gzipSync } from 'node:zlib';
 const { kidStore } = await import('../src/db.js');
 const C = await import('../src/curriculum.js');
-const { fracStr, hhmm } = await import('../src/util.js');
+const { fracStr, hhmm, metZaad } = await import('../src/util.js');
 
 const fmtNum = (x) => String(Math.round(x * 1000) / 1000).replace('.', ',');
 const BEDOELINGEN = ['fout', 'snapniet', 'goed'];
@@ -49,26 +51,29 @@ fs.mkdirSync('src/meetlat', { recursive: true });
 for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
   await kidStore.run({ kid: 1, cur, lang, name: 'Sam' }, () => {
     const byTpl = {};
-    for (const c of C.CATEGORIES) for (let lv = 0; lv < 4; lv++) for (let k = 0; k < 600; k++) {
-      const q = C.generate(c.id, lv);
-      if (!byTpl[q.tpl]) byTpl[q.tpl] = { cat: c.id, level: lv, q };
-    }
+    const zaad = (ci, lv, k, extra = 0) => (lang === 'af' ? 5_000_000 : 1_000_000) + extra + (ci * 4 + lv) * 20_000 + k;
+    C.CATEGORIES.forEach((c, ci) => { for (let lv = 0; lv < 4; lv++) for (let k = 0; k < 600; k++) {
+      const seed = zaad(ci, lv, k);
+      const q = metZaad(seed, () => C.generate(c.id, lv));
+      if (!byTpl[q.tpl]) byTpl[q.tpl] = { cat: c.id, level: lv, q, seed };
+    } });
     const cases = [];
     Object.entries(byTpl).sort(([a], [b]) => a.localeCompare(b)).forEach(([tpl, x], i) => {
       const f = fout(x.q);
-      cases.push({ id: `${lang}:${tpl}`, cat: x.cat, level: x.level, q: x.q, fout: f.raw, foutSoort: f.soort, bedoeling: BEDOELINGEN[i % 3], step: x.q.guide.length > 1 ? 1 : 0 });
+      cases.push({ id: `${lang}:${tpl}`, cat: x.cat, level: x.level, seed: x.seed, q: x.q, fout: f.raw, foutSoort: f.soort, bedoeling: BEDOELINGEN[i % 3], step: x.q.guide.length > 1 ? 1 : 0 });
     });
     for (const [tpl, ok, extra, waarom] of GOUD[lang]) {
       let found = null;
-      for (const c of C.CATEGORIES) for (let lv = 0; lv < 4 && !found; lv++) for (let k = 0; k < 3000 && !found; k++) {
-        const q = C.generate(c.id, lv);
-        if (q.tpl === tpl && ok(q)) found = { cat: c.id, level: lv, q };
-      }
+      C.CATEGORIES.forEach((c, ci) => { for (let lv = 0; lv < 4 && !found; lv++) for (let k = 0; k < 3000 && !found; k++) {
+        const seed = zaad(ci, lv, k, 10_000_000);
+        const q = metZaad(seed, () => C.generate(c.id, lv));
+        if (q.tpl === tpl && ok(q)) found = { cat: c.id, level: lv, q, seed };
+      } });
       if (!found) { console.warn(`  (geen som gevonden voor gouden geval ${tpl})`); continue; }
       const f = fout(found.q);
-      cases.push({ id: `${lang}:goud:${tpl}`, cat: found.cat, level: found.level, q: found.q, fout: f.raw, foutSoort: f.soort, bedoeling: 'snapniet', step: found.q.guide.length > 1 ? 1 : 0, ...extra(found.q), goud: waarom });
+      cases.push({ id: `${lang}:goud:${tpl}`, cat: found.cat, level: found.level, seed: found.seed, q: found.q, fout: f.raw, foutSoort: f.soort, bedoeling: 'snapniet', step: found.q.guide.length > 1 ? 1 : 0, ...extra(found.q), goud: waarom });
     }
-    const out = { lang, gemaakt: new Date().toISOString().slice(0, 10), cases };
+    const out = { lang, versie: 2, gemaakt: new Date().toISOString().slice(0, 10), cases };
     fs.writeFileSync(`src/meetlat/${lang}.json.gz`, gzipSync(JSON.stringify(out), { level: 9 }));
     console.log(`${lang}: ${cases.length} gevallen (${cases.filter((c) => c.goud).length} gouden) → src/meetlat/${lang}.json.gz`);
   });

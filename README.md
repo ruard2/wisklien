@@ -207,6 +207,8 @@ Max en de vaste uitleg worden systematisch beter, niet per losse fout:
 
 - **Hergebruik** (vinkje bij Start, standaard aan): elke AI-aanroep van de Max-test (Max, gespeeld kind, beoordelaar) wordt bewaard in `public.ai_cache`, met als sleutel model + volledige vraag. Is er sinds een vorige test niets veranderd aan een geval (som, kaart, prompt, gesprek, model), dan komt het antwoord uit de opslag en kost het niets; alleen wat veranderd is, wordt opnieuw gevraagd. Het rapport toont hoeveel aanroepen nieuw en hergebruikt waren. Echte kinderen krijgen altijd een vers antwoord. Ongebruikte antwoorden worden na 120 dagen opgeruimd.
 
+- **Meetlat v2 met zaad**: elk geval heeft een zaad, waarmee de test de som elke keer precies opnieuw maakt met de generator van nú. Verbeteringen in stappenplan, tussenstappen en tips tellen dus mee. Levert de generator een andere som op (omdat die soort som veranderd is), dan gebruikt de test de bevroren som. Vergelijken met een run op meetlat v1 of met andere modellen geeft een waarschuwing.
+
 **Zo verbeter je Max**: meetlat draaien → rapport (en "Downloaden voor Claude") → kaarten/prompt/generators aanpassen → opnieuw meetlat → vergelijken. Alleen als het beter wordt (en niets slechter), gaat het erin. Elke fout die je met code kunt vangen, wordt een regel in de poort.
 
 ## Max-test: de uitleg van Max laten nakijken (alleen beheerder)

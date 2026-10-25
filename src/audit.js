@@ -16,7 +16,7 @@ import { kidStore, pool } from './db.js';
 import { generate, hintsFor, detectMisconception, checkAnswer, catById, CATEGORIES, LEVEL_NAMES, didactiekText } from './curriculum.js';
 import { teacherTurn, splitForm, auditCall, describeQuestion, aiEnabled, aiModel } from './ai.js';
 import { kaartTekst } from './uitleg/index.js';
-import { fracStr, hhmm } from './util.js';
+import { fracStr, hhmm, metZaad } from './util.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 
@@ -113,11 +113,17 @@ import { checkArithmetic } from './kwaliteit.js';
 export async function auditOne(lang, p, models = {}) {
   const { cat, level } = p;
   return inCtx(lang, async () => {
-    const q = p.q ? structuredClone(p.q) : generate(cat, level);
+    // Meetlat: de som opnieuw maken met het zaad, zodat de vaste uitleg van NU meedoet; zelfde som? dan die, anders de bevroren som.
+    let q, vers = null;
+    if (p.q && p.seed != null) {
+      const nieuw = metZaad(p.seed, () => generate(cat, level));
+      vers = nieuw.tpl === p.q.tpl && nieuw.text === p.q.text;
+      q = vers ? nieuw : structuredClone(p.q);
+    } else q = p.q ? structuredClone(p.q) : generate(cat, level);
     const card = didactiekText(cat, level);
     const base = { name: NAME, profile: '', memory: '', today: '', question: q, levelName: LEVEL_NAMES[level] };
     const item = {
-      lang, cat, level, label: catById[cat].label, levelName: LEVEL_NAMES[level], tpl: q.tpl || null, geval: p.id || null, goud: p.goud || null,
+      lang, cat, level, uitleg_vers: vers, label: catById[cat].label, levelName: LEVEL_NAMES[level], tpl: q.tpl || null, geval: p.id || null, goud: p.goud || null,
       som: describeQuestion(q), type: q.type, antwoord: q.display, opties: q.options || null,
       stappenplan: q.steps || [], hints: hintsFor(q) || [],
       tussenstappen: (q.guide || []).map((s) => ({ vraag: s.ask, antwoord: s.display, tip: s.tip || null, opties: s.options || null })),
@@ -224,7 +230,7 @@ function itemForJudge(it) {
   L.push(`Juiste antwoord: ${it.antwoord}`);
   L.push(`\nSTAPPENPLAN (na een fout):\n${it.stappenplan.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
   L.push(`\nHINTS:\n${it.hints.map((s, i) => `${i + 1}. ${s}`).join('\n') || '(geen)'}`);
-  L.push(`\nTUSSENSTAPPEN:\n${it.tussenstappen.map((s, i) => `${i + 1}. vraag: "${s.vraag}"${s.opties ? ` (keuzes: ${s.opties.join(' | ')})` : ''} → goed: ${s.antwoord}${s.tip ? ` · tip bij fout: "${s.tip}"` : ''}`).join('\n') || '(geen)'}${it.slot ? `\nSlot (de app toont: "Nu jij: ${it.slot}" + "Vul hieronder het eindantwoord in." Het kind rekent dit laatste stukje bewust zelf uit; dat is geen onaffe stap): ${it.slot}` : ''}`);
+  L.push(`\nTUSSENSTAPPEN:\n${it.tussenstappen.map((s, i) => `${i + 1}. vraag: "${s.vraag}"${s.opties ? ` (keuzes: ${s.opties.join(' | ')})` : ''} → goed: ${s.antwoord}${s.tip ? ` · tip bij fout: "${s.tip}"` : ''}`).join('\n') || '(geen)'}${it.slot ? `\nSlot (de app toont: ${it.lang === 'af' ? `"Nou is dit jou beurt: ${it.slot}" + "Vul hieronder die eindantwoord in."` : `"Nu jij: ${it.slot}" + "Vul hieronder het eindantwoord in."`} Het kind rekent dit laatste stukje bewust zelf uit; dat is geen onaffe stap): ${it.slot}` : ''}`);
   L.push(`\nMAX VÓÓR HET ANTWOORD\nKind: ${it.gesprekken.begin?.kind}\nMax: ${it.gesprekken.begin?.max ?? '(geen antwoord)'}`);
   L.push(`\nFOUT ANTWOORD van het kind: "${it.fout_antwoord.gegeven}"${it.fout_antwoord.herkend ? ` — de app herkende de denkfout: "${it.fout_antwoord.herkend.label}" (uitleg in de app: "${it.fout_antwoord.herkend.wat_helpt}")` : ' — geen bekende denkfout herkend'}`);
   L.push(`GESPREK NA DE FOUT:\n${(it.gesprekken.na_fout || []).map((t) => `${t.wie === 'max' ? 'Max' : 'Kind'}: ${t.tekst}`).join('\n') || '(geen)'}`);
@@ -295,6 +301,7 @@ export async function migrateAudit() {
       PRIMARY KEY (audit_id, idx)
     );
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS hergebruik boolean NOT NULL DEFAULT true;
+    ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS meetlat_versie text;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_nieuw int NOT NULL DEFAULT 0;
     ALTER TABLE public.max_audit ADD COLUMN IF NOT EXISTS ai_hergebruikt int NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS public.ai_cache (
@@ -314,8 +321,8 @@ export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
   const hergebruik = m.hergebruik !== false;
   const maxM = clean(m.max), judgeM = clean(m.judge) || process.env.AUDIT_MODEL || null, kidM = clean(m.kid) || process.env.AUDIT_KID_MODEL || null;
-  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik])).rows[0];
+  const { id } = (await pool.query(`INSERT INTO public.max_audit(lang, n, plan, model, judge_model, soort, versie, max_model, kid_model, hergebruik, meetlat_versie) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    [lang, n, JSON.stringify(plan), maxM || aiModel(), judgeM || maxM || aiModel(), soort, versie(), maxM, kidM, hergebruik, soort === 'meetlat' ? `${meetlat(lang).versie || 1}/${meetlat(lang).gemaakt}` : null])).rows[0];
   runAudit(id).catch((e) => console.error('[audit]', e));
   return id;
 }
