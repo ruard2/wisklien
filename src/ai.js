@@ -14,6 +14,7 @@ import { mnemonicText, didactiekText, ALGEMEEN, LEVEL_NAMES } from './curriculum
 import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { kaartTekst } from './uitleg/index.js';
+import { verklaptAntwoord } from './kwaliteit.js';
 
 // Schoolcontext per curriculum (Nederland of Suid-Afrika)
 const SCHOOL = () => (isAF() ? 'zit in ’n Suid-Afrikaanse laerskool (meestal graad 6 of 7, KABV-kurrikulum)' : 'zit op een Nederlandse basisschool (meestal groep 7 of 8)');
@@ -314,6 +315,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     `Niveau van deze som: ${levelName}.`,
     `Juiste antwoord: ${question.display}`,
     `Stappenplan: ${question.steps.join(' / ')}`,
+    question.guide?.length ? `Tussenstappen die de app het kind laat invullen (volg dezelfde route en dezelfde tips; kies geen andere manier): ${question.guide.map((g, i) => `${i + 1}. ${g.ask}${g.tip ? ` (tip: ${g.tip})` : ''}`).join(' / ')}${question.guideFinal ? ` / laatste stap: ${question.guideFinal}` : ''}` : '',
     phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip. Vraagt ${name} "hoe begin ik?": noem alleen wat de eerste stap is (wat ga je eerst doen, met welk plaatje of welke aanpak van de kaart) en laat ${name} die stap zelf uitrekenen. Geef niet de hele berekening, niet de doorslaggevende tussenuitkomst en ook niet het kenmerk dat meteen het antwoord geeft.` : '',
     phase === 'wrong' ? `${name} antwoordde "${given}". Dat is FOUT.` : '',
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
@@ -323,7 +325,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat ("Kijk nog eens: in 8945 staat de 5 rechts van de 4"). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
-    phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.` : '',
+    phase === 'step' && step ? `${name} rekent samen met je in tussenstappen en loopt vast bij de stap: "${step.ask}" (goed is ${step.display}). Poging van ${name}: "${given || '?'}". Verklap het antwoord van deze stap niet meteen.${step.tip ? ` De app gaf bij deze stap als tip: "${step.tip}". Leg het uit op dezelfde manier (zelfde route), alleen concreter.` : ''}` : '',
     scratchContext(name, scratch, phase),
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
     didactiekText(question.cat, question.level),
@@ -344,7 +346,22 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   if (!chat.length) messages.push({ role: 'user', content: `[instructie] ${opener}` });
   for (const m of chat.slice(-20)) messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text });
   if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: '[instructie] Ga verder.' });
-  return complete(LERAAR(name, profile, memory, today), messages, { maxTokens: 500, image: scratch?.image || null, keepForm: true });
+  const sys = LERAAR(name, profile, memory, today), opts = { maxTokens: 500, image: scratch?.image || null, keepForm: true };
+  let out = await complete(sys, messages, opts);
+  // Bewaking: verklapt Max het (tussen)antwoord toch? Dan één keer opnieuw laten schrijven (zie verklaptAntwoord).
+  if (phase !== 'right' && typeof out === 'string') {
+    const kind = chat.filter((m) => m.role !== 'teacher').map((m) => m.text).join(' \n ');
+    const doelen = [[question.display, question.text]];
+    if (phase === 'step' && step) doelen.push([step.display, `${question.text}\n${step.ask}`]);
+    const raak = (t) => doelen.find(([d, som]) => verklaptAntwoord(t, d, { som, kind }));
+    const hit = raak(out);
+    if (hit) {
+      const opnieuw = await complete(sys, [...messages, { role: 'assistant', content: out }, { role: 'user', content: `[controle] In je bericht staat het antwoord (${hit[0]}) dat ${name} zelf moet vinden. Schrijf je bericht opnieuw, zonder dat getal: ook niet als keuze, in een rijtje, als controle of in een plaatje. Laat ${name} die laatste stap zelf doen. Geef alleen het nieuwe bericht.` }], opts).catch(() => null);
+      if (typeof opnieuw === 'string' && opnieuw.trim()) out = opnieuw; // ook als hij nog raak is: de herschreven versie is voorzichtiger
+      console.log(`[max-bewaking] antwoord ${hit[0]} verklapt → herschreven${raak(out) ? ' (nog steeds)' : ''}`);
+    }
+  }
+  return out;
 }
 
 // Kladblok bekijken: hoe rekende het kind, en waar ging het mis? Kort, voor het profiel en het geheugen.

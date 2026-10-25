@@ -111,3 +111,21 @@ export function problemen(q, { hints = null } = {}) {
   }
   return out;
 }
+
+// ---------- bewaking van Max: verklapt hij het antwoord? ----------
+// Max-meetlat #3/#4: ondanks de regel "NIET VOORZEGGEN" noemt Max soms toch het antwoord ("Dan wordt het 560",
+// "Kies maar: 2400 of 2500?"). Deze controle draait op elk bericht van Max vóór het naar het kind gaat (src/ai.js);
+// bij een treffer schrijft Max zijn bericht één keer opnieuw.
+// 'sterk' = het antwoord staat na =, "is", "dus" … of vetgedrukt; 'zwak' = het getal staat er gewoon (en niet al in de som).
+const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function verklaptAntwoord(text, display, { som = '', kind = '' } = {}) {
+  const a = String(display ?? '').replace(/\s*(°|cm²|m²|cm|km|kg|g|ℓ|mℓ|ml|liter|minuten|min|uur|dm|mm|m³|m)\s*$/, '').replace(/^(€|R)\s*/, '').trim();
+  if (!a || !/^\d/.test(a)) return null; // keuze- of woordantwoorden: niet
+  const getal = escRe(a).replace(/[  ]/g, '[  ]?');
+  const los = new RegExp(`(^|[^\\d,./:])${getal}(?![\\d]|[,.:]\\d|/\\d)`);
+  if (los.test(kind)) return null; // het kind zei het zelf al
+  const sterk = new RegExp(`(=|≈|\\bis|\\bwordt|\\bzijn|krijg je|\\bdus|antwoord|\\bword|\\bis dit)\\s*\\**\\s*(€|R)?\\s*${getal}(?![\\d]|[,.:]\\d|/\\d)|\\*\\*\\s*(€|R)?\\s*${getal}(?![\\d]|[,.:]\\d|/\\d)[^*\\n]{0,8}\\*\\*`, 'i');
+  if (sterk.test(text)) return 'sterk';
+  if (a.replace(/\D/g, '').length >= 2 && !los.test(som) && los.test(text)) return 'zwak';
+  return null;
+}

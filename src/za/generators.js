@@ -5,6 +5,7 @@
 //
 // Vlakke: 0 = graad 4, 1 = graad 5, 2 = graad 6, 3 = graad 7.
 
+import { kaartVoor } from '../uitleg/index.js';
 import { problemen } from '../kwaliteit.js';
 import { improveTips } from '../tips.js';
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, fracStr, hhmm } from '../util.js';
@@ -1191,6 +1192,10 @@ export function hintsFor(q) {
   // geen tussenstappen zijn; die paste vaak niet bij de somvorm (Max-test: bv. afronden-uitleg bij een plaatswaardevraag).
   const steps = (q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''));
   if (steps.length) return steps;
+  // Geen tussenstappen: de aanpak van de uitlegkaart van déze soort som (Max-meetlat #4: de algemene onderdeel-hint ging
+  // over hoeken of gemiddelde bij een balk- of staafgrafieksom). Alleen als er geen kaart is de algemene aanpak.
+  const kaart = kaartVoor('af', q.tpl);
+  if (kaart?.aanpak?.length) return [kid(kaart.aanpak.slice(0, 2).join(' '))];
   return [kid(hintAanpak(q.cat, q.level ?? 2)) + (m ? `\n🧠 Onthou: ${m.kort}` : '')].filter(Boolean);
 }
 export const STRATEGY = Object.fromEntries(Object.keys(DIDACTIEK).map((c) => [c, hintAanpak(c, 2)]));

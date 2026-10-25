@@ -13,6 +13,7 @@
 //   guide — invulbare tussenstappen ("samen stap voor stap"): het kind rekent
 //           elke tussenstap zelf uit, daarna het eindantwoord.
 
+import { kaartVoor } from './uitleg/index.js';
 import { problemen } from './kwaliteit.js';
 import { improveTips } from './tips.js';
 import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm } from './util.js';
@@ -246,13 +247,22 @@ const optellen = {
   },
 };
 
+// Ankerstap bij delen / ontbrekende factor: een keersom die je kent (10×, 5×, 2× of 1× de deler), zo dicht mogelijk onder
+// het antwoord maar er niet gelijk aan (dan zou de stap het antwoord verklappen). Max-meetlat #4: "1/3 van 33 → 5 × 3?"
+// was een omweg; bij 33 is 10 × 3 het logische anker.
+function anker(d, q) {
+  const c = [10, 5, 2, 1].find((k) => k < q) ?? null;
+  if (!c) return { guide: [], guideFinal: null };
+  const tip = { 10: `Zet een nul achter ${d}.`, 5: `De helft van 10 × ${d}.`, 2: `Het dubbele van ${d}.`, 1: `1 keer ${d} is ${d} zelf.` }[c];
+  return { guide: [st(`${c} × ${d} = ?`, c * d, tip)], guideFinal: `${d * q} is meer dan ${c * d}. Hoe vaak past ${d} in ${d * q}` };
+}
 const vermenigvuldigen = {
   0() {
     const a = pick([2, 3, 4, 5, 10]), b = rnd(1, 10), vorm = Math.random();
     if (vorm < 0.55) return tpl('vermenigvuldigen.0a', withGuide(num(`${a} × ${b} =`, a * b, tafel(a, b).steps), tafel(a, b)));
     if (vorm < 0.7) return tpl('vermenigvuldigen.0b', withGuide(num(`Hoeveel is ${a} keer ${b}?`, a * b, tafel(a, b).steps), tafel(a, b)));
     if (vorm < 0.82) return tpl('vermenigvuldigen.0c', { ...num(`${a} × ... = ${a * b}`, b, [`Welk getal keer ${a} is ${a * b}?`, `${a} × ${b} = ${a * b}, dus ${b}.`]),
-      guide: [st(`${a} × 5 = ?`, a * 5, 'Begin bij 5 keer.')], guideFinal: `Is ${a * b} meer of minder dan ${a * 5}? Hoe vaak past ${a} in ${a * b}` });
+      ...anker(a, b) });
     const n = pick(NAMES), [bak, ding] = pick([['zakjes', 'knikkers'], ['doosjes', 'krijtjes'], ['bekers', 'rietjes'], ['bordjes', 'koekjes'], ['vazen', 'bloemen'], ['emmers', 'schelpen'], ['potjes', 'stiften']]);
     return tpl('vermenigvuldigen.0d', withGuide(num(`${n} heeft ${a} ${bak} met in elk ${b} ${ding}. Hoeveel ${ding} zijn dat samen?`, a * b, tafel(a, b).steps), tafel(a, b)));
   },
@@ -314,7 +324,7 @@ const delen = {
     const t = pick(['tafel', 'tafel', 'nullen', 'nullen2']);
     const b = rnd(3, 9), q = rnd(3, 12);
     if (t === 'tafel') return tpl('delen.1a', { ...num(Math.random() < 0.6 ? `${b * q} : ${b} =` : `${pick(NAMES)} deelt ${b * q} ${pick(['stickers', 'knikkers', 'snoepjes', 'kaartjes', 'flippo\'s'])} eerlijk met ${b - 1} vriendjes (en zichzelf). Hoeveel krijgt ieder?`, q, [`Welke som uit de tafel van ${b} geeft ${b * q}?`, `${q} × ${b} = ${b * q}, dus ${b * q} : ${b} = ${q}.`]),
-      guide: [st(`5 × ${b} = ?`, 5 * b, `De helft van 10 × ${b}.`)], guideFinal: `Is ${b * q} meer of minder dan ${5 * b}? Hoe vaak past ${b} in ${b * q}` });
+      ...anker(b, q) });
     if (t === 'nullen') return tpl('delen.1b', { ...num(`${b * q * 10} : ${b} =`, q * 10, [`Denk aan ${b * q} : ${b} = ${q}.`, `${b * q * 10} is 10 keer zo groot, dus het antwoord ook: ${q * 10}.`]),
       guide: [st(`Zonder de nul: ${b * q} : ${b} = ?`, q, `Tafel van ${b}.`)], guideFinal: `Het getal was 10 keer zo groot, dus het antwoord ook` });
     return tpl('delen.1c', { ...num(`${fmt(b * q * 100)} : ${b * 10} =`, q * 10, [`Streep aan beide kanten een nul weg: ${b * q * 10} : ${b}.`, `${b * q} : ${b} = ${q}, dus ${b * q * 10} : ${b} = ${q * 10}.`]),
@@ -572,7 +582,7 @@ const breuken = {
     if (t === 'derde') {
       const k = rnd(2, 15), total = 3 * k;
       return tpl('breuken.0c', { ...num(`Hoeveel is 1/3 van ${total}?`, k, [`1/3 = verdeel in 3 gelijke stukken.`, `${total} : 3 = ${k}`]),
-        guide: [st('Hoeveel is 5 × 3?', 15, 'Tafel van 3.')], guideFinal: `Is ${total} meer of minder dan 15? Welk getal keer 3 is ${total}` });
+        ...anker(3, k) });
     }
     const k = rnd(2, 25), total = 4 * k;
     return tpl('breuken.0d', { ...num(`Hoeveel is 1/4 van ${total}?`, k, [`1/4 = verdeel in 4 gelijke stukken.`, `${total} : 4 = ${k}`]),
@@ -1381,6 +1391,10 @@ export function hintsFor(q) {
   // geen tussenstappen zijn; die paste vaak niet bij de somvorm (Max-test: bv. afronden-uitleg bij een plaatswaardevraag).
   const steps = (q.guide || []).map((g) => g.ask + (g.type === 'choice' ? ` (${g.options.join(' / ')})` : ''));
   if (steps.length) return steps;
+  // Geen tussenstappen: de aanpak van de uitlegkaart van déze soort som (Max-meetlat #4: de algemene onderdeel-hint ging
+  // over hoeken of gemiddelde bij een balk- of staafgrafieksom). Alleen als er geen kaart is de algemene aanpak.
+  const kaart = kaartVoor('nl', q.tpl);
+  if (kaart?.aanpak?.length) return [kid(kaart.aanpak.slice(0, 2).join(' '))];
   return [kid(hintAanpak(q.cat, q.level ?? 2)) + (m ? `\n🧠 ${m.soort === 'ezelsbrug' ? 'Ezelsbruggetje' : 'Onthoud'}: ${m.kort}` : '')].filter(Boolean);
 }
 

@@ -2,7 +2,7 @@
   "name": "christo-rekenen",
   "version": "1.0.0",
   "private": true,
-  "description": "Rekenapp groep 8 voor Christo — intake, dagelijkse oefening, spaarpot en AI-hulp",
+  "description": "Rekenapp groep 8 voor Christo \u2014 intake, dagelijkse oefening, spaarpot en AI-hulp",
   "type": "module",
   "main": "server.js",
   "engines": {
@@ -15,7 +15,8 @@
     "test": "node scripts/test-generators.mjs && node scripts/lint-uitleg.mjs 100",
     "icons": "node scripts/gen-icons.mjs",
     "lint-uitleg": "node scripts/lint-uitleg.mjs 300 --rauw",
-    "meetlat": "node scripts/maak-meetlat.mjs"
+    "meetlat": "node scripts/maak-meetlat.mjs",
+    "kaartgetallen": "node scripts/kaartgetallen.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
