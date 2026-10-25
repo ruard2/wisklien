@@ -178,7 +178,7 @@ function maalTweeSyfer(a, b) {
   const steps = [`Breek ${b} op: ${t} + ${e}.`, `${f(a)} × ${t} = ${f(a * t)}`, `${f(a)} × ${e} = ${f(a * e)}`, `Tel op: ${f(a * t)} + ${f(a * e)} = ${f(a * b)}`];
   const guide = [
     st(`Eers die tiene: ${f(a)} × ${t} = ?`, a * t, `Reken ${f(a)} × ${t / 10} en sit 'n nul agter.`),
-    st(`Dan die ene: ${f(a)} × ${e} = ?`, a * e, a >= 100 ? `Gebruik uitgebreide notasie: breek ${f(a)} op.` : `Breek ${a} op in tiene en ene.`),
+    st(`Dan die ene: ${f(a)} × ${e} = ?`, a * e, a >= 100 ? (a % 100 ? `Breek ${f(a)} op in honderde, tiene en ene, maal elke deel met ${e} en tel op.` : `Reken ${a / 100} × ${e} en sit twee nulle agter.`) : `Breek ${a} op in tiene en ene, maal elke deel met ${e} en tel op.`),
   ];
   return { steps, guide, final: `Tel die deelprodukte op: ${f(a * t)} + ${f(a * e)}`, wrong: [W(a * t + e, `Jy het ${f(a)} net met die tiene gemaal en die ene bygetel.`, `Elke deel van ${b} moet met ${f(a)} gemaal word: × ${t} én × ${e}.`)] };
 }
@@ -346,7 +346,7 @@ const deling = {
     if (Math.random() < 0.25) {
       const dd = pick([2, 5, 10]), n = rnd(1000, 9999), ja = n % dd === 0, rule = { 2: 'die laaste syfer ewe is (0, 2, 4, 6, 8)', 5: 'die laaste syfer 0 of 5 is', 10: 'die laaste syfer 0 is' }[dd];
       return tpl('deling.1a', { ...choice(`Is ${f(n)} deelbaar deur ${dd}?`, ['ja', 'nee'], ja ? 0 : 1, [`Deelbaarheidsreël: 'n getal is deelbaar deur ${dd} as ${rule}.`, `Die laaste syfer is ${n % 10}, dus ${ja ? 'ja' : 'nee'}.`]),
-        guide: [st(`Wat is die laaste syfer van ${f(n)}?`, n % 10, 'Die ene.')], guideFinal: `Is die laaste syfer ${rule.replace(/^die laaste syfer /, '').replace(/ is$/, '')}?` });
+        guide: [st(`Wat is die laaste syfer van ${f(n)}?`, n % 10, 'Kyk na die syfer heel regs: dit is die ene.')], guideFinal: `Is die laaste syfer ${rule.replace(/^die laaste syfer /, '').replace(/ is$/, '')}?` });
     }
     const d = rnd(3, 9), q = rnd(21, 99), a = d * q, big = d * (q - (q % 10)), small = a - big;
     return tpl('deling.1b', { ...num(`${a} ÷ ${d} =`, q, [`Breek ${a} op in dele wat maklik deur ${d} gedeel kan word: ${big} + ${small}.`, `${big} ÷ ${d} = ${big / d}`, `${small} ÷ ${d} = ${small / d}`, `Tel op: ${big / d} + ${small / d} = ${q}`]),
@@ -357,7 +357,7 @@ const deling = {
     if (r < 0.2) {
       const dd = pick([3, 9]), n = rnd(1000, 9999), sum = String(n).split('').reduce((x, y) => x + Number(y), 0), ja = sum % dd === 0;
       return tpl('deling.2a', { ...choice(`Is ${f(n)} deelbaar deur ${dd}?`, ['ja', 'nee'], ja ? 0 : 1, [`Reël vir ${dd}: tel die syfers op.`, `${String(n).split('').join(' + ')} = ${sum}.`, `Is ${sum} deelbaar deur ${dd}? ${ja ? 'Ja' : 'Nee'}.`]),
-        guide: [st(`Tel die syfers op: ${String(n).split('').join(' + ')} = ?`, sum, 'Elke syfer apart.')], guideFinal: `Is ${sum} in die tafel van ${dd}?` });
+        guide: [st(`Tel die syfers op: ${String(n).split('').join(' + ')} = ?`, sum, 'Tel twee syfers bymekaar en tel dan die volgende syfer by, een vir een.')], guideFinal: `Is ${sum} in die tafel van ${dd}?` });
     }
     const d = rnd(12, 32), q = rnd(12, 39), rest = r < 0.6 ? 0 : rnd(1, d - 1), a = d * q + rest, g = langdeel(a, d);
     if (!rest) return tpl('deling.2b', withGuide(num(`${f(a)} ÷ ${d} =`, q, g.steps), g));
@@ -555,12 +555,12 @@ const desimale = {
     if (r < 0.75) {
       const w = rnd(1, 9), n = rnd(11, 99);
       return tpl('desimale.1b', { ...num(`Skryf ${w} ${n}/100 as 'n desimale breuk.`, w + n / 100, [`${w} heelgetalle, en ${n}/100 is ${n} honderdstes.`, `${w},${n}`]),
-        guide: [st(`Hoeveel heelgetalle?`, w, 'Die getal voor die breuk.')], guideFinal: `Skryf ${w}, en dan die ${n} honderdstes ná die komma` });
+        guide: [st(`Hoeveel heelgetalle?`, w, 'Die heelgetal is die getal vóór die breuk.')], guideFinal: `Skryf ${w}, en dan die ${n} honderdstes ná die komma` });
     }
     const base = rnd(1, 8), opts = [base + 0.3, base + 0.25, base + 0.05, base + 0.35];
     const mx = Math.max(...opts);
     return tpl('desimale.1c', { ...choice(`Watter getal is die grootste? ${opts.map((x) => f(x)).join('; ')}`, opts.map((x) => f(x)), opts.indexOf(mx), ['Maak die aantal syfers ná die komma gelyk: 0,30; 0,25; 0,05; 0,35.', `Dink aan geld: 35c is die meeste. ${f(mx)} is die grootste.`]),
-      guide: [st(`Skryf ${f(base + 0.3)} met twee syfers ná die komma: hoeveel honderdstes is dit? (net die deel ná die komma)`, 30, '0,3 = 0,30.')], guideFinal: 'Vergelyk nou die honderdstes' });
+      guide: [st(`Skryf ${f(base + 0.3)} met twee syfers ná die komma: hoeveel honderdstes is dit? (net die deel ná die komma)`, 30, 'Sit ’n 0 agter: dit verander nie die waarde nie. Lees dan net die syfers ná die komma as honderdstes.')], guideFinal: 'Vergelyk nou die honderdstes' });
   },
   2() {
     const r = Math.random();
@@ -580,7 +580,7 @@ const desimale = {
     const n = round(rnd(101, 999) / 100), i = pick([1, 2]), d = i === 1 ? Math.floor(n * 10) % 10 : Math.round(n * 100) % 10;
     if (!d || String(n).split(String(d)).length > 2) return tpl('desimale.2d', desimale[2]());
     return tpl('desimale.2e', { ...choice(`Wat is die waarde van die ${d} in ${f(n)}?`, [`${d} tiendes`, `${d} honderdstes`, `${d} ene`, `${d} tiene`], i === 1 ? 0 : 1, ['Die eerste plek ná die komma is tiendes, die tweede is honderdstes.', `Die ${d} staan op plek ${i} ná die komma.`]),
-      guide: [st(`Op watter plek ná die komma staan die ${d}? (1 of 2)`, i, 'Tel ná die komma.')], guideFinal: 'Plek 1 = tiendes, plek 2 = honderdstes' });
+      guide: [st(`Op watter plek ná die komma staan die ${d}? (1 of 2)`, i, 'Tel die plekke van die komma af na regs: die eerste plek, dan die tweede plek.')], guideFinal: 'Plek 1 = tiendes, plek 2 = honderdstes' });
   },
   3() {
     const r = Math.random();
@@ -592,7 +592,7 @@ const desimale = {
     if (r < 0.65) {
       const w = rnd(2, 9), t = rnd(1, 9), h = rnd(1, 9), k = pick([20, 30, 40]), a = w + t / 10 + h / 100;
       return tpl('desimale.3b', { ...num(`${f(a)} × ${k} =`, a * k, [`Uitgebreide notasie: (${w} × ${k}) + (0,${t} × ${k}) + (0,0${h} × ${k}).`, `= ${w * k} + ${f((t * k) / 10)} + ${f((h * k) / 100)}`, `= ${f(a * k)}`]),
-        guide: [st(`${w} × ${k} = ?`, w * k, 'Eers die heelgetal.'), st(`0,${t} × ${k} = ?`, (t * k) / 10, `${t} tiendes × ${k} = ${t * k} tiendes.`), st(`0,0${h} × ${k} = ?`, (h * k) / 100, `${h} honderdstes × ${k} = ${h * k} honderdstes.`)], guideFinal: 'Tel die drie deelprodukte op' });
+        guide: [st(`${w} × ${k} = ?`, w * k, 'Eers die heelgetal.'), st(`0,${t} × ${k} = ?`, (t * k) / 10, `0,${t} is ${t} tiendes: reken ${t} × ${k} tiendes en skryf dit as ’n desimale getal.`), st(`0,0${h} × ${k} = ?`, (h * k) / 100, `0,0${h} is ${h} honderdstes: reken ${h} × ${k} honderdstes en skryf dit as ’n desimale getal.`)], guideFinal: 'Tel die drie deelprodukte op' });
     }
     if (r < 0.85) {
       const k = rnd(3, 8), q = round(rnd(11, 49) / 10), a = round(q * k), mens = pick(NAMES);
@@ -601,7 +601,7 @@ const desimale = {
     }
     const a = round(rnd(1001, 9999) / 1000), ans = Math.round(a * 10) / 10;
     return tpl('desimale.3d', { ...num(`Rond ${f(a)} af tot een desimale plek.`, ans, [`Kyk na die tweede syfer ná die komma: ${Math.floor(a * 100) % 10}.`, `${Math.floor(a * 100) % 10 >= 5 ? '5 of meer: op' : 'Minder as 5: af'}: ${f(ans)}.`]),
-      guide: [st(`Wat is die tweede syfer ná die komma in ${f(a)}?`, Math.floor(a * 100) % 10, 'Die honderdstes.')], guideFinal: 'Rond die tiendes op of af' });
+      guide: [st(`Wat is die tweede syfer ná die komma in ${f(a)}?`, Math.floor(a * 100) % 10, 'Die eerste syfer ná die komma is die tiendes, die tweede die honderdstes.')], guideFinal: 'Rond die tiendes op of af' });
   },
 };
 
@@ -706,7 +706,7 @@ const finansies = {
     }
     const km = pick([40, 50, 60, 70, 80, 90, 100, 110, 120]), h = rnd(2, 6);
     return tpl('finansies.3c', { ...num(`${pick(["'n Taxi", "'n Bus", "'n Bakkie", "'n Vragmotor", "'n Trein"])} ry teen 'n spoed van ${km} km per uur. Hoe ver ry dit in ${h} uur?`, km * h, [`Koers: ${km} km in 1 uur.`, `${h} uur: ${h} × ${km} = ${km * h} km.`], { unit: 'km' }),
-      guide: [st(`Hoe ver in 1 uur?`, km, 'Lees die koers.')], guideFinal: `Maal met ${h}` });
+      guide: [st(`Hoe ver in 1 uur?`, km, 'Die spoed in die som sê hoeveel km in 1 uur.')], guideFinal: `Maal met ${h}` });
   },
 };
 
@@ -738,7 +738,7 @@ const patrone = {
     }
     const s = rnd(1, 5), seq = [s, s * 2, s * 4, s * 8];
     return tpl('patrone.1c', { ...num(`Wat is die volgende getal? ${list(seq)}; …`, s * 16, ['Kyk hoe elke getal verander om die volgende te kry: dit verdubbel.', `${s * 8} × 2 = ${s * 16}.`], { wrong: [W(s * 8 + (s * 8 - s * 4), 'Jy het elke keer dieselfde getal bygetel.', 'Die verskil word elke keer groter: hier verdubbel die getal elke keer.')] }),
-      guide: [stC(`Hoe kom jy van ${s * 2} na ${s * 4}?`, ['× 2', `+ ${s}`, `+ ${s * 2}`].filter((v, i, a) => a.indexOf(v) === i), 0, 'Kyk ook na die ander getalle.')], guideFinal: `${s * 8} × 2` });
+      guide: [stC(`Hoe kom jy van ${s * 2} na ${s * 4}?`, ['× 2', `+ ${s}`, `+ ${s * 2}`].filter((v, i, a) => a.indexOf(v) === i), 0, 'Is dit plus of maal? Kyk of dieselfde ook by die ander getalle in die patroon werk.')], guideFinal: `${s * 8} × 2` });
   },
   2() {
     const r = Math.random();
@@ -859,9 +859,9 @@ const meting = {
   0() {
     const [g, k, m] = pick(EENHEDE), n = rnd(2, 25);
     if (Math.random() < 0.35) return tpl('meting.0a', { ...num(`${f(n * m)} ${k} = … ${g}`, n, [`${f(m)} ${k} = 1 ${g}.`, `${f(n * m)} ÷ ${f(m)} = ${n} ${g}.`], { unit: g, wrong: [W(n * m * m, 'Jy het gemaal in plaas van gedeel.', 'Na \'n groter eenheid word die getal kleiner: deel.')] }),
-      guide: [st(`1 ${g} = … ${k}`, m, 'Ken die omskakelfeite.', { unit: k })], guideFinal: `Deel deur ${f(m)}` });
+      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel: kilo = duisend, senti = ’n honderdste, milli = ’n duisendste.', { unit: k })], guideFinal: `Deel deur ${f(m)}` });
     return tpl('meting.0b', { ...num(`${n} ${g} = … ${k}`, n * m, [`1 ${g} = ${f(m)} ${k}.`, `${n} × ${f(m)} = ${f(n * m)} ${k}.`], { unit: k, wrong: [100, 1000, 10].filter((x) => x !== m).map((x) => W(n * x, `1 ${g} is nie ${f(x)} ${k} nie.`, `1 ${g} = ${f(m)} ${k}.`)) }),
-      guide: [st(`1 ${g} = … ${k}`, m, 'Ken die omskakelfeite.', { unit: k })], guideFinal: `Maal met ${n}` });
+      guide: [st(`1 ${g} = … ${k}`, m, 'Dink aan die voorvoegsel: kilo = duisend, senti = ’n honderdste, milli = ’n duisendste.', { unit: k })], guideFinal: `Maal met ${n}` });
   },
   1() {
     const [g, k, m] = pick(EENHEDE.slice(1, 4)), n = rnd(2, 9), x = rnd(50, m - 50);
@@ -876,7 +876,7 @@ const meting = {
     if (r < 0.5) {
       const a = round(rnd(11, 99) / (m === 1000 ? 4 : 10) / 10 * 10) / 10 + rnd(1, 4), A = round(a);
       return tpl('meting.2a', { ...num(`${f(A)} ${g} = … ${k}`, A * m, [`1 ${g} = ${f(m)} ${k}.`, `${f(A)} × ${f(m)}: elke syfer skuif ${String(m).length - 1} plekke na links in die plekwaardetabel (die getal word groter): ${f(A * m)} ${k}.`], { unit: k, wrong: [W(round(A * m / 10), 'Een plek te min geskuif.', `× ${f(m)}: ${String(m).length - 1} plekke.`)] }),
-        guide: [st(`${Math.floor(A)} ${g} = … ${k}`, Math.floor(A) * m, 'Eers die heelgetal.', { unit: k }), st(`${f(round(A - Math.floor(A)))} ${g} = … ${k}`, round((A - Math.floor(A)) * m), `${f(round(A - Math.floor(A)))} van ${f(m)}.`, { unit: k })], guideFinal: 'Tel albei op' });
+        guide: [...(Math.floor(A) ? [st(`${Math.floor(A)} ${g} = … ${k}`, Math.floor(A) * m, `Eers die heelgetal: ${Math.floor(A)} × ${f(m)}.`, { unit: k })] : []), st(`${f(round(A - Math.floor(A)))} ${g} = … ${k}`, round((A - Math.floor(A)) * m), `${f(round(A - Math.floor(A)))} × ${f(m)}: elke syfer skuif ${String(m).length - 1} plekke na links.`, { unit: k })], guideFinal: 'Tel albei op' });
     }
     const x = rnd(1050, 9950) - (rnd(1050, 9950) % 50);
     return tpl('meting.2b', { ...num(`${f(x)} ${k} = … ${g}`, x / m, [`Klein na groot eenheid: deel deur ${f(m)}.`, `${f(x)} ÷ ${f(m)} = ${f(x / m)} ${g}.`], { unit: g, wrong: [W(x * m, 'Jy het gemaal in plaas van gedeel.', 'Na \'n groter eenheid word die getal kleiner: deel.')] }),
@@ -902,7 +902,7 @@ const omtrek = {
       guide: [st('Hoeveel sye het \'n reghoek?', 4, 'Tel hulle.'), st(`${w} + ${h} = ?`, w + h, 'Twee sye.')], guideFinal: `Verdubbel dit: ${w + h} + ${w + h}` });
     const a = rnd(2, 9), b = rnd(2, 7);
     return tpl('omtrek.0b', { ...num('Hoeveel vierkante pas in hierdie reghoek? (die oppervlakte)', a * b, [`Een ry: ${a} vierkante. Daar is ${b} rye.`, `${b} × ${a} = ${a * b}.`], { unit: 'vierkante', visual: { kind: 'grid', w: a, h: b } }),
-      guide: [st('Hoeveel vierkante in een ry?', a, 'Tel bo.')], guideFinal: `Hoeveel rye is daar? Maal met die vierkante in een ry` });
+      guide: [st('Hoeveel vierkante in een ry?', a, 'Tel die vierkante in die boonste ry, een vir een.')], guideFinal: `Hoeveel rye is daar? Maal met die vierkante in een ry` });
   },
   1() {
     const l = rnd(4, 20), b = rnd(3, 15);
@@ -1013,7 +1013,7 @@ const tydBasis = {
     }
     const u = rnd(2, 6);
     return tpl('tydBasis.0b', { ...num(`Hoeveel minute is ${u} uur?`, u * 60, ['1 uur = 60 minute.', `${u} × 60 = ${u * 60}.`], { unit: 'minute', wrong: [W(u * 100, 'Jy het gereken asof \'n uur 100 minute het.', '1 uur = 60 minute.')] }),
-      guide: [st('Hoeveel minute in 1 uur?', 60, 'Kyk na die klok.')], guideFinal: `${u} × 60` });
+      guide: [st('Hoeveel minute in 1 uur?', 60, 'In een uur gaan die lang wyser een keer heeltemal om: tel die minute op die horlosie.')], guideFinal: `${u} × 60` });
   },
   1() {
     if (Math.random() < 0.5) {
@@ -1034,7 +1034,7 @@ const tydBasis = {
     }
     const s = rnd(6, 9) * 60 + pick([15, 20, 30, 45, 50]), e = rnd(13, 17) * 60 + pick([5, 10, 25, 40]), nextH = Math.ceil(s / 60) * 60, lastH = Math.floor(e / 60) * 60;
     return tpl('tydBasis.2b', { ...num(`Ma werk van ${hhmm(s)} tot ${hhmm(e)}. Hoeveel minute werk sy?`, e - s, [`${hhmm(s)} → ${hhmm(nextH)}: ${nextH - s} min.`, `${hhmm(nextH)} → ${hhmm(lastH)}: ${(lastH - nextH) / 60} uur = ${lastH - nextH} min.`, `${hhmm(lastH)} → ${hhmm(e)}: ${e - lastH} min.`, `Saam: ${e - s} minute (${Math.floor((e - s) / 60)} uur ${(e - s) % 60} min).`], { unit: 'minute' }),
-      guide: [st(`${hhmm(s)} → ${hhmm(nextH)} = ? min`, nextH - s, 'Na die heel uur.'), st(`${hhmm(nextH)} → ${hhmm(lastH)} = ? uur`, (lastH - nextH) / 60, 'Heel ure.'), st(`${hhmm(lastH)} → ${hhmm(e)} = ? min`, e - lastH, 'Die laaste minute.')], guideFinal: 'Skakel alles om na minute en tel op' });
+      guide: [st(`${hhmm(s)} → ${hhmm(nextH)} = ? min`, nextH - s, 'Hoeveel minute is dit nog tot by die volgende heel uur?'), st(`${hhmm(nextH)} → ${hhmm(lastH)} = ? uur`, (lastH - nextH) / 60, 'Tel die heel ure van die een tyd tot by die ander.'), st(`${hhmm(lastH)} → ${hhmm(e)} = ? min`, e - lastH, 'Die laaste minute.')], guideFinal: 'Skakel alles om na minute en tel op' });
   },
   3() {
     if (Math.random() < 0.5) {
@@ -1096,11 +1096,11 @@ const data = {
     if (r < 0.65) {
       const d = Array.from({ length: 6 }, () => rnd(12, 38));
       return tpl('data.3c', { ...num(`Die temperature vir 'n week in Upington (°C): ${list(d)}. Wat is die omvang?`, Math.max(...d) - Math.min(...d), ['Omvang = grootste − kleinste.', `${Math.max(...d)} − ${Math.min(...d)} = ${Math.max(...d) - Math.min(...d)}.`], { unit: '°C' }),
-        guide: [st('Wat is die grootste waarde?', Math.max(...d), 'Soek.'), st('Wat is die kleinste?', Math.min(...d), 'Soek.')], guideFinal: 'Trek af' });
+        guide: [st('Wat is die grootste waarde?', Math.max(...d), 'Gaan die getalle een vir een deur en onthou elke keer die grootste een tot dusver.'), st('Wat is die kleinste?', Math.min(...d), 'Gaan weer die lys deur, nou op soek na die kleinste getal.')], guideFinal: 'Trek af' });
     }
     const [wat, g, tot] = pick([['\'n ewe getal', 3, 6], ['\'n getal groter as 4', 2, 6], ['\'n 6', 1, 6], ['\'n priemgetal', 3, 6]]);
     return tpl('data.3d', { ...frac(`Jy gooi 'n dobbelsteen een keer. Wat is die waarskynlikheid dat jy ${wat} gooi? (Skryf as 'n breuk.)`, [g, tot], [`Alle uitkomste: 1; 2; 3; 4; 5; 6 → ${tot}.`, `Gunstige uitkomste: ${g}.`, `Waarskynlikheid = ${g}/${tot}${gcd(g, tot) > 1 ? ` = ${fracStr([g, tot])}` : ''}.`]),
-      guide: [st('Hoeveel uitkomste is daar altesaam?', tot, 'Tel die kante van die dobbelsteen.'), st(`Hoeveel daarvan is ${wat}?`, g, 'Lys hulle.')], guideFinal: 'Gunstige uitkomste / al die uitkomste' });
+      guide: [st('Hoeveel uitkomste is daar altesaam?', tot, 'Tel die vlakke van ’n dobbelsteen: elke vlak het ’n ander getal oë.'), st(`Hoeveel daarvan is ${wat}?`, g, 'Skryf al die uitkomste van die dobbelsteen neer en trek ’n kring om dié wat pas.')], guideFinal: 'Gunstige uitkomste / al die uitkomste' });
   },
 };
 
