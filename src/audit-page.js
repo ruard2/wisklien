@@ -42,7 +42,7 @@ export function listPage(jobs, { ai, model, judge }) {
     <div class="card"><form method="post" action="/audit/start">
       <b>Nieuwe test</b><br><br>
       Taal <select name="lang"><option value="nl">Nederlands</option><option value="af">Afrikaans</option></select>
-      &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option></select>
+      &nbsp; Soort <select name="soort"><option value="meetlat">📏 Meetlat (alle sjablonen, vast)</option><option value="willekeurig">🎲 Willekeurige sommen</option><option value="kaarten">🗂️ Kaartcheck (elke soort som: kaart ↔ vaste uitleg)</option></select>
       &nbsp; Aantal <select name="n">${[10, 25, 50, 100, 150, 200].map((n) => `<option ${n === 100 ? 'selected' : ''}>${n}</option>`).join('')}</select>
       <details style="margin-top:10px"><summary class="small"><b>Modellen</b> (goedkoper testen)</summary>
         <div class="small" style="display:grid;gap:6px;margin-top:8px;grid-template-columns:auto 1fr;align-items:center">
@@ -55,7 +55,7 @@ export function listPage(jobs, { ai, model, judge }) {
       </details>
       <label class="small" style="display:block;margin-top:10px"><input type="checkbox" name="hergebruik" value="1" checked> ♻️ <b>Hergebruik eerdere AI-antwoorden</b> (goedkoper): wat sinds een vorige test niet veranderd is (zelfde som, kaart, prompt, gesprek en model), wordt niet opnieuw gevraagd en kost niets. Uitvinken = alles vers (om te zien hoeveel Max van keer tot keer verschilt).</label>
       <br><button ${ai ? '' : 'disabled'}>Start</button>
-      <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist.</p>
+      <p class="small muted"><b>Meetlat</b>: elke soort som één keer, steeds precies dezelfde sommen, foute antwoorden en kind-reacties (± 160 gevallen; het aantal telt dan niet). Daarmee vergelijk je versies eerlijk. <b>Willekeurig</b>: nieuwe sommen, om dingen te vinden die de meetlat mist. <b>Kaartcheck</b>: één AI-oordeel per soort som (± 150): past de uitlegkaart bij alle sommen van die soort en volgt de vaste uitleg de kaart? Geeft verbeterde kaarten; zonder Max en zonder kind, dus goedkoop.</p>
       <p class="small muted">Model: ${esc(model || 'AI staat uit')}${judge ? ` · beoordelaar: ${esc(judge)}` : ''}. Per som ± 7 AI-aanroepen; 100 sommen duurt ± 20-40 minuten. Je kunt deze pagina sluiten: de test loopt door op de server.</p>
     </form></div>
     ${jobs.filter((j) => j.soort === 'meetlat' && j.status === 'klaar').length >= 2 ? `<div class="card"><form method="get" action="/audit/vergelijk"><b>Twee meetlat-runs vergelijken</b><br><br>
@@ -102,6 +102,7 @@ function itemHTML(it, i) {
 }
 
 export function reportPage(job, items, nParts = 0) {
+  if (job.soort === 'kaarten') return kaartPage(job, items, nParts);
   const judged = items.filter((it) => it.verdict?.cijfers);
   const byCat = {};
   for (const it of judged) (byCat[it.label] ||= []).push(it);
@@ -117,7 +118,7 @@ export function reportPage(job, items, nParts = 0) {
   const running = job.status === 'bezig';
   const sorted = [...items].map((it, i) => ({ it, i })).sort((a, b) => itemScore(a.it) - itemScore(b.it));
   const body = `<p><a href="/audit">‹ Alle tests</a></p>
-    <h1>🧪 Max-test #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'} · ${job.soort === 'meetlat' ? '📏 meetlat' : '🎲 willekeurig'}</h1>
+    <h1>🧪 Max-test #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'} · ${job.soort === 'meetlat' ? '📏 meetlat' : job.soort === 'kaarten' ? '🗂️ kaartcheck' : '🎲 willekeurig'}</h1>
     ${job.versie ? `<p class="small muted">Versie van de app: ${esc(job.versie)}</p>` : ''}
     <p class="muted">${new Date(job.created_at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })} · ${esc(job.model || '')}${job.judge_model && job.judge_model !== job.model ? ` · beoordelaar ${esc(job.judge_model)}` : ''}${job.kid_model ? ` · kind ${esc(job.kid_model)}` : ''} · status: <b>${esc(job.status)}</b>${(job.ai_nieuw || job.ai_hergebruikt) ? ` · AI-aanroepen: ${job.ai_nieuw} nieuw, ${job.ai_hergebruikt} hergebruikt${job.ai_hergebruikt ? ` (${Math.round((100 * job.ai_hergebruikt) / (job.ai_nieuw + job.ai_hergebruikt))}% bespaard)` : ''}` : (job.hergebruik === false ? ' · zonder hergebruik' : '')}
       ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : `${job.status !== 'klaar' ? ` · <form class="inline" method="post" action="/audit/${job.id}/verder"><button style="padding:2px 10px">Verder</button></form>` : ''} · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Test verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
@@ -169,4 +170,26 @@ export function comparePage(A, B, v) {
     <h2>Slechter geworden (${v.slechter.length})</h2><div class="card">${v.slechter.length ? `<table><tr><th>Geval</th><th class="num">A</th><th class="num">B</th><th class="num">±</th></tr>${v.slechter.map(rij).join('')}</table>` : '<p class="muted">Niets duidelijk slechter. 🎉</p>'}</div>
     <h2>Beter geworden (${v.beter.length})</h2><div class="card">${v.beter.length ? `<table><tr><th>Geval</th><th class="num">A</th><th class="num">B</th><th class="num">±</th></tr>${v.beter.map(rij).join('')}</table>` : '<p class="muted">Niets duidelijk beter.</p>'}</div>`;
   return page(`Meetlat #${A.id} → #${B.id}`, body);
+}
+
+// Kaartcheck: per sjabloon of de kaart bij alle sommen past en of de vaste uitleg de kaart volgt
+function kaartPage(job, items, nParts) {
+  const running = job.status === 'bezig';
+  const slecht = items.filter((it) => it.verdict && it.verdict.past === false);
+  const fout = items.filter((it) => it.verdict?.fout);
+  const perWaar = {};
+  for (const it of items) for (const p of it.verdict?.problemen || []) perWaar[p.waar] = (perWaar[p.waar] || 0) + 1;
+  const kaartje = (it) => `<div class="card"><b>${esc(it.tpl)}</b> <span class="muted">${esc(it.label)}</span> ${it.verdict?.past ? '<span class="chip">past</span>' : '<span class="chip bad">past niet</span>'}
+    ${(it.verdict?.problemen || []).map((p) => `<div class="prob e2"><span class="chip">${esc(p.waar)}</span> ${esc(p.wat)}${p.voorstel ? `<div class="small"><b>Voorstel:</b> ${esc(p.voorstel)}</div>` : ''}</div>`).join('')}
+    ${it.verdict?.nieuwe_kaart ? `<details><summary class="small">Voorgestelde kaart</summary><pre class="small" style="white-space:pre-wrap">${esc(JSON.stringify(it.verdict.nieuwe_kaart, null, 2))}</pre></details>` : ''}
+    ${it.verdict?.fout ? `<div class="small s1">${esc(it.verdict.fout)}</div>` : ''}</div>`;
+  const body = `<p><a href="/audit">‹ Alle tests</a></p>
+    <h1>🗂️ Kaartcheck #${job.id} · ${job.lang === 'af' ? 'Afrikaans' : 'Nederlands'}</h1>
+    <p class="muted">${esc(job.judge_model || job.model || '')} · status: <b>${esc(job.status)}</b> · ${items.length} van ${job.n} sjablonen${(job.ai_nieuw || job.ai_hergebruikt) ? ` · AI-aanroepen: ${job.ai_nieuw} nieuw, ${job.ai_hergebruikt} hergebruikt` : ''}
+      ${running ? ` · <form class="inline" method="post" action="/audit/${job.id}/stop"><button style="padding:2px 10px">Stop</button></form>` : ` · <form class="inline" method="post" action="/audit/${job.id}/delete" onsubmit="return confirm('Verwijderen?')"><button style="padding:2px 10px;background:var(--bad)">Verwijder</button></form>`}</p>
+    ${items.length ? `<div class="card"><b>⬇️ Downloaden voor Claude</b> ${Array.from({ length: nParts }, (_, i) => `<a href="/audit/${job.id}/deel/${i + 1}">deel ${i + 1}</a>`).join(' · ')} <span class="small muted"> · of <a href="/audit/${job.id}.json">alles in één bestand</a></span></div>` : ''}
+    <div class="card"><b>${slecht.length}</b> van ${items.length} kaarten passen niet${fout.length ? ` · ${fout.length} mislukt` : ''} · problemen: ${Object.entries(perWaar).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n}`).join(' · ') || '–'}</div>
+    ${slecht.map(kaartje).join('')}
+    <details><summary>Kaarten die passen (${items.length - slecht.length})</summary>${items.filter((it) => !slecht.includes(it)).map(kaartje).join('')}</details>`;
+  return page(`Kaartcheck #${job.id}`, body, running ? 20 : 0);
 }

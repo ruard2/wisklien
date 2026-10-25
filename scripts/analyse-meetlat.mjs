@@ -46,7 +46,8 @@ function nu(it) {
     const zelfde = q.tpl === c.q.tpl && q.text === c.q.text;
     const teksten = [...(q.steps || []), ...(q.guide || []).flatMap((s) => [s.ask, s.tip || '', ...(s.options || [])]), q.guideFinal || '',
       ...(C.hintsFor(q) || []), ...(q.wrong || []).flatMap((w) => [w.label, w.fix]), kaartTekst(lang, q.tpl)].map(norm);
-    return { q, zelfde, teksten, poort: problemen(q, { hints: C.hintsFor }) };
+    const autoTips = (q.guide || []).filter((s) => s.tipAuto).map((s) => norm(s.tip));
+    return { q, zelfde, teksten, autoTips, poort: problemen(q, { hints: C.hintsFor }) };
   });
 }
 // staat (een stuk van) het citaat nog in de huidige teksten?
@@ -62,7 +63,12 @@ for (const it of items) {
   for (const p of it.verdict?.problemen || []) {
     const b = bron(p.waar), soort = SOORT[p.soort] || p.soort;
     let status = 'max';
-    if (!b.startsWith('max')) status = !n ? 'onbekend' : nogAanwezig(p.citaat, n.teksten) === false ? 'opgelost' : nogAanwezig(p.citaat, n.teksten) ? 'open' : 'onbekend';
+    if (!b.startsWith('max')) {
+      const nog = n ? nogAanwezig(p.citaat, n.teksten) : null;
+      status = !n ? 'onbekend' : nog === false ? 'opgelost' : nog ? 'open' : 'onbekend';
+      // tip die nu automatisch is aangevuld met een rekenaanpak: verbeterd (de oude zin staat er nog, met het "hoe" erbij)
+      if (status === 'open' && b === 'tip' && nogAanwezig(p.citaat, n.autoTips)) status = 'verbeterd';
+    }
     rijen.push({ geval: it.geval, tpl: it.tpl, cat: it.cat, level: it.level, bron: b, soort, ernst: p.ernst || 2, status, citaat: String(p.citaat || '').replace(/\s+/g, ' ').slice(0, 160), uitleg: String(p.uitleg || '').replace(/\s+/g, ' ').slice(0, 200) });
   }
 }
@@ -77,8 +83,8 @@ L.push(`\nCijfers: ${D.map((k) => `${k} ${gem(k)}`).join(' · ')}`);
 L.push(`Verklapt ${items.filter((x) => x.verdict?.max_verklapt).length} · denkfout niet herkend ${items.filter((x) => x.verdict?.max_herkent_fout === false).length} · met rekenfout ${items.filter((x) => x.verdict?.rekenfouten?.length).length}`);
 
 const vast = rijen.filter((r) => !r.bron.startsWith('max'));
-L.push(`\n## Vaste uitleg: ${vast.length} problemen — ${vast.filter((r) => r.status === 'opgelost').length} al opgelost in de code van nu, ${vast.filter((r) => r.status === 'open').length} nog open, ${vast.filter((r) => r.status === 'onbekend').length} niet automatisch te controleren`);
-const open = vast.filter((r) => r.status !== 'opgelost');
+L.push(`\n## Vaste uitleg: ${vast.length} problemen — ${vast.filter((r) => r.status === 'opgelost').length} al opgelost in de code van nu, ${vast.filter((r) => r.status === 'verbeterd').length} automatisch verbeterd, ${vast.filter((r) => r.status === 'open').length} nog open, ${vast.filter((r) => r.status === 'onbekend').length} niet automatisch te controleren`);
+const open = vast.filter((r) => r.status !== 'opgelost' && r.status !== 'verbeterd');
 L.push('\n### Open, per bron × soort (patronen over sjablonen heen)');
 for (const [k, n] of tel(open, (r) => `${r.bron} · ${r.soort}`).slice(0, 15)) {
   const xs = open.filter((r) => `${r.bron} · ${r.soort}` === k);

@@ -29,6 +29,8 @@ const TXT = {
     minBrug: (a, b) => `Vul aan: van ${b} naar ${a}, hoeveel is dat? Spring eerst naar een rond getal.`,
     plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${a} + ${t}, dan daar nog ${e} bij.` : `Spring vooruit op de getallenlijn: vanaf ${a} ${b} verder.`),
     een: 'Iets 1 keer is gewoon dat getal zelf.',
+    tijdZelfde: (a, b) => `${a} en ${b} zijn in hetzelfde uur: kijk alleen naar de minuten en tel van de ene naar de andere.`,
+    tijdOver: (a, h, b) => `Tel eerst van ${a} tot het hele uur ${h}, en dan verder tot ${b}. Tel de stukjes op.`,
     desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en schrijf dat dan als kommagetal.`,
     desPlus: (op) => (op === '+' ? 'Komma onder komma: tel eerst de hele getallen op, dan wat achter de komma staat. Samen meer dan een hele achter de komma? Dan komt er 1 bij de helen.' : 'Komma onder komma: haal eerst de hele getallen eraf, dan wat achter de komma staat. Lukt dat niet? Wissel dan 1 hele in voor 10 tienden of 100 honderdsten.'),
     alles: 'Je haalt er precies evenveel af als er is. Hoeveel blijft er dan over?',
@@ -48,6 +50,8 @@ const TXT = {
     minBrug: (a, b) => `Tel aan: van ${b} tot ${a}, hoeveel is dit? Spring eers na ’n ronde getal.`,
     plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${a} + ${t}, dan daarby nog ${e}.` : `Spring vorentoe op die getallelyn: van ${a} af ${b} verder.`),
     een: 'Iets 1 keer is net daardie getal self.',
+    tijdZelfde: (a, b) => `${a} en ${b} is in dieselfde uur: kyk net na die minute en tel van die een na die ander.`,
+    tijdOver: (a, h, b) => `Tel eers van ${a} tot by die heel uur ${h}, en dan verder tot ${b}. Tel die stukkies bymekaar.`,
     desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en skryf dit dan as ’n desimale getal.`,
     desPlus: (op) => (op === '+' ? 'Kommas onder mekaar: tel eers die heelgetalle op, dan wat ná die komma staan. Is dit saam meer as een heel ná die komma? Dan kom daar 1 by die heelgetalle.' : 'Kommas onder mekaar: trek eers die heelgetalle af, dan wat ná die komma staan. Gaan dit nie? Ruil dan 1 heel om vir 10 tiendes of 100 honderdstes.'),
     alles: 'Jy trek presies soveel af as wat daar is. Hoeveel bly dan oor?',
@@ -58,7 +62,10 @@ const TXT = {
 // Concrete tip voor "a op b = ?" (gehele getallen). null = geen voorstel.
 export function betterTip(ask, lang = 'nl') {
   const T = TXT[lang] || TXT.nl;
-  ask = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, ''); // geld: R745 + R569 → 745 + 569
+  ask = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '').replace(/\s*\([^)]*\)\s*(?==)/g, ' '); // geld: R745 → 745; "65 − 50 (25 × 2) = ?" → "65 − 50 = ?"
+  // tijdsduur: "Van 8:00 tot 8:53 = ? minuten" / "6:15 → 7:00 = ? min"
+  const td = ask.match(/(\d{1,2}):(\d{2})\s*(?:tot|→|naar)\s*(\d{1,2}):(\d{2})/);
+  if (td) { const [h1, m1, h2] = [+td[1], +td[2], +td[3]]; const A = `${td[1]}:${td[2]}`, B = `${td[3]}:${td[4]}`; return h1 === h2 ? T.tijdZelfde(A, B) : +td[4] === 0 && h2 === h1 + 1 ? null : m1 === 0 && +td[4] === 0 ? null : T.tijdOver(A, `${h1 + 1}:00`, B); }
   // kommagetallen (meetlat AF #7: "0,6 × 20 = ?" kreeg als tip het antwoord in tiendes)
   const dm = ask.match(/(\d+,(\d{1,2}))\s*[×x·]\s*(\d+)\s*=\s*\?/);
   if (dm) { const d = dm[2].length, n = Math.round(Number(dm[1].replace(',', '.')) * 10 ** d); return T.desMaal(dm[1], dm[3], n, lang === 'af' ? (d === 1 ? 'tiendes' : 'honderdstes') : (d === 1 ? 'tienden' : 'honderdsten')); }
@@ -119,10 +126,14 @@ export function improveTips(q, lang = 'nl') {
     // Structureel (meetlat AF #7, 17 sjablonen): een tip zonder één getal zegt niet hoe je DEZE som uitrekent ("Wat oorbly,
     // moet kleiner as die deler wees." bij 65 − 50). Staat er een som in de stap, dan krijgt het kind de rekenaanpak.
     // Kolomstappen ("Ene: 4 + 6 = ?") houden hun tip over oordragen/omruilen: daar hoort de kolommethode bij.
-    const zonderGetal = !/\d/.test(s.tip || '') && !KOLOMSTAP.test(String(s.ask));
+    const askGetallen = String(s.ask).match(/\d+(?:[,:]\d+)?/g) || [];
+    const zonderGetal = !askGetallen.some((g) => String(s.tip || '').includes(g)) && !KOLOMSTAP.test(String(s.ask));
     if (s.type !== 'number' || !(isVagueTip(s.tip) || kort || zonderGetal)) continue;
     const t = betterTip(s.ask, lang);
-    if (t) { s.tip = t; s.tipAuto = true; } // tipAuto: gemaakt door betterTip, noemt nooit een uitkomst
+    if (!t) continue;
+    // vaag of heel kort: vervangen; anders de uitleg houden ("waarom") en de rekenaanpak ("hoe") erachter zetten
+    s.tip = isVagueTip(s.tip) || kort ? t : `${String(s.tip).trim().replace(/([^.!?])$/, '$1.')} ${t}`;
+    s.tipAuto = true; // tipAuto: (deels) gemaakt door betterTip, noemt nooit een uitkomst
   }
   return q;
 }
@@ -132,7 +143,10 @@ export function improveTips(q, lang = 'nl') {
 // dezelfde getallen. Zelfde bewerking, kleinere getallen, en met dezelfde "moeilijkheid" (over het tiental, lenen).
 // Geeft { som, uitkomst } of null. Nooit dezelfde uitkomst als de echte stap.
 export function makkelijker(ask, answer) {
-  const a0 = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '');
+  const a0 = String(ask).replace(/(?:€\s?|\bR\s?)(?=\d)/g, '').replace(/\s*\([^)]*\)\s*(?==)/g, ' ');
+  // "Hoeveel keer gaan 25 in 65?" / "Hoe vaak past 25 in 65?" (staartdeling, happen)
+  const pas = a0.match(new RegExp(`(?:keer gaan|vaak past|keer past)\\s+${NUM}\\s+in\\s+${NUM}`, 'i'));
+  if (pas) { const d = toN(pas[1]), n = toN(pas[2]); if (d < 2 || n < d) return null; const dd = d > 10 ? (d % 10 || 5) : d; let nn = dd * 2 + Math.min(dd - 1, 3); if (Math.floor(nn / dd) === answer) nn = dd * 3 + Math.min(dd - 1, 2); if (Math.floor(nn / dd) === answer) return null; return { som: a0.replace(pas[0], pas[0].replace(pas[1], String(dd)).replace(new RegExp(`${pas[2]}$`), String(nn))).replace(/^.*?((?:Hoeveel|Hoe)\b)/i, '$1'), uitkomst: String(Math.floor(nn / dd)), vraag: true }; }
   const gat = a0.match(new RegExp(`${NUM}\\s*[×x·]\\s*\\?\\s*=\\s*${NUM}`));
   if (gat) { const x = toN(gat[1]); const k = toN(gat[2]) / x === 2 ? 3 : 2; return { som: `${x} × ? = ${x * k}`, uitkomst: String(k) }; }
   const m = a0.match(new RegExp(`${NUM}(?:,(\\d+))?\\s*([×x·:÷−–+-])\\s*${NUM}\\s*(?:=\\s*\\?|\\?\\s*$)`));

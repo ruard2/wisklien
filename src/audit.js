@@ -200,6 +200,41 @@ export function leesbaarPlaatje(t) {
     .replace(/\[\[\s*sprongen\s*:\s*([^|\]]+)\|([^\]]*)\]\]/gi, (m, a, b) => `[plaatje: lege getallenlijn, vanaf ${a.trim()} sprongen ${b.split('|').map((x) => x.trim()).join(', ')}]`)
     .replace(/\[\[\s*klok\s*:\s*([^|\]]+)(\|[^\]]*)?\]\]/gi, (m, a) => `[plaatje: klok met wijzers op ${a.trim()}]`);
 }
+// ---------- kaartcheck: past de uitlegkaart bij ALLE sommen van een sjabloon, en volgt de vaste uitleg de kaart? ----------
+// Eén AI-oordeel per sjabloon (± 150 per taal), met 3 voorbeeldsommen erbij. Het oordeel geeft per sjabloon een verbeterde
+// kaart en/of wat er in de vaste uitleg anders moet. Zo lossen we "kaart ↔ stappen" in één keer voor alle sommen op,
+// in plaats van per meetlat-som (meetlat AF #7: 10× kaart · anders, 9× stappenplan · andere aanpak).
+export function kaartSjablonen(lang) {
+  return inCtx(lang, () => {
+    const m = {};
+    for (const c of CATEGORIES) for (let lv = 0; lv < 4; lv++) for (let i = 0; i < 150; i++) {
+      const q = generate(c.id, lv);
+      const x = (m[q.tpl] ||= { tpl: q.tpl, cat: c.id, level: lv, sommen: [] });
+      if (x.sommen.length < 3 && !x.sommen.some((y) => y.text === q.text)) x.sommen.push({ text: q.text, antwoord: q.display, steps: q.steps, guide: (q.guide || []).map((g) => ({ vraag: g.ask, goed: g.display, tip: g.tip || null })), slot: q.guideFinal || null, hints: hintsFor(q) });
+    }
+    return Object.values(m).sort((a, b) => a.tpl.localeCompare(b.tpl));
+  });
+}
+const KAARTCHECK = (lang) => `Je bent een ervaren rekendidacticus (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV/CAPS; schrijf voorstellen in het Afrikaans' : 'Nederlandse basisschool, groep 5-8; schrijf voorstellen in het Nederlands'}). Je krijgt de UITLEGKAART van één soort som (sjabloon) uit een reken-app en 3 voorbeeldsommen met de vaste uitleg die de app toont (stappenplan na een fout, tussenstappen met tip, slot, hints).
+
+De kaart geldt voor ALLE sommen van dit sjabloon en stuurt de AI-leraar. Controleer:
+1. Past de kaart bij alle 3 sommen (titel, aanpak, model, valkuilen, "concreter")? Geen getallen of situaties van één bepaalde som (behalve als "bijv."), geen aanpak die bij een andere soort som hoort.
+2. Volgt de vaste uitleg (stappenplan + tussenstappen) dezelfde rekenroute als de kaart? Zo niet: wat is beter, de kaart aanpassen aan de uitleg of de uitleg aan de kaart? (Kies de route die scholen gebruiken en die het makkelijkst is voor een kind dat achterloopt.)
+3. Zijn de tussenstappen klein en logisch, en helpt elke tip echt bij díe stap (zonder het antwoord van de stap te noemen)?
+Wees concreet en kort. Meld alleen echte problemen.
+
+Antwoord als JSON:
+{"past": true/false, "problemen": [{"waar": "kaart"|"stappenplan"|"tussenstap"|"tip"|"slot"|"hint", "wat": "kort wat er mis is", "voorstel": "concrete betere tekst of aanpak"}],
+ "nieuwe_kaart": null of {"naam": "...", "aanpak": ["stap 1", "stap 2", ...], "model": "...", "valkuilen": ["fout → wat helpt", ...], "concreter": "..."}}
+Geef "nieuwe_kaart" alleen als de kaart echt beter moet; houd hem dan kort, generiek (geldt voor alle sommen van dit sjabloon) en in dezelfde stijl.`;
+export async function kaartOordeel(lang, s, models = {}) {
+  return inCtx(lang, async () => {
+    const user = [`SJABLOON: ${s.tpl} (onderdeel ${s.cat}, niveau ${s.level})`, kaartTekst(lang, s.tpl) || '(geen kaart)', '',
+      ...s.sommen.map((x, i) => `VOORBEELDSOM ${i + 1}: ${x.text}\nAntwoord: ${x.antwoord}\nStappenplan: ${(x.steps || []).map((y, j) => `${j + 1}. ${y}`).join(' ')}\nTussenstappen: ${x.guide.map((g, j) => `${j + 1}. "${g.vraag}" → ${g.goed}${g.tip ? ` (tip: "${g.tip}")` : ''}`).join(' ') || '(geen)'}${x.slot ? `\nSlot (kind rekent zelf): ${x.slot}` : ''}\nHints: ${(x.hints || []).join(' / ')}`)].join('\n');
+    return auditCall(KAARTCHECK(lang), [{ role: 'user', content: user }], { json: true, maxTokens: 2500, model: JUDGE_MODEL() });
+  }, models);
+}
+
 // ---------- beoordelen ----------
 const RUBRIC = (lang) => `Je bent een zeer ervaren rekenspecialist en remedial teacher (${lang === 'af' ? 'Suid-Afrikaanse laerskool, KABV; de app-teksten zijn in het Afrikaans' : 'Nederlandse basisschool, groep 5-8'}). Je beoordeelt kritisch en eerlijk de uitleg in een reken-app voor kinderen (9-12 jaar) die achterlopen.
 
@@ -323,8 +358,8 @@ const running = new Set();
 export async function startAudit(lang, n, soort = 'willekeurig', m = {}) {
   if (!aiEnabled()) throw new Error('De AI staat uit: zet OPENAI_API_KEY (of ANTHROPIC_API_KEY).');
   lang = lang === 'af' ? 'af' : 'nl';
-  soort = soort === 'meetlat' ? 'meetlat' : 'willekeurig';
-  const plan = soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
+  soort = ['meetlat', 'kaarten'].includes(soort) ? soort : 'willekeurig';
+  const plan = soort === 'meetlat' ? meetlat(lang).cases.map((c) => ({ geval: c.id, cat: c.cat, level: c.level })) : soort === 'kaarten' ? kaartSjablonen(lang).map((x) => ({ tpl: x.tpl, cat: x.cat, level: x.level })) : planSums(lang, Math.max(1, Math.min(300, Number(n) || 100)));
   n = plan.length;
   const clean = (x) => (String(x || '').trim().match(/^[\w.:\-]{2,60}$/) ? String(x).trim() : null);
   const hergebruik = m.hergebruik !== false;
@@ -354,6 +389,17 @@ async function runAudit(id) {
       if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
       // één som die misgaat, mag nooit de hele test stoppen
       let it;
+      if (job.soort === 'kaarten') {
+        const sj = (kaartSjablonen._c ||= {})[job.lang] ||= kaartSjablonen(job.lang);
+        const x = sj.find((y) => y.tpl === p.tpl) || { tpl: p.tpl, cat: p.cat, level: p.level, sommen: [] };
+        it = { lang: job.lang, cat: p.cat, level: p.level, tpl: p.tpl, label: catById[p.cat]?.label || p.cat, kaart: kaartTekst(job.lang, p.tpl), sommen: x.sommen };
+        it.verdict = await kaartOordeel(job.lang, x, models).catch((e) => ({ fout: e.message }));
+        if (!it.verdict) it.verdict = { fout: 'leeg antwoord' };
+        await pool.query(`INSERT INTO public.max_audit_items(audit_id, idx, cat, level, item, verdict, score) VALUES ($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT (audit_id, idx) DO UPDATE SET item=$5, verdict=$6, score=$7`, [id, p.idx, p.cat, p.level, JSON.stringify(it), JSON.stringify(it.verdict), it.verdict.past ? 5 : 2]);
+        await bewaarTeller();
+        return;
+      }
       const geval = p.geval ? meetlat(job.lang).cases.find((c) => c.id === p.geval) : null;
       try { it = await auditOne(job.lang, geval || p, models); } catch (e) {
         console.error('[audit] som mislukt', p, e);
@@ -367,7 +413,7 @@ async function runAudit(id) {
     });
     if ((await pool.query('SELECT status FROM public.max_audit WHERE id=$1', [id])).rows[0]?.status !== 'bezig') return;
     const items = await auditItems(id);
-    const summary = await summarize(job.lang, items, models).catch(() => null);
+    const summary = job.soort === 'kaarten' ? null : await summarize(job.lang, items, models).catch(() => null);
     await bewaarTeller();
     await pool.query(`UPDATE public.max_audit SET status='klaar', finished_at=now(), summary=$2 WHERE id=$1`, [id, summary ? JSON.stringify(summary) : null]);
     console.log(`[audit] #${id} klaar`);
