@@ -565,6 +565,44 @@ const getalbegrip = {
 // =====================================================================
 // VERHOUDINGEN
 // =====================================================================
+// Geheel uit een deel terugrekenen (3/4 deel = 60 punten → 1/4 = 20 → 4/4 = 80), met een strook.
+function breukGeheel() {
+  const d = pick([3, 4, 5, 6, 8, 10]), n = rnd(2, d - 1), een = pick([5, 10, 15, 20, 25, 30, 12, 8]), deel = n * een, tot = d * een;
+  const [wat, eenh] = pick([['punten', 'punten'], ['km', 'km'], ['euro', 'euro'], ['bladzijden', 'bladzijden']]);
+  const zin = { punten: `Bij een spel heb je ${n}/${d} deel van de punten gehaald. Dat zijn ${deel} punten. Hoeveel punten kun je in totaal halen?`,
+    km: `Je hebt ${n}/${d} deel van een fietstocht gefietst. Dat is ${deel} km. Hoe lang is de hele tocht?`,
+    euro: `Je hebt ${n}/${d} deel van je spaardoel gespaard. Dat is € ${deel}. Hoeveel euro is je hele spaardoel?`,
+    bladzijden: `Je hebt ${n}/${d} deel van een boek gelezen. Dat zijn ${deel} bladzijden. Hoeveel bladzijden heeft het boek?` }[wat];
+  return tpl('breuken.2f', { ...num(zin, tot, [`Stap 1: ${n}/${d} deel = ${deel}.`, `Stap 2: 1/${d} deel = ${deel} : ${n} = ${een}.`, `Stap 3: ${d}/${d} deel (alles) = ${d} × ${een} = ${tot}.`], { unit: eenh === 'euro' ? undefined : eenh, ...(eenh === 'euro' ? { money: true } : {}) }),
+    guide: [st(`${n}/${d} deel = ${deel}. Hoeveel is 1/${d} deel? ${deel} : ${n} = ?`, een, `${n}/${d} deel is ${n} gelijke stukken. Verdeel ${deel} over ${n} stukken.`)],
+    guideFinal: `Alles is ${d}/${d} deel: ${d} × ${een}` });
+}
+// Heel getal × gemengd getal: splitsen in helen en de breuk (3 × 1 1/4 = 3 × 1 + 3 × 1/4), met hulpsommen
+function breukKeerGemengd() {
+  const d = pick([2, 3, 4, 5]), n = rnd(1, d - 1), h = rnd(1, 3), w = rnd(2, 5);
+  const tot = w * (h * d + n), heel = w * h, br = w * n;
+  const benoemd = Math.random() < 0.5;
+  const tekst = benoemd ? `Je hebt ${w} flessen met elk ${h} ${n}/${d} liter. Hoeveel liter is dat samen?` : `${w} × ${h} ${n}/${d} =`;
+  return tpl('breuken.3d', { ...frac(tekst, [tot, d], [`Splits ${h} ${n}/${d} in ${h} en ${n}/${d}.`, `Hulpsom: ${w} × ${h} = ${heel}.`, `Hulpsom: ${w} × ${n}/${d} = ${br}/${d}${br >= d ? ` = ${fracStr([br, d])}` : ''}.`, `Samen: ${heel} + ${fracStr([br, d])} = ${fracStr([tot, d])}.`]),
+    guide: [st(`Splits ${h} ${n}/${d} in ${h} en ${n}/${d}. Eerst de helen: ${w} × ${h} = ?`, heel, 'De hele getallen eerst.'),
+      stF(`Dan de breuk: ${w} × ${n}/${d} = ?`, [br, d], `${w} sprongen van ${n}/${d}: ${w} × ${n} stukjes van 1/${d}. De noemer blijft ${d}.`)],
+    guideFinal: `Tel de twee hulpsommen op: ${heel} + ${fracStr([br, d])}` });
+}
+// Breuken en kommagetallen ordenen: 1 maak kommagetallen, 2 denk aan de getallenlijn, 3 kies (zoals de methodes)
+function breukOrdenen() {
+  const w = rnd(1, 4), groot = Math.random() < 0.5;
+  const fr = shuffle([[1, 4], [1, 10], [1, 2], [3, 4], [1, 5]]).slice(0, 2);
+  const dec = shuffle([0.3, 0.03, 0.6, 0.15, 0.45, 0.08]).slice(0, 2);
+  const items = [...fr.map((f) => ({ s: `${w} ${f[0]}/${f[1]}`, v: w + f[0] / f[1] })), ...dec.map((x) => ({ s: fmt(w + x), v: w + x }))];
+  const vals = items.map((i) => i.v);
+  if (new Set(vals.map((v) => Math.round(v * 1000))).size < 4) return breukOrdenen();
+  const opt = shuffle(items), doel = groot ? Math.max(...vals) : Math.min(...vals), idx = opt.findIndex((i) => i.v === doel);
+  const bf = fr[0];
+  return tpl('breuken.3f', { ...choice(`Welk getal is het ${groot ? 'grootst' : 'kleinst'}? ${opt.map((i) => i.s).join(' – ')}`, opt.map((i) => i.s), idx, [`Stap 1: maak er kommagetallen van: ${opt.map((i) => fmt(i.v)).join(' – ')}.`, `Stap 2: zet ze op de getallenlijn van ${w} tot ${w + 1}.`, `Stap 3: het ${groot ? 'grootste' : 'kleinste'} is ${fmt(doel)}${opt[idx].s !== fmt(doel) ? ` (${opt[idx].s})` : ''}.`]),
+    guide: [st(`Stap 1: maak er kommagetallen van. ${w} ${bf[0]}/${bf[1]} = ?`, w + bf[0] / bf[1], `${bf[0]}/${bf[1]} euro is ${100 * bf[0] / bf[1]} cent, dus 0,${String(100 * bf[0] / bf[1]).padStart(2, '0').replace(/0$/, '')}.`)],
+    guideFinal: `Maak ook de andere breuk een kommagetal en zet alles op de getallenlijn van ${w} tot ${w + 1}: welke is het ${groot ? 'grootst' : 'kleinst'}?` });
+}
+
 const breuken = {
   0() {
     const t = pick(['pizza', 'helft', 'kwart', 'derde']);
@@ -604,13 +642,20 @@ const breuken = {
       guide: [st(`Deel de teller door ${k}: ${n * k} : ${k} = ?`, n, `${n * k} en ${d * k} zitten allebei in de tafel van ${k}.`), st(`Deel de noemer ook door ${k}: ${d * k} : ${k} = ?`, d, 'Doe met de teller en de noemer altijd hetzelfde!')],
       guideFinal: 'Schrijf de nieuwe breuk op' });
     }
-    const d = pick([5, 7, 8, 9, 10, 12]), a = rnd(1, d - 2), b = rnd(1, d - a - 1);
-    return tpl('breuken.1c', { ...frac(`${a}/${d} + ${b}/${d} =`, [a + b, d], [`De noemers zijn gelijk (${d}), dus tel alleen de tellers op.`,
-      `${a} + ${b} = ${a + b}, dus ${a + b}/${d}.`, gcd(a + b, d) > 1 ? `Vereenvoudigen: ${fracStr([a + b, d])}` : `Dat kan niet verder vereenvoudigd worden.`]),
-    guide: [st(`De noemers zijn gelijk. Tel de tellers op: ${a} + ${b} = ?`, a + b, 'De noemer blijft hetzelfde!')], guideFinal: `Schrijf de breuk: ${a + b}/${d}` });
+    // Gelijknamige breuken optellen én aftrekken, kaal of benoemd (liter, pizza): de noemer blijft, alleen de tellers.
+    const d = pick([4, 5, 6, 8, 10, 12]), min = Math.random() < 0.4;
+    let a = rnd(2, d - 1), b = rnd(1, min ? a - 1 : d - a - 1); if (!min && a + b >= d) { a = rnd(1, d - 2); b = rnd(1, d - a - 1); }
+    const res = min ? a - b : a + b, op = min ? '−' : '+';
+    const benoemd = Math.random() < 0.5 ? pick(min ? [['l water', 'Je hebt {a} l water in een kan. Je giet er {b} l uit. Hoeveel liter heb je nog?'], ['pizza', 'Er ligt nog {a} pizza. Je eet er {b} pizza van op. Hoeveel pizza ligt er nog?']]
+      : [['l', 'In de ene fles zit {a} l limonade, in de andere {b} l. Hoeveel liter is dat samen?'], ['pizza', 'Sam eet {a} pizza en Noor eet {b} pizza. Hoeveel pizza eten ze samen?']]) : null;
+    const tekst = benoemd ? benoemd[1].replace('{a}', `${a}/${d}`).replace('{b}', `${b}/${d}`) : `${a}/${d} ${op} ${b}/${d} =`;
+    return tpl('breuken.1c', { ...frac(tekst, [res, d], [`De noemers zijn gelijk (${d}): de stukjes zijn even groot. Alleen de tellers ${min ? 'trek je af' : 'tel je op'}.`,
+      `${a} ${op} ${b} = ${res}, dus ${res}/${d}.`, gcd(res, d) > 1 ? `Vereenvoudigen mag: ${fracStr([res, d])}` : `Dat kan niet verder vereenvoudigd worden.`]),
+    guide: [st(`De noemers zijn gelijk. ${min ? 'Trek de tellers af' : 'Tel de tellers op'}: ${a} ${op} ${b} = ?`, res, 'De noemer blijft hetzelfde: de stukjes blijven even groot.')], guideFinal: `Schrijf de breuk: ${res}/${d}` });
   },
   2() {
-    const t = pick(['optel', 'aftrek', 'komma', 'keer', 'vergelijk']);
+    const t = pick(['optel', 'aftrek', 'komma', 'keer', 'vergelijk', 'geheel']);
+    if (t === 'geheel') return breukGeheel();
     const pair = () => { const ds = shuffle([2, 3, 4, 5, 6, 8]); return [ds[0], ds[1]]; };
     if (t === 'optel' || t === 'aftrek') {
       let [d1, d2] = pair(); let n1 = rnd(1, d1 - 1), n2 = rnd(1, d2 - 1);
@@ -627,25 +672,50 @@ const breuken = {
     }
     if (t === 'komma') {
       const [n, d] = pick([[1, 2], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [1, 8], [3, 8], [7, 10], [3, 20]]);
+      // Via geld (zoals de methodes: 1/4 euro = 25 cent = 0,25): bij noemers waar 100 in past. Anders (achtsten) via 1000.
+      if (100 % d === 0) {
+        const per = 100 / d, cent = n * per;
+        return tpl('breuken.2c', { ...num(`Schrijf ${n}/${d} als kommagetal.`, n / d, [`Denk aan geld: 1 euro = 100 cent.`, `1/${d} euro = 100 : ${d} = ${per} cent.`, ...(n > 1 ? [`${n}/${d} euro = ${n} × ${per} = ${cent} cent.`] : []), `${cent} cent = € ${fmt(n / d, 2)}, dus ${fmt(n / d)}.`]),
+          guide: [st(`Denk aan geld. 1/${d} euro = 100 : ${d} = ? cent`, per, `1 euro is 100 cent; verdeel die in ${d} gelijke stukken.`),
+            ...(n > 1 ? [st(`Hoeveel cent is ${n}/${d} euro? (${n} stukjes van ${per} cent)`, cent, `Tel ${n} keer ${per} cent.`)] : [])],
+          guideFinal: `${cent} cent als euro met een komma (100 cent = € 1,00)` });
+      }
       const f = [10, 100, 1000].map((x) => x / d).find(Number.isInteger);
       return tpl('breuken.2c', { ...num(`Schrijf ${n}/${d} als kommagetal.`, n / d, [`Maak de noemer 10, 100 of 1000: vermenigvuldig teller en noemer met ${f}.`, `${n}/${d} = ${n * f}/${d * f}`, `${n * f}/${d * f} = ${fmt(n / d)}`]),
         guide: [st(`Maak de noemer ${d * f}: ${n}/${d} = ?/${d * f}`, n * f, n === 1 ? `Met welk getal ga je van ${d} naar ${d * f}? Doe de teller keer hetzelfde getal.` : `${d} × ${f} = ${d * f}, dus de teller ook × ${f}.`)], guideFinal: `${n * f}/${d * f} als kommagetal (${d * f === 10 ? 'tienden' : d * f === 100 ? 'honderdsten' : 'duizendsten'})` });
     }
     if (t === 'keer') {
       const d = pick([3, 4, 5]), n = rnd(1, d - 1), w = rnd(2, 7);
-      return tpl('breuken.2d', { ...frac(`${w} × ${n}/${d} =`, [w * n, d], [`${w} keer ${n}/${d} = ${w * n}/${d}.`, `Haal de helen eruit: ${fracStr([w * n, d])}.`]),
-        guide: [st(`Hoeveel ${d}e delen heb je? ${w} × ${n} = ?`, w * n, 'De noemer blijft hetzelfde.')], guideFinal: `Schrijf ${w * n}/${d} (haal er de helen uit als het kan)` });
+      // Zoals de methodes: herhaald optellen, sprongen van n/d op de getallenlijn (3 × 1/4 = 1/4 + 1/4 + 1/4 = 3/4), ook benoemd.
+      const ding = Math.random() < 0.5 ? pick([['flesjes van', 'l', 'Hoeveel liter is dat samen?'], ['stukken van', 'pizza', 'Hoeveel pizza is dat samen?']]) : null;
+      const tekst = ding ? `Je hebt ${w} ${ding[0]} ${n}/${d} ${ding[1]}. ${ding[2]}` : `${w} × ${n}/${d} =`;
+      const keer = n === 1 ? `${w} sprongen van 1/${d}` : `${w} sprongen van ${n}/${d}`;
+      return tpl('breuken.2d', { ...frac(tekst, [w * n, d], [`${w} × ${n}/${d} is ${keer} op de getallenlijn: ${Array(w).fill(`${n}/${d}`).join(' + ')}.`, `Dat zijn ${w} × ${n} = ${w * n} stukjes van 1/${d}: ${w * n}/${d}. De noemer blijft ${d}.`, ...(w * n >= d ? [`Haal de helen eruit (${d}/${d} = 1 hele): ${fracStr([w * n, d])}.`] : [])]),
+        guide: [st(`Spring ${w} keer ${n}/${d} op de getallenlijn. Hoeveel stukjes van 1/${d} zijn dat samen?`, w * n, `Elke sprong is ${n} ${n === 1 ? 'stukje' : 'stukjes'} van 1/${d}: tel ${w} keer ${n}. De noemer blijft ${d}.`)],
+        guideFinal: `Schrijf ${w * n}/${d}${w * n >= d ? ` (haal er de helen uit: ${d}/${d} = 1 hele)` : ''}` });
     }
-    const cands = [[3, 5], [5, 8], [2, 3], [3, 4], [4, 7], [5, 6], [7, 10], [4, 9]];
+    // Breuken vergelijken zoals de methodes: eerst vergelijken met 1/2 (de ene is minder, de andere meer dan de helft);
+    // anders "reken met een handig getal" (bijv. van 100 of 60 km) en vergelijk de uitkomsten. Geen gelijknamig maken nodig.
+    const cands = [[3, 5], [5, 8], [2, 3], [3, 4], [1, 4], [1, 3], [2, 5], [3, 10], [7, 10], [5, 6], [1, 6], [3, 8]];
     let [x, y] = shuffle(cands); while (x[0] / x[1] === y[0] / y[1]) y = pick(cands);
-    const big = x[0] / x[1] > y[0] / y[1] ? 0 : 1, L = lcm(x[1], y[1]);
-    return tpl('breuken.2e', { ...choice('Welke breuk is het grootst?', [`${x[0]}/${x[1]}`, `${y[0]}/${y[1]}`], big, [`Maak ze gelijknamig met noemer ${L}:`,
-      `${x[0]}/${x[1]} = ${x[0] * L / x[1]}/${L}`, `${y[0]}/${y[1]} = ${y[0] * L / y[1]}/${L}`, `Dus ${big === 0 ? `${x[0]}/${x[1]}` : `${y[0]}/${y[1]}`} is groter.`]),
-    guide: [st(`${x[0]}/${x[1]} = ?/${L}`, x[0] * L / x[1], `Teller en noemer × ${L / x[1]}.`), st(`${y[0]}/${y[1]} = ?/${L}`, y[0] * L / y[1], `Teller en noemer × ${L / y[1]}.`)],
-    guideFinal: 'Welke heeft nu de grootste teller' });
+    const big = x[0] / x[1] > y[0] / y[1] ? 0 : 1, wint = big === 0 ? x : y, B = (f) => `${f[0]}/${f[1]}`;
+    const kant = (f) => (f[0] / f[1] < 0.5 ? 'minder' : 'meer');
+    if ((x[0] / x[1] - 0.5) * (y[0] / y[1] - 0.5) < 0) {
+      return tpl('breuken.2e', { ...choice('Welke breuk is het grootst?', [B(x), B(y)], big, [`Vergelijk allebei met 1/2.`, `${B(x)} is ${kant(x)} dan 1/2 (de helft van ${x[1]} is ${fmt(x[1] / 2)}).`, `${B(y)} is ${kant(y)} dan 1/2 (de helft van ${y[1]} is ${fmt(y[1] / 2)}).`, `Dus ${B(wint)} is groter.`]),
+        guide: [stC(`Is ${B(x)} meer of minder dan 1/2?`, ['meer', 'minder'], kant(x) === 'meer' ? 0 : 1, `De helft van ${x[1]} is ${fmt(x[1] / 2)}. Is ${x[0]} meer of minder dan dat?`),
+          stC(`Is ${B(y)} meer of minder dan 1/2?`, ['meer', 'minder'], kant(y) === 'meer' ? 0 : 1, `De helft van ${y[1]} is ${fmt(y[1] / 2)}. Is ${y[0]} meer of minder dan dat?`)],
+        guideFinal: 'Welke is dus het grootst: de breuk die meer dan de helft is' });
+    }
+    const H = [100, 60, 120, 40, 24, 80].find((h) => h % x[1] === 0 && h % y[1] === 0) || lcm(x[1], y[1]) * 10;
+    const vx = (H / x[1]) * x[0], vy = (H / y[1]) * y[0];
+    return tpl('breuken.2e', { ...choice('Welke breuk is het grootst?', [B(x), B(y)], big, [`Reken met een handig getal, bijv. ${H} km.`, `${B(x)} van ${H} = ${H} : ${x[1]} × ${x[0]} = ${vx}.`, `${B(y)} van ${H} = ${H} : ${y[1]} × ${y[0]} = ${vy}.`, `${Math.max(vx, vy)} is meer, dus ${B(wint)} is groter.`]),
+      guide: [st(`Reken met ${H} km. ${B(x)} van ${H} = ?`, vx, `Eerst 1/${x[1]} van ${H}: ${H} : ${x[1]} = ${H / x[1]}. Dan keer ${x[0]}.`), st(`${B(y)} van ${H} = ?`, vy, `Eerst 1/${y[1]} van ${H}: ${H} : ${y[1]} = ${H / y[1]}. Dan keer ${y[0]}.`)],
+      guideFinal: 'Welke breuk geeft het meeste? Die is het grootst' });
   },
   3() {
-    const t = pick(['maal', 'deeldoor', 'gemengd']);
+    const t = pick(['maal', 'deeldoor', 'gemengd', 'keergemengd', 'orden']);
+    if (t === 'keergemengd') return breukKeerGemengd();
+    if (t === 'orden') return breukOrdenen();
     if (t === 'maal') {
       const a = [rnd(1, 4), 0]; a[1] = rnd(a[0] + 1, 6); const b = [rnd(1, 5), 0]; b[1] = rnd(b[0] + 1, 8);
       return tpl('breuken.3a', { ...frac(`${a[0]}/${a[1]} × ${b[0]}/${b[1]} =`, [a[0] * b[0], a[1] * b[1]], [`Teller × teller: ${a[0]} × ${b[0]} = ${a[0] * b[0]}.`,

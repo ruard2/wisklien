@@ -42,19 +42,6 @@
    ],
    "concreter": "Teken twee stroken onder elkaar en verdeel ze in even grote stukjes."
   },
-  "breuken.2c": {
-   "naam": "Breuk als kommagetal",
-   "aanpak": [
-    "Maak de noemer 10, 100 of 1000 door teller en noemer met hetzelfde getal te vermenigvuldigen.",
-    "Schrijf de breuk als kommagetal: de teller geeft het aantal tienden, honderdsten of duizendsten aan."
-   ],
-   "model": "Plaatswaardetabel met eenheden, tienden, honderdsten en duizendsten.",
-   "valkuilen": [
-    "Teller en noemer achter elkaar gezet → maak eerst de noemer 10, 100 of 1000.",
-    "Komma op de verkeerde plek gezet → kijk hoeveel nullen de noemer heeft."
-   ],
-   "concreter": "Maak eerst een gelijkwaardige breuk met noemer 10, 100 of 1000. Zet daarna de teller in de tabel bij de plaats die bij de noemer hoort."
-  },
   "breuken.3b": {
    "naam": "Delen door een breuk",
    "aanpak": [

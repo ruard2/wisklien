@@ -19,6 +19,10 @@ export function misconceptionsFor(q) {
     else if (b !== d) out.push(W([Math.abs(a - c), Math.abs(b - d)], 'Je hebt boven en onder de streep allebei afgetrokken.', 'Maak eerst de stukjes even groot. Daarna trek je alleen de bovenste getallen af.'));
     if (b !== d) out.push(W([op === '+' ? a + c : Math.abs(a - c), Math.max(b, d)], 'Je hebt alleen de bovenste getallen samen genomen, maar de stukjes waren nog niet even groot.', 'Zoek eerst een getal waar beide onderste getallen in passen.'));
   }
+  // --- breuk als kommagetal: teller en noemer achter de komma gezet (1/4 → 1,4) ---
+  if ((m = t.match(/^Schrijf (\d+)\/(\d+) als kommagetal/))) {
+    out.push(W(Number(`${m[1]}.${m[2]}`), 'Je hebt de teller en de noemer achter elkaar gezet, met een komma ertussen.', `Een breuk is een deel van 1: denk aan geld. Hoeveel cent is ${m[1]}/${m[2]} euro?`));
+  }
   // --- deel van een getal: alleen gedeeld, keer vergeten ---
   if ((m = t.match(/^Hoeveel is (\d+)\/(\d+) deel van (\d+)\?$/)) && +m[1] > 1) {
     out.push(W(+m[3] / +m[2], `Je hebt 1/${m[2]} deel uitgerekend, maar er werd ${m[1]}/${m[2]} gevraagd.`, `Eerst 1/${m[2]} deel, en dat dan nog keer ${m[1]}.`));

@@ -83,7 +83,7 @@ export function algemeneDenkfouten(q, lang = 'nl') {
   let a, op, b, verhaal = false;
   if (m) { a = nr(m[1]); op = m[2] === '÷' ? ':' : m[2]; b = nr(m[3]); }
   else {
-    const gs = getallenUitTekst(q.text);
+    const gs = /\d+\s*\/\s*\d+/.test(String(q.text)) ? [] : getallenUitTekst(q.text); // een breuk is geen "twee getallen met een bewerking"
     if (gs.length === 2) for (const [x, y] of [[gs[0], gs[1]], [gs[1], gs[0]]]) for (const o of Object.keys(OPS)) if (!op && Math.abs(rond(OPS[o](x, y)) - q.answer) < 1e-9) { a = x; b = y; op = o; verhaal = true; }
     if (verhaal) for (const o of Object.keys(OPS)) { // verkeerde bewerking gekozen
       if (o === op) continue;
