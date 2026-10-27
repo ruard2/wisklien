@@ -61,6 +61,16 @@ export function misconceptionsFor(q) {
     out.push(W(round(B * p), 'Je hebt keer het procent gedaan, maar niet eerst door 100 gedeeld.', 'Procent is van de 100: reken eerst 1% uit (deel door 100), en doe dat dan keer het procent.'));
     out.push(W(round(B / p, 2), 'Je hebt gedeeld door het procent.', 'Deel door 100 om 1% te krijgen, en doe dat dan keer het procent.'));
   }
+  // --- cijferend aftrekken: per kolom klein van groot (niet ingewisseld) ---
+  if ((m = t.match(/^(\d+) − (\d+) = \(cijferend\)$/))) {
+    const A = String(m[1]), B = m[2].padStart(A.length, '0');
+    const kg = Number(A.split('').map((c, i) => Math.abs(Number(c) - Number(B[i]))).join(''));
+    if (kg !== +m[1] - +m[2]) out.push(W(kg, 'Je hebt bij een plek het kleine cijfer van het grote afgehaald, ook als het grote cijfer onderaan stond.', 'Het bovenste getal is wat je hebt. Gaat het niet (boven is te klein)? Wissel dan 1 in bij de plek links ervan.'));
+  }
+  // --- kleine som: nullen vergeten of te veel ---
+  if ((m = t.match(/^(\d+) : (\d+0) =$/)) && typeof q.answer === 'number' && q.answer % 10 === 0) {
+    out.push(W(q.answer * 10, 'Je antwoord is 10 keer te groot.', 'Je deelt door een getal dat 10 keer zo veel is: dan wordt het antwoord 10 keer zo weinig.'));
+  }
   // --- prijs bij een gewicht: cent als euro geschreven ---
   if (/^1 kilo .* kost €\s?[\d,]+\. Hoeveel kost \d+ gram\?$/.test(t) && typeof q.answer === 'number') {
     out.push(W(round(q.answer * 100), 'Je hebt het bedrag in cent als euro’s geschreven.', 'Je rekende in cent. 100 cent is 1 euro: zet het terug naar euro (met de komma).'));

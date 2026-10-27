@@ -97,20 +97,6 @@
    ],
    "concreter": "Gebruik eventueel een kleiner tafelproduct als startpunt en tel verder."
   },
-  "delen.1c": {
-   "naam": "Nullen wegstrepen",
-   "aanpak": [
-    "Deel beide getallen door 10 voor elke nul die ze allebei hebben.",
-    "Reken de makkelijke deelsom uit.",
-    "Neem de plaatswaarde mee: als het deeltal nog 10 keer zo groot is als bij de makkelijke deelsom en de deler gelijk blijft, wordt de uitkomst ook 10 keer zo groot."
-   ],
-   "model": "Verhoudingstabel om beide getallen door 10 te delen; daarna plaatswaarde: 10 keer zo groot deeltal bij dezelfde deler geeft 10 keer zo grote uitkomst.",
-   "valkuilen": [
-    "Alleen bij één getal een nul weggestreept → deel beide getallen door hetzelfde getal.",
-    "De uitkomst niet aangepast als alleen het deeltal voor de makkelijke deelsom kleiner is gemaakt → kijk hoeveel keer zo groot het deeltal eerst was."
-   ],
-   "concreter": "Gebruik plaatswaarde: reken eerst met een kleiner deeltal en bedenk daarna hoeveel keer zo groot het oorspronkelijke deeltal was."
-  },
   "delen.2c": {
    "naam": "Delen met rest (verhaaltje, zakjes; rest telt niet)",
    "aanpak": [
@@ -138,20 +124,6 @@
     "De happen vergeten op te tellen → tel de aantallen bij elkaar op voor het antwoord."
    ],
    "concreter": "Begin eventueel met een makkelijke hap, bijvoorbeeld 10× de deler. Kijk daarna hoeveel er nog over is en kies een volgende handige hap."
-  },
-  "delen.3b": {
-   "naam": "Delen met happen door een getal van twee cijfers",
-   "aanpak": [
-    "Kies een grote veelvoudhap van de deler en trek die van het getal af.",
-    "Kijk wat overblijft en neem opnieuw een passende hap, tot er niets over is.",
-    "Tel de happen op."
-   ],
-   "model": "Het happen-schema: hap, aftrekking, wat blijft over.",
-   "valkuilen": [
-    "Aftrekfout bij wat overblijft → controleer elke aftrekking.",
-    "Happen vergeten op te tellen → schrijf ze onder elkaar en tel ze op."
-   ],
-   "concreter": "Maak een rijtje veelvouden van de deler, bijvoorbeeld 10×, 20×, 50× en 100×. Kies daaruit een hap die past bij wat over is."
   },
   "digiWoorden.a": {
    "naam": "Digitale tijd in woorden",
@@ -369,19 +341,6 @@
     "Te veel hele euro’s kiezen → kies een veelvoud van de deler dat niet groter is dan het aantal hele euro’s."
    ],
    "concreter": "Laat het kind de bedragen met munten verdelen."
-  },
-  "kommagetallen.3a": {
-   "naam": "Kommagetal × kommagetal",
-   "aanpak": [
-    "Schat eerst met makkelijke, ronde getallen.",
-    "Reken precies zonder komma's: vermenigvuldig de hele getallen door te splitsen.",
-    "Zet de komma zo dat het antwoord in de buurt van je schatting ligt."
-   ],
-   "model": "Schatting en splitsen met deelproducten.",
-   "valkuilen": [
-    "Komma verkeerd → controleer of het antwoord in de buurt van je schatting ligt."
-   ],
-   "concreter": "Denk aan kilo's van iets dat een prijs per kilo heeft."
   },
   "kommagetallen.3b": {
    "naam": "Delen door een kommagetal",
