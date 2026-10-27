@@ -2236,6 +2236,10 @@ async function renderParent() {
           <label class="field" style="flex:1"><span class="small" style="font-weight:800">${data.country === 'ZA' ? t('Graad') : t('Groep')}</span><input name="grade" inputmode="numeric" value="${data.grade ?? ''}"></label>
           <label class="field" style="flex:1"><span class="small" style="font-weight:800">${t('Leeftijd')}</span><input name="age" inputmode="numeric" value="${data.age ?? ''}"></label>
         </div>
+        ${(data.methodes || []).length ? `<label class="field"><span class="small" style="font-weight:800">${t('Rekenmethode van de school')}</span><select name="methode">
+          <option value="" ${!data.methode ? 'selected' : ''}>${t('Standaard')} (${esc((data.methodes.find((m) => m.id === data.methodeStandaard) || {}).naam || '')})</option>
+          ${data.methodes.map((m) => `<option value="${esc(m.id)}" ${data.methode === m.id ? 'selected' : ''}>${esc(m.naam)}</option>`).join('')}</select>
+          <span class="small muted">${t('Sommen, tussenstappen en de uitleg van {m} volgen de aanpak en woorden van deze methode.', { m: esc(data.teacher || 'Max') })}</span></label>` : ''}
         <p class="small muted">${t('Let op: bij een andere taal hoort ook een ander lesprogramma (Nederlands = Nederlandse basisschool, Afrikaans = Suid-Afrikaanse KABV). Doe daarna de starttoets opnieuw.')}</p>
         <button class="btn ghost">${t('Profiel opslaan')}</button></form>
       <button class="btn ghost block" data-otherkid>👤 ${t('Ander kind bekijken')}</button>
@@ -2309,7 +2313,7 @@ async function renderParent() {
   $app.querySelector('[data-kidprofile]').onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
-    try { await api('/api/parent/kidprofile', { country: f.country.value, lang: f.lang.value, grade: f.grade.value, age: f.age.value }); STATE = null; toast(t('Opgeslagen ✓')); renderParent(); }
+    try { await api('/api/parent/kidprofile', { country: f.country.value, lang: f.lang.value, grade: f.grade.value, age: f.age.value, ...(f.methode ? { methode: f.methode.value } : {}) }); STATE = null; toast(t('Opgeslagen ✓')); renderParent(); }
     catch (err) { toast(err.message); }
   };
   $app.querySelectorAll('[data-delivered]').forEach((b) => (b.onclick = async () => { await api('/api/parent/surprise/delivered', { index: Number(b.dataset.delivered) }); renderParent(); }));

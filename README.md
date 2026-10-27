@@ -113,6 +113,25 @@ voorbeelden, "Zo doe je het" en Meester Max volgen allemaal dezelfde aanpak en d
 - **Plaatjes in de uitleg**: Max kan tekenen zoals de juf op het bord — positieschema, strook, procentenstrook,
   getallenlijn, sprongen, verhoudingstabel, hokjes, rechthoek/driehoek, klok en tijdlijn.
 
+## Rekenmethodes (Malmberg, Algemeen, KABV …): per school te kiezen
+De app rekent zoals de methode van de school van het kind. `src/methodes/` legt per methode vast wat anders is dan de basis:
+- `routes`: welke rekenroute een soort som gebruikt (bijv. 1500 : 30 met de kleine som of met nullen wegstrepen; schaal via
+  "hoeveel meter is 1 cm" of via cm; aftrekken met grote getallen cijferend of rijgend);
+- `uit`: soorten sommen die de methode niet gebruikt (de app maakt ze dan niet);
+- `kaarten`: uitlegkaarten die anders zijn (per sjabloon);
+- `didactiek`: per onderdeel de aanpak per groep (niveau), modellen, woorden, typische fouten en wat je níet doet;
+- `taal`: woorden van de methode (extra schoolwoorden, woorden die toegestaan zijn, vervangingen zoals tijdbalk → tijdlijn);
+- `max`: een extra regel voor Max.
+
+Alles wat een methode niet noemt, komt uit de basis (sjablonen, `src/uitleg/`, `src/didactiek.js`). Max krijgt de methode in
+zijn vaste instructies, de uitlegkaart en de didactiekkaart; sommen, tussenstappen, hints en denkfouten gebruiken dezelfde
+routes en woorden. Methodes nu: **malmberg** (standaard voor Nederlands; het rekenboek groep 8 met S- en F-route),
+**algemeen** (TAL/SLO-leerlijnen; ook het voorbeeld voor een nieuwe methode) en **kabv** (Afrikaans).
+
+Kiezen: ouderscherm → Instellingen → Rekenmethode van de school (per kind; kolom `kids.methode`), of voor iedereen met
+`METHODE_NL` / `METHODE_AF`. Nieuwe methode: kopieer `src/methodes/algemeen.js`, vul de verschillen in en zet hem in
+`src/methodes/index.js`. `npm test` controleert ook de kaarten van elke methode.
+
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).
 - **Na een fout** kijkt Max wat er misging en begint een gesprekje: één vraag tegelijk, het kind doet zoveel mogelijk zelf, na twee pogingen doet hij het voor.

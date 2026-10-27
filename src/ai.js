@@ -16,6 +16,7 @@ import { taalgidsText } from './didactiek.js';
 import { taalgidsAF } from './za/didactiek.js';
 import { LERAAR_AF } from './za/leraar.js';
 import { kaartTekst } from './uitleg/index.js';
+import { methode, methodeId } from './methodes/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic, telrijFouten } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
 import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF, foutAdvies } from './foutgesprek.js';
@@ -280,7 +281,7 @@ const LERAAR_SJABLOON = (name) => `Je bent ${teacherName()}, de persoonlijke rek
 
 HOE JE LESGEEFT
 - Kleine stapjes. Eén ding tegelijk. Stel per bericht maximaal één vraag en wacht op het antwoord.
-- Volg ALTIJD de DIDACTIEKKAART die je bij de som of les krijgt: dat is hoe scholen ${isAF() ? 'in Suid-Afrika (KABV)' : 'in Nederland'} het aanleren, en de app (hints, tussenstappen, voorbeelden) gebruikt precies dezelfde aanpak en woorden. Verzin geen andere methode, ook geen "handig trucje" dat het kind niet kent. Zo hoort het kind overal hetzelfde verhaal.
+- Volg ALTIJD de UITLEGKAART en DIDACTIEKKAART die je bij de som of les krijgt: dat is hoe de rekenmethode van de school van ${name} (${methode()?.naam || (isAF() ? 'KABV' : 'Nederlandse leerlijnen')}) het aanleert, en de app (hints, tussenstappen, voorbeelden) gebruikt precies dezelfde aanpak en woorden. Verzin geen andere methode, ook geen "handig trucje" dat het kind niet kent. Zo hoort het kind overal hetzelfde verhaal.
 - Handelingsmodel: begin bij betekenis (geld, meten, een echte situatie), dan een model (plaatje: getallenlijn, strook, positieschema, verhoudingstabel), dan de kale som. Snapt ${name} het niet: ga één niveau concreter (kale som → plaatje → geld/echte situatie), en koppel daarna terug naar de som ("en dat is dus precies wat er in de som staat").
 - Schatten: ${ALGEMEEN.schatten} Begin een uitleg NOOIT met "schat eerst" (behalve als de kaart het zo zegt). Gebruik je het woord "schatten", zet er dan ALTIJD meteen de uitleg bij: "schatten (= met ronde getallen ongeveer uitrekenen)". Kies bij schatten getallen die duidelijk naar één kant afronden (niet 1,5 of 2,5). Verder alleen als controle aan het eind: "Klopt het ongeveer?"
 - Verhaaltjessom: ${ALGEMEEN.drieslag}
@@ -357,9 +358,10 @@ UITLEG-VORM (onzichtbaar label)
 // notities, vandaag) staat vooraan in het eerste bericht. Zie aiGebruik() voor de echte cijfers.
 const vastCache = {};
 // AF: eie Afrikaanse instruksies (src/za/leraar.js), nie Nederlandse instruksies met "vertaal" nie
-const LERAAR_VAST = () => (vastCache[isAF() ? 'af' : 'nl'] ||= isAF()
+// Per taal én per rekenmethode van de school (src/methodes/): andere methode = andere woorden en routes.
+const LERAAR_VAST = () => (vastCache[`${isAF() ? 'af' : 'nl'}:${methodeId()}`] ||= (isAF()
   ? LERAAR_AF({ naam: 'die kind', leraar: teacherName(), skatting: ALGEMEEN.schatten, drieslag: ALGEMEEN.drieslag, taalgids: taalgidsAF() })
-  : LERAAR_SJABLOON('het kind'));
+  : LERAAR_SJABLOON('het kind')) + (methode()?.max ? `\n\n${isAF() ? 'METODE VAN DIE SKOOL' : 'METHODE VAN DE SCHOOL'}\n- ${methode().max}` : ''));
 const KIND = (name, profile = '', memory = '', today = '') => (isAF()
   ? [`OVER HET KIND: die kind se naam is ${name}. Praat met ${name} as "jy" en gebruik soms die naam.`,
     profile ? `LEERDERPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOU NOTAS OOR ${name.toUpperCase()} (uit vorige lesse)\n${memory}` : '', today ? `VANDAG IN HIERDIE SESSIE\n${today}` : '']

@@ -1,3 +1,4 @@
+import { methode, vervangDiep } from './methodes/index.js';
 // Didactisch handboek: per onderwerp één vaste aanpak, zoals op Nederlandse basisscholen.
 // Eén bron voor alles: Max (gesprekken en lessen), hints, tussenstappen en voorbeelden.
 //
@@ -79,18 +80,20 @@ export const TAALGIDS = {
   ],
   complimenten: ['Goed zo!', 'Klopt!', 'Helemaal goed.', 'Knap gedaan.', 'Ja, dat is het.', 'Netjes uitgerekend.', 'Mooi, dat klopt.', 'Precies.', 'Goed gezien!', 'Dat gaat lekker.'],
 };
-export const vermijdRe = () => TAALGIDS.vermijd.map(([p, beter]) => ({ re: new RegExp(`(^|[^\\p{L}])(${p})(?=$|[^\\p{L}])`, 'iu'), p, beter }));
+export const vermijdRe = () => TAALGIDS.vermijd.filter(([p]) => !(methode('nl')?.taal?.toestaan || []).some((w) => new RegExp(`^(${p})$`, 'i').test(w))).map(([p, beter]) => ({ re: new RegExp(`(^|[^\\p{L}])(${p})(?=$|[^\\p{L}])`, 'iu'), p, beter }));
 // Voor de prompt van Max (alleen NL)
 export function taalgidsText() {
-  return `TAAL (zo praten Nederlandse rekenmethodes zoals De wereld in getallen en Alles telt; gebruik ALTIJD deze woorden)
-${Object.entries(TAALGIDS.woorden).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+  const m = methode('nl'), toe = m?.taal?.toestaan || [];
+  const woorden = vervangDiep({ ...TAALGIDS.woorden, ...(m?.taal?.woorden || {}) }, m);
+  return `TAAL (zo praat de rekenmethode van de school: ${m?.naam || 'Nederlandse methodes'}; gebruik ALTIJD deze woorden)
+${Object.entries(woorden).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
 VERMIJD vertaald Engels en ongebruikelijke woorden (links fout → rechts goed):
-${TAALGIDS.vermijd.map(([p, b]) => `- "${p.replace(/\(([^)]*)\)\??/g, (m, x) => x.split('|')[0])}" → ${b}`).join('\n')}
+${TAALGIDS.vermijd.filter(([p]) => !toe.some((w) => new RegExp(`^(${p})$`, 'i').test(w))).map(([p, b]) => `- "${p.replace(/\(([^)]*)\)\??/g, (m, x) => x.split('|')[0])}" → ${b}`).join('\n')}
 Schrijf zoals een Nederlandse juf of meester praat, niet zoals een vertaling: korte, gewone zinnen. Wissel je complimenten af (${TAALGIDS.complimenten.join(' / ')}); begin NIET elk bericht met "Ja! Precies." en niet met "Laten we". Een som heet een som (plussom, minsom, keersom, deelsom), geen "vraag" of "opgave" en zeker geen "probleem".`;
 }
 
 // Per onderwerp. niveaus: 0 = groep 5, 1 = groep 6, 2 = groep 7, 3 = groep 8.
-export const DIDACTIEK = {
+const BASIS = {
   optellen: {
     kern: 'Getallen zijn opgebouwd uit duizendtallen, honderdtallen, tientallen en eenheden. Je telt op of trekt af per stukje.',
     voorkennis: 'Getallen splitsen (47 = 40 en 7) en sommen tot 20 vlot uitrekenen.',
@@ -341,6 +344,20 @@ export const DIDACTIEK = {
   },
 };
 
+// Het handboek zoals de rekenmethode van het kind het vastlegt: de basis hierboven, met per onderdeel wat de methode
+// anders doet (src/methodes/). Alles in de app leest DIDACTIEK, dus ook hints, de kaart voor Max en het ouderscherm.
+const metMethode = (cat) => {
+  const b = BASIS[cat];
+  if (!b) return b;
+  const m = methode('nl'), x = m?.didactiek?.[cat];
+  return vervangDiep(x ? { ...b, ...x, woorden: { ...b.woorden, ...(x.woorden || {}) } } : b, m);
+};
+export const DIDACTIEK = new Proxy(BASIS, {
+  get: (t, p) => (typeof p === 'string' && p in t ? metMethode(p) : t[p]),
+  ownKeys: (t) => Reflect.ownKeys(t),
+  getOwnPropertyDescriptor: (t, p) => ({ ...Reflect.getOwnPropertyDescriptor(t, p), value: typeof p === 'string' && p in t ? metMethode(p) : t[p], configurable: true }),
+});
+
 const NIVEAU = ['groep 5', 'groep 6', 'groep 7', 'groep 8'];
 
 // Korte aanpak voor een hint (kindertaal, zonder antwoord)
@@ -357,14 +374,14 @@ export function hintAanpak(cat, level) {
 export function didactiekText(cat, level = 2, { kort = false } = {}) {
   const d = DIDACTIEK[cat];
   if (!d) return '';
-  if (kort) return `DIDACTIEKKAART "${cat}" — achtergrond; de UITLEGKAART hierboven bepaalt de aanpak van deze som
+  if (kort) return `DIDACTIEKKAART "${cat}" (methode: ${methode('nl')?.naam || 'algemeen'}) — achtergrond; de UITLEGKAART hierboven bepaalt de aanpak van deze som
 Kern: ${d.kern}
 Woorden (zo gebruikt op school; leg ze uit zoals hier): ${Object.entries(d.woorden).map(([w, u]) => `${w} = ${u}`).join('; ')}
 Controle achteraf: ${d.controle}
 Niet doen: ${[...d.vermijd, 'een andere aanpak dan de uitlegkaart bedenken'].join('; ')}`;
   const L = Math.max(0, Math.min(3, level));
   const nu = d.niveaus[L], lager = L > 0 ? d.niveaus[L - 1] : null;
-  return `DIDACTIEKKAART "${cat}" (zo leren Nederlandse scholen het; volg dit, verzin geen andere methode)
+  return `DIDACTIEKKAART "${cat}" (zo leert de rekenmethode van de school het: ${methode('nl')?.naam || 'Nederlandse leerlijnen'}; volg dit, verzin geen andere methode)
 Kern: ${d.kern}
 Voorkennis: ${d.voorkennis}
 Modellen (gebruik deze, liefst met een plaatje): ${d.modellen.join('; ')}

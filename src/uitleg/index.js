@@ -6,14 +6,21 @@ import { KAARTEN as NL } from './nl.js';
 import { KAARTEN as AF } from './af.js';
 
 import { readFileSync, existsSync } from 'node:fs';
+import { methode, vervangDiep } from '../methodes/index.js';
 
 // Verbeterde kaarten uit de Kaartcheck (/audit → Kaartcheck → scripts/neem-kaarten-over.mjs). Ze vervangen naam, aanpak,
 // model, valkuilen en concreter van de handgeschreven kaart; woorden en "niet doen" blijven van de handgeschreven kaart.
 const laad = (lang) => { const f = new URL(`./kaartcheck-${lang}.json`, import.meta.url); try { return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')).kaarten || {} : {}; } catch { return {}; } };
 const samen = (basis, extra) => Object.fromEntries(Object.entries(basis).map(([id, k]) => [id, extra[id] ? { ...k, ...Object.fromEntries(Object.entries(extra[id]).filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length))) } : k]));
 const BY = { nl: samen(NL, laad('nl')), af: samen(AF, laad('af')) };
-export const kaartVoor = (lang, tpl) => (tpl ? BY[lang === 'af' ? 'af' : 'nl'][tpl] || null : null);
-export const alleKaarten = (lang) => BY[lang === 'af' ? 'af' : 'nl'];
+// De rekenmethode van het kind (src/methodes/) kan kaarten vervangen (andere route) en woorden vervangen (tijdbalk → tijdlijn).
+const metMethode = (lang, tpl, k) => {
+  const m = methode(lang === 'af' ? 'af' : 'nl'), x = m?.kaarten?.[tpl];
+  if (!k && !x) return null;
+  return vervangDiep(x ? { ...(k || {}), ...x } : k, m);
+};
+export const kaartVoor = (lang, tpl) => (tpl ? metMethode(lang, tpl, BY[lang === 'af' ? 'af' : 'nl'][tpl] || null) : null);
+export const alleKaarten = (lang) => Object.fromEntries(Object.keys(BY[lang === 'af' ? 'af' : 'nl']).map((id) => [id, kaartVoor(lang, id)]));
 export const handKaarten = (lang) => (lang === 'af' ? AF : NL);
 
 // Tekst voor Max (in de context van een gesprek over deze som)

@@ -30,7 +30,7 @@ export const currentKid = () => kidStore.getStore()?.kid ?? null;
 export const currentCur = () => kidStore.getStore()?.cur || 'nl';
 export const currentLang = () => kidStore.getStore()?.lang || 'nl';
 export const curOfKid = (k) => (k?.lang === 'af' ? 'za' : 'nl');
-export const kidContext = (k) => ({ kid: k.id, name: k.name, cur: curOfKid(k), lang: k.lang || 'nl', country: k.country || 'NL', demo: !!k.demo });
+export const kidContext = (k) => ({ kid: k.id, name: k.name, cur: curOfKid(k), lang: k.lang || 'nl', country: k.country || 'NL', demo: !!k.demo, methode: k.methode || null });
 const schemaOf = (kid) => `kid_${Number(kid)}`;
 
 // Verbinding met het schema van het huidige kind (en daarna netjes terugzetten)
@@ -200,6 +200,8 @@ export async function migrate() {
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS parent_pw text;
     -- demo-kind (knop "Bekijk de demo"): staat niet in de kindlijst en wordt na een tijdje opgeruimd
     ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS demo boolean NOT NULL DEFAULT false;
+    -- rekenmethode van de school (src/methodes/); leeg = de standaard voor de taal
+    ALTER TABLE public.kids ADD COLUMN IF NOT EXISTS methode text;
     -- welke kinderen op welk toestel speelden (zodat "Wie ben jij?" alleen die laat zien)
     CREATE TABLE IF NOT EXISTS public.device_kids (
       device text NOT NULL, kid_id int NOT NULL REFERENCES public.kids(id) ON DELETE CASCADE,
@@ -210,7 +212,7 @@ export async function migrate() {
 }
 
 // ---------- kinderen ----------
-const KID_COLS = 'id, name, avatar, lang, country, grade, age, demo';
+const KID_COLS = 'id, name, avatar, lang, country, grade, age, demo, methode';
 export const listKids = async () => (await pool.query(`SELECT ${KID_COLS} FROM public.kids WHERE NOT demo ORDER BY id`)).rows;
 export const getKid = async (id) => (await pool.query(`SELECT ${KID_COLS} FROM public.kids WHERE id=$1`, [Number(id) || 0])).rows[0];
 export async function createKid(name, avatar, { lang = 'nl', country = 'NL', grade = null, age = null, demo = false } = {}) {
@@ -219,9 +221,10 @@ export async function createKid(name, avatar, { lang = 'nl', country = 'NL', gra
   await migrateKid(k.id);
   return k;
 }
-export async function updateKidProfile(id, { lang, country, grade, age }) {
+export async function updateKidProfile(id, { lang, country, grade, age, methode }) {
   await pool.query(`UPDATE public.kids SET lang=COALESCE($2, lang), country=COALESCE($3, country), grade=COALESCE($4, grade), age=COALESCE($5, age) WHERE id=$1`,
     [id, lang ?? null, country ?? null, grade ?? null, age ?? null]);
+  if (methode !== undefined) await pool.query('UPDATE public.kids SET methode=$2 WHERE id=$1', [id, methode || null]);
 }
 // Ouderwachtwoord per kind (gehasht; nooit in KID_COLS, zodat het nergens meegestuurd wordt)
 export async function setKidPassword(id, hash) { await pool.query('UPDATE public.kids SET parent_pw=$2 WHERE id=$1', [id, hash]); }

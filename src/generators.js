@@ -22,6 +22,7 @@ import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
 import { ts } from './i18n.js';
+import { route, nietInMethode, vervangDiep } from './methodes/index.js';
 
 export const LEVELS = [0, 1, 2, 3];
 // Niveaus als groep: groep 7 bevat de meeste 1F-stof (breuken, procenten, schaal),
@@ -212,25 +213,26 @@ function grootRond() {
     guide: [st(`Eerst de duizendtallen eraf: ${fmt(a)} − ${fmt(b - h)} = ?`, a - b + h, 'Kleine som met de duizendtallen.')], guideFinal: `Nu nog ${h} eraf (kleine som: 1000 − ${h} = ${1000 - h})` });
 }
 // Cijferend aftrekken met inwisselen (de methode, S): per plek van rechts naar links; gaat het niet, wissel in bij de plek links ervan.
-function cijferendAftrekken() {
+function cijferendAftrekken(n = 3) {
   let a, b;
-  do { a = rnd(301, 989); b = rnd(112, a - 60); } while (!((a % 10) < (b % 10) || (Math.floor(a / 10) % 10) < (Math.floor(b / 10) % 10)));
-  const da = String(a).split('').map(Number).reverse(), db = String(b).padStart(3, '0').split('').map(Number).reverse();
-  const naam = ['Eenheden', 'Tientallen', 'Honderdtallen'], munt = ['euro’s', 'tientjes', 'honderdjes'];
+  const lo = 10 ** (n - 1), hi = 10 ** n - 1;
+  do { a = rnd(3 * lo + 1, hi - 10); b = rnd(lo + 12, Math.floor(a * 0.8)); } while (!((a % 10) < (b % 10) || (Math.floor(a / 10) % 10) < (Math.floor(b / 10) % 10)));
+  const da = String(a).split('').map(Number).reverse(), db = String(b).padStart(n, '0').split('').map(Number).reverse();
+  const naam = ['Eenheden', 'Tientallen', 'Honderdtallen', 'Duizendtallen'], munt = ['euro’s', 'tientjes', 'honderdjes', 'briefjes van 1000'];
   const guide = [], steps = [`Cijferend: begin rechts, bij de eenheden (denk aan geld: euro’s, tientjes, honderdjes).`];
   const cur = [...da];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < n; i++) {
     let tip = 'Haal het onderste cijfer van het bovenste af.';
     if (cur[i] < db[i]) {
       let j = i + 1; while (cur[j] === 0) j++;
       cur[j] -= 1; for (let k = j - 1; k > i; k--) cur[k] = 9; cur[i] += 10;
-      tip = j === i + 1 ? `${cur[i] - 10} − ${db[i]} gaat niet. Wissel 1 van de ${munt[i + 1]} in: dan heb je ${cur[i]} ${munt[i]}.` : `${cur[i] - 10} − ${db[i]} gaat niet, en er zijn geen ${munt[i + 1]}. Wissel een ${munt[j].replace(/jes$/, 'je')} in.`;
+      tip = j === i + 1 ? `${cur[i] - 10} − ${db[i]} gaat niet. Wissel 1 van de ${munt[i + 1]} in: dan heb je ${cur[i]} ${munt[i]}.` : `${cur[i] - 10} − ${db[i]} gaat niet, en er zijn geen ${munt[i + 1]}. Wissel er een in bij de ${munt[j]}.`;
       steps.push(`${naam[i]}: ${cur[i] - 10} − ${db[i]} gaat niet. Inwisselen: ${cur[i]} − ${db[i]} = ${cur[i] - db[i]}.`);
     } else steps.push(`${naam[i]}: ${cur[i]} − ${db[i]} = ${cur[i] - db[i]}.`);
-    if (i < 2 || cur[i] - db[i]) guide.push(st(`${naam[i]}: ${cur[i]} − ${db[i]} = ?`, cur[i] - db[i], tip));
+    if (i < n - 1 || cur[i] - db[i]) guide.push(st(`${naam[i]}: ${cur[i]} − ${db[i]} = ?`, cur[i] - db[i], tip));
   }
   steps.push(`Antwoord: ${a - b}.`);
-  return tpl('optellen.2e', { ...num(`${a} − ${b} = (cijferend)`, a - b, steps), guide, guideFinal: 'Zet de cijfers achter elkaar: honderdtallen, tientallen, eenheden' });
+  return tpl(n === 3 ? 'optellen.2e' : 'optellen.3e', { ...num(`${a} − ${b} = (cijferend)`, a - b, steps), guide, guideFinal: `Zet de cijfers achter elkaar: ${n === 4 ? 'duizendtallen, ' : ''}honderdtallen, tientallen, eenheden` });
 }
 // 50 × 7000 en 24.000 : 600 met de kleine som (de methode: zoveel keer zo veel / zo weinig).
 function kleineSomKeerDeel() {
@@ -303,7 +305,7 @@ const optellen = {
   2() {
     const r = Math.random();
     if (r < 0.15) return grootRond();
-    if (r < 0.3) return cijferendAftrekken();
+    if (r < 0.3 && route('aftrekken.groot', 'cijferend') === 'cijferend') return cijferendAftrekken();
     if (r < 0.45) {
       const a = rnd(1200, 4999), b = rnd(1200, 4999), g = colAdd(a, b), plek = pick(['Het museum', 'Het zwembad', 'De dierentuin', 'De bibliotheek']);
       return tpl('optellen.2a', withGuide(num(`${plek} had zaterdag ${fmt(a)} bezoekers en zondag ${fmt(b)}. Hoeveel bezoekers waren er dat weekend samen?`, a + b, g.steps), g));
@@ -318,6 +320,7 @@ const optellen = {
     return tpl('optellen.2c', withGuide(num(`${fmt(a)} − ${fmt(b)} =`, a - b, g.steps), g));
   },
   3() {
+    if (route('aftrekken.groot', 'cijferend') === 'cijferend' && Math.random() < 0.25) return cijferendAftrekken(4);
     const n = pick(NAMES);
     const t = pick(['bike', 'school', 'big']);
     if (t === 'bike') {
@@ -419,6 +422,9 @@ const delen = {
       ...anker(b, q) });
     if (t === 'nullen') return tpl('delen.1b', { ...num(`${b * q * 10} : ${b} =`, q * 10, [`Denk aan ${b * q} : ${b} = ${q}.`, `${b * q * 10} is 10 keer zo groot, dus het antwoord ook: ${q * 10}.`]),
       guide: [st(`Zonder de nul: ${b * q} : ${b} = ?`, q, `Tafel van ${b}.`)], guideFinal: `Het getal was 10 keer zo groot, dus het antwoord ook` });
+    if (route('delen.1c', 'kleine-som') === 'nullen-weg') return tpl('delen.1c', { ...num(`${fmt(b * q * 100)} : ${b * 10} =`, q * 10, [`Streep aan beide kanten een nul weg: ${b * q * 10} : ${b}.`, `${b * q} : ${b} = ${q}, dus ${b * q * 10} : ${b} = ${q * 10}.`]),
+      guide: [st(`Streep aan beide kanten een nul weg. Wat staat er links? ${fmt(b * q * 100)} → ?`, b * q * 10, 'Haal één nul weg.'), st(`${b * q} : ${b} = ?`, q, `Tafel van ${b}.`)],
+      guideFinal: `${b * q * 10} : ${b}` });
     // De methode: kleine som, dan "zoveel keer zo veel / zo weinig" (1500 : 3 = 500, dus 1500 : 30 = 50).
     return tpl('delen.1c', { ...num(`${fmt(b * q * 100)} : ${b * 10} =`, q * 10, [`Kleine som: ${b * q} : ${b} = ${q}.`, `${fmt(b * q * 100)} : ${b} = ${fmt(q * 100)} (100 × zo veel).`, `Je deelt door ${b * 10}, 10 × zo veel als ${b}: het antwoord wordt 10 × zo weinig: ${q * 10}.`]),
       guide: [st(`Kleine som: ${b * q} : ${b} = ?`, q, `Tafel van ${b}.`), st(`${fmt(b * q * 100)} : ${b} = ?`, q * 100, `${fmt(b * q * 100)} is 100 × zo veel als ${b * q}, dus het antwoord ook.`)],
@@ -1044,7 +1050,7 @@ const procenten = {
     if (t === 'welkpct') {
       const oud = rnd(4, 16) * 20, p = pick([5, 15, 20, 25, 35, 25, 50]), nieuw = oud - (oud * p) / 100;
       if (!Number.isInteger(nieuw)) return tpl('procenten.3b', procenten[3]());
-      if ([20, 25, 50].includes(p)) {
+      if ([20, 25, 50].includes(p) && route('procenten.3c', 'breuk') === 'breuk') {
         // Zoals de methode (S): korting in euro, dan "welk deel van de oude prijs is dat?" → breuk → procent.
         const d = 100 / p, k = oud - nieuw, item = pick(['Een spelcomputer', 'Een game', 'Een fiets', 'Een paar schoenen']);
         return tpl('procenten.3c', { ...num(`${item} kostte € ${oud}. Nu kost ${item.startsWith('Een paar') ? 'het' : 'hij'} € ${nieuw}. Hoeveel procent korting is dat?`, p, [
@@ -1173,6 +1179,9 @@ const verhoudingen = {
     }
     if (t === 'verbruik') {
       const per = pick([12, 15, 16, 18, 20]), l = rnd(15, 40);
+      if (route('verhoudingen.3b', 'tabel-tien') === 'delen') return tpl('verhoudingen.3b', { ...num(`Een auto rijdt 1 op ${per}: met 1 liter benzine rijdt hij ${per} km. Hoeveel liter heeft hij nodig voor ${per * l} km?`, l, [
+        `Verhoudingstabel: 1 liter → ${per} km.`, `${per * l} : ${per} = ${l}.`, `Dus ${l} liter.`], { unit: 'liter' }),
+      guide: [st(`Hoeveel km met 10 liter?`, per * 10, `10 × ${per}.`, { unit: 'km' })], guideFinal: `Hoe vaak past ${per} in ${per * l}? (tip: ${per * 10} km = 10 liter)` });
       // Verhoudingstabel zoals de methode: 1 → 10 → 20 liter, de rest apart (6 liter), en dan optellen (20 + 6).
       const tien = Math.floor(l / 10) * 10, rest = l - tien;
       return tpl('verhoudingen.3b', { ...num(`Een auto rijdt 1 op ${per}: met 1 liter benzine rijdt hij ${per} km. Hoeveel liter heeft hij nodig voor ${per * l} km?`, l, [
@@ -1222,6 +1231,11 @@ const schaal = {
     if (Math.random() < 0.45) return schaalTekening();
     // Zoals de methode: eerst wat 1 cm op de kaart in het echt is, in meter ("1 : 100 → 1 cm is 100 cm = 1 m"), dan de verhoudingstabel.
     const s = pick([10000, 20000, 25000, 40000, 50000, 100000, 200000]), cm = rnd(2, 15), echtCm = cm * s, perCm = s / 100, wat = pick(['de afstand', 'de fietsroute', 'het pad langs het water', 'de weg naar het strand', 'de afstand tussen twee kerken']);
+    if (route('schaal', 'meter-per-cm') === 'cm') return tpl('schaal.2a', { ...num(`Een kaart heeft schaal 1 : ${fmt(s)}. Op de kaart is ${wat} ${cm} cm. Hoeveel kilometer is dat in het echt?`, echtCm / 100000, [
+      `1 cm op de kaart is ${fmt(s)} cm in het echt.`, `${cm} cm → ${cm} × ${fmt(s)} = ${fmt(echtCm)} cm.`,
+      `Van cm naar m: deel door 100 → ${fmt(echtCm / 100)} m.`, `Van m naar km: deel door 1000 → ${fmt(echtCm / 100000)} km.`], { unit: 'km' }),
+    guide: [st(`Hoeveel cm in het echt? ${cm} × ${fmt(s)} = ?`, echtCm, '1 cm op de kaart = ' + fmt(s) + ' cm echt.', { unit: 'cm' }),
+      st(`Van cm naar meter: ${fmt(echtCm)} : 100 = ?`, echtCm / 100, '100 cm = 1 m.', { unit: 'm' })], guideFinal: `Van meter naar km: ${fmt(echtCm / 100)} : 1000` });
     return tpl('schaal.2a', { ...num(`Een kaart heeft schaal 1 : ${fmt(s)}. Op de kaart is ${wat} ${cm} cm. Hoeveel kilometer is dat in het echt?`, echtCm / 100000, [
       `1 : ${fmt(s)} betekent: 1 cm op de kaart is ${fmt(s)} cm in het echt = ${fmt(perCm)} m.`, `Verhoudingstabel: 1 cm → ${fmt(perCm)} m, dus ${cm} cm → ${cm} × ${fmt(perCm)} = ${fmt(echtCm / 100)} m.`,
       `Van m naar km: deel door 1000 → ${fmt(echtCm / 100000)} km.`], { unit: 'km', visual: vtabel([['kaart (cm)', 1, cm], ['echt (cm)', fmt(s), '?']]) }),
@@ -1234,6 +1248,10 @@ const schaal = {
     if (Math.random() < 0.5) {
       const s = pick([10000, 20000, 25000, 50000, 100000]), km = rnd(1, 24) / 2, cm = (km * 100000) / s;
       if (!Number.isInteger(cm * 10) || cm > 40 || cm < 2) return tpl('schaal.3a', schaal[3]());
+      if (route('schaal', 'meter-per-cm') === 'cm') return tpl('schaal.3b', { ...num(`De afstand tussen ${A} en ${B} is in het echt ${fmt(km)} km. Hoeveel cm is dat op een kaart met schaal 1 : ${fmt(s)}?`, cm, [
+        `${fmt(km)} km = ${fmt(km * 1000)} m = ${fmt(km * 100000)} cm.`, `Elke cm op de kaart is ${fmt(s)} cm echt.`, `${fmt(km * 100000)} : ${fmt(s)} = ${fmt(cm)} cm.`], { unit: 'cm' }),
+      guide: [st(`${fmt(km)} km = ? m`, km * 1000, 'Kilo betekent duizend: in 1 kilometer zitten duizend meter.', { unit: 'm' }), st(`${fmt(km * 1000)} m = ? cm`, km * 100000, '1 m = 100 cm.', { unit: 'cm' })],
+      guideFinal: `Hoe vaak past ${fmt(s)} in ${fmt(km * 100000)}` });
       // Echt → op de kaart (de methode): 1 cm op de kaart is ... m echt; hoe vaak past dat in de echte afstand?
       return tpl('schaal.3b', { ...num(`De afstand tussen ${A} en ${B} is in het echt ${fmt(km)} km. Hoeveel cm is dat op een kaart met schaal 1 : ${fmt(s)}?`, cm, [
         `1 cm op de kaart is ${fmt(s)} cm = ${fmt(s / 100)} m in het echt.`, `${fmt(km)} km = ${fmt(km * 1000)} m.`, `Hoe vaak past ${fmt(s / 100)} m in ${fmt(km * 1000)} m? ${fmt(km * 1000)} : ${fmt(s / 100)} = ${fmt(cm)}, dus ${fmt(cm)} cm.`], { unit: 'cm' }),
@@ -1396,7 +1414,7 @@ const oppervlakte = {
       guide: [st(`Eén zijde zonder maat: ${A} − ${a} = ?`, A - a, 'De lange kant min het stuk dat eruit is gehaald.', { unit: 'm' }), st(`De andere zijde zonder maat: ${B} − ${b} = ?`, B - b, 'De korte kant min het stuk dat eruit is gehaald.', { unit: 'm' })],
       guideFinal: `Tel alle 6 zijden op: ${A} + ${B} + ${a} + ${b} + ${A - a} + ${B - b}` });
     }
-    if (Math.random() < 0.5) {
+    if (route('lvorm', 'beide') !== 'aftrekken' && Math.random() < 0.5) {
       // Samengestelde figuur in rechthoeken verdelen (de methode): twee rechthoeken uitrekenen en optellen.
       return tpl('oppervlakte.3f', { ...num(`Een L-vormig speelveld is een rechthoek van ${A} m bij ${B} m waar een hoek van ${a} m bij ${b} m uit is gehaald. Hoe groot is de oppervlakte?`, A * B - a * b,
         [`Verdeel het veld in twee rechthoeken.`, `Een strook over de hele lengte: ${A} m bij ${B} − ${b} = ${B - b} m → ${A} × ${B - b} = ${A * (B - b)} m².`, `Het stuk ernaast: ${A} − ${a} = ${A - a} m bij ${b} m → ${A - a} × ${b} = ${(A - a) * b} m².`, `Samen: ${A * (B - b)} + ${(A - a) * b} = ${A * B - a * b} m².`], { unit: 'm²', visual: lvis }),
@@ -1602,6 +1620,13 @@ const tijdBasis = {
   },
   3() {
     const t = pick(['gemsnel', 'gemsnel', 'minuten', 'zone', 'ms']);
+    if (t === 'gemsnel' && route('tijdBasis.3a', 'minuten-tabel') === 'halve-uren') {
+      const v = pick([40, 60, 80, 90, 100, 120]), u = pick([1.5, 2.5, 0.5]);
+      return tpl('tijdBasis.3a', { ...num(`Een auto rijdt ${fmt(v * u)} km in ${u === 0.5 ? 'een half uur' : fmt(u) + ' uur'}. Wat is de gemiddelde snelheid in km per uur?`, v,
+        [`Snelheid = afstand : tijd.`, `${fmt(v * u)} : ${fmt(u)} = ${v}. Of: in een half uur ${fmt(v / 2)} km, dus in een heel uur ${v} km.`], { unit: 'km/u' }),
+      guide: u === 0.5 ? [st('Hoeveel halve uren zitten er in een heel uur?', 2, 'Twee helften maken een heel.')] : [st(`Hoeveel halve uren zijn ${fmt(u)} uur?`, u * 2, '1 uur = 2 halve uren.'), st(`Hoeveel km per half uur? ${fmt(v * u)} : ${u * 2} = ?`, v / 2, 'Verdeel de afstand.', { unit: 'km' })],
+      guideFinal: u === 0.5 ? `In een half uur ${fmt(v / 2)} km. In een heel uur rijdt hij twee keer zo ver` : `In een heel uur rijdt hij twee keer zo ver` });
+    }
     if (t === 'gemsnel') {
       // Gemiddelde snelheid met de verhoudingstabel (de methode): 75 km in 90 min → 25 km per 30 min → 50 km per 60 min.
       const min = pick([20, 30, 40, 45, 90, 80, 15]), g = gcd(min, 60), c = rnd(Math.ceil((15 * g) / 60), Math.floor((120 * g) / 60)), v = (c * 60) / g, afst = (c * min) / g;
@@ -2035,6 +2060,7 @@ export function generate(cat, level) {
   let q;
   for (let i = 0; i < 30; i++) {
     q = generateRaw(cat, level);
+    if (nietInMethode(q.tpl) && i < 29) continue; // deze soort som hoort niet bij de methode van de school
     if (!problemen(q, { hints: hintsFor }).length) return q;
   }
   return q;
@@ -2053,7 +2079,12 @@ export function generateRaw(cat, level) {
   q.wrong = misconceptionsFor(q);
   q.wrong = [...q.wrong, ...algemeneDenkfouten(q, 'nl')]; // kale sommen: onthouden vergeten, ernaast in de tafel, … (src/denkfouten.js)
   addVisual(q);
-  return enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'nl'), 'nl'), 'nl');
+  const r = enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'nl'), 'nl'), 'nl');
+  // Woorden van de methode van de school (bijv. tijdbalk → tijdlijn) in alle teksten van de som
+  r.text = vervangDiep(r.text); r.steps = vervangDiep(r.steps); r.guideFinal = vervangDiep(r.guideFinal);
+  r.guide = (r.guide || []).map((g) => ({ ...g, ask: vervangDiep(g.ask), tip: vervangDiep(g.tip) }));
+  r.wrong = (r.wrong || []).map((w) => ({ ...w, label: vervangDiep(w.label), fix: vervangDiep(w.fix) }));
+  return r;
 }
 // Een som van dezelfde soort (voor herhaling en voorbeelden). Valt terug op een gewone som.
 export function generateLike(cat, level, shape, notText) {
