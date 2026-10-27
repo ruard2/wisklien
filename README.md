@@ -128,8 +128,8 @@ zijn vaste instructies, de uitlegkaart en de didactiekkaart; sommen, tussenstapp
 routes en woorden. Methodes nu: **malmberg** (standaard voor Nederlands; het rekenboek groep 8 met S- en F-route),
 **algemeen** (TAL/SLO-leerlijnen; ook het voorbeeld voor een nieuwe methode) en **kabv** (Afrikaans).
 
-Kiezen: ouderscherm → Instellingen → Rekenmethode van de school (per kind; kolom `kids.methode`), of voor iedereen met
-`METHODE_NL` / `METHODE_AF`. Nieuwe methode: kopieer `src/methodes/algemeen.js`, vul de verschillen in en zet hem in
+Kiezen: voorlopig krijgt iedereen de standaard (Nederlands: Malmberg). Met `METHODE_KEUZE=1` verschijnt in het ouderscherm →
+Instellingen → Rekenmethode van de school (per kind; kolom `kids.methode`); voor iedereen tegelijk: `METHODE_NL` / `METHODE_AF`. Nieuwe methode: kopieer `src/methodes/algemeen.js`, vul de verschillen in en zet hem in
 `src/methodes/index.js`. `npm test` controleert ook de kaarten van elke methode.
 
 ## Meester Max — de AI-leraar (OpenAI)

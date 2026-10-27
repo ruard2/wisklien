@@ -25,10 +25,12 @@ export const standaardMethode = (lang = 'nl') => {
   const env = lang === 'af' ? process.env.METHODE_AF : process.env.METHODE_NL;
   return METHODES[env]?.lang === lang ? env : STANDAARD_PER_TAAL[lang] || 'malmberg';
 };
+// Kiezen per kind staat (nog) uit: iedereen krijgt de standaard (NL: Malmberg). Aanzetten met METHODE_KEUZE=1.
+export const methodeKeuze = () => process.env.METHODE_KEUZE === '1';
 export function methodeId(lang) {
   const st = kidStore.getStore();
   const l = lang || st?.lang || 'nl';
-  const m = st?.methode;
+  const m = methodeKeuze() ? st?.methode : null;
   return m && METHODES[m]?.lang === l ? m : standaardMethode(l);
 }
 export const methode = (lang) => METHODES[methodeId(lang)];

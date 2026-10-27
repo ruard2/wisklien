@@ -2,7 +2,7 @@ import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
 import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid, kidContext, updateKidProfile, setKidPassword, kidPasswords, kidHasPassword } from './src/db.js';
-import { METHODES, methodeId, methodesVoor, standaardMethode } from './src/methodes/index.js';
+import { METHODES, methodeId, methodesVoor, standaardMethode, methodeKeuze } from './src/methodes/index.js';
 import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep, detectMisconception, MNEMONICS, mnemonicsFor, DIDACTIEK, pack } from './src/curriculum.js';
 import {
   PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
@@ -411,7 +411,7 @@ function cleanProfile(b, partial = false) {
   if ((!partial || grade != null) && !(Number.isInteger(grade) && grade >= lo && grade <= hi)) return { error: af ? `In watter graad is jy? (${lo} tot ${hi})` : `In welke groep zit je? (${lo} tot ${hi})` };
   if ((!partial || age != null) && !(Number.isInteger(age) && age >= 6 && age <= 16)) return { error: af ? 'Hoe oud is jy?' : 'Hoe oud ben je?' };
   // rekenmethode van de school (src/methodes/): moet bij de taal horen; '' = de standaard
-  const methode = b.methode === undefined ? undefined : (b.methode === '' ? '' : (METHODES[b.methode] ? b.methode : undefined));
+  const methode = b.methode === undefined || !methodeKeuze() ? undefined : (b.methode === '' ? '' : (METHODES[b.methode] ? b.methode : undefined));
   return { lang: lang ?? undefined, country: country ?? undefined, grade: grade ?? undefined, age: age ?? undefined, methode };
 }
 app.post('/api/kids', wrap(async (req, res) => {
@@ -1358,7 +1358,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
       FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
   res.json({
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null, demo: !!req.kid.demo,
-    methode: req.kid.methode || '', methodeNu: methodeId(req.kid.lang || 'nl'), methodes: methodesVoor(req.kid.lang || 'nl'), methodeStandaard: standaardMethode(req.kid.lang || 'nl'),
+    methode: req.kid.methode || '', methodeNu: methodeId(req.kid.lang || 'nl'), methodes: methodeKeuze() ? methodesVoor(req.kid.lang || 'nl') : [], methodeStandaard: standaardMethode(req.kid.lang || 'nl'),
     ai: aiEnabled(), aiProvider: aiProvider(), aiModel: aiModel(), teacher: teacherName(), profile: await getProfile(), memory: (await getMemory()).slice(-20).reverse(),
     wallet: await wallet(), streak: await streak(), rewards, hasPassword, dailyCounts: DAILY_COUNTS,
     goalLog: (await getSetting('oefendoel_log', [])).slice().reverse(), goals: await goalsView(await getSkills()),
