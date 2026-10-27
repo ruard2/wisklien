@@ -538,19 +538,6 @@
    ],
    "concreter": "Denk aan een inhoud van 1 liter: die is precies 1 dm³."
   },
-  "oppervlakte.3d": {
-   "naam": "Samengestelde figuur (L-vorm)",
-   "aanpak": [
-    "Bereken de oppervlakte van de hele rechthoek.",
-    "Bereken de oppervlakte van het weggehaalde stuk.",
-    "Trek de oppervlakte van het weggehaalde stuk af van de hele rechthoek."
-   ],
-   "model": "Tekening van de hele rechthoek met het weggehaalde stuk gearceerd.",
-   "valkuilen": [
-    "Oppervlakten opgeteld in plaats van het weggehaalde stuk afgetrokken → arceer het weggehaalde stuk en trek de oppervlakte daarvan af."
-   ],
-   "concreter": "Teken de figuur op een rooster en tel de vakjes, of kleur het weggehaalde stuk in."
-  },
   "optellen.0b": {
    "naam": "Min tot 100 met rijgen",
    "aanpak": [
@@ -739,18 +726,6 @@
    ],
    "concreter": "Vul in: 1 cm → …, 2 cm → …; gebruik daarna het aantal cm uit de som."
   },
-  "schaal.3b": {
-   "naam": "Echte afstand naar kaart",
-   "aanpak": [
-    "Reken de echte afstand om naar cm.",
-    "Bij schaal 1 : n is 1 cm op de kaart n cm in het echt. Deel de echte afstand in cm door n."
-   ],
-   "model": "Verhoudingstabel met rijen ‘kaart (cm)’ en ‘echt (cm)’: 1 cm op de kaart hoort bij n cm in het echt.",
-   "valkuilen": [
-    "Keer in plaats van delen → bedenk dat de kaart kleiner is dan de werkelijkheid: deel de echte afstand in cm door het schaalgetal."
-   ],
-   "concreter": "Eerst een klein voorbeeld (bijv. 1 km op schaal 1 : 100 000), dan terug naar de som."
-  },
   "schaal.3c": {
    "naam": "Schaal bepalen",
    "aanpak": [
@@ -830,19 +805,6 @@
     "Optellen in plaats van vermenigvuldigen → denk aan hoeveel keer de afstand van 1 uur wordt afgelegd."
    ],
    "concreter": "Tabel: 1 uur → de snelheid uit de som; ½ uur → de helft daarvan."
-  },
-  "tijdBasis.3a": {
-   "naam": "Gemiddelde snelheid",
-   "aanpak": [
-    "Zet de tijd uit de som om naar 1 uur in de verhoudingstabel.",
-    "Reken met dezelfde factor uit welke afstand daarbij hoort: dat is de snelheid in km per uur."
-   ],
-   "model": "Verhoudingstabel met tijd boven en afstand onder: wat je met de tijd doet om op 1 uur te komen, doe je ook met de afstand.",
-   "valkuilen": [
-    "Alleen de tijd veranderen → verander de afstand met dezelfde factor.",
-    "Afstand delen door een tijd met komma lastig vinden → gebruik de verhoudingstabel om eerst naar 1 uur te rekenen."
-   ],
-   "concreter": "Vul de bekende tijd en afstand in de tabel in. Reken in kleine, gelijke stappen naar 1 uur en pas elke stap op beide rijen toe."
   },
   "tijdBasis.3d": {
    "naam": "Tijdzones",
@@ -1187,19 +1149,6 @@
     "Er 10 afgehaald → bedenk dat 10% gelijk is aan delen door 10."
    ],
    "concreter": "Van 100 euro is 10% 10 euro."
-  },
-  "schaal.2a": {
-   "naam": "Schaal (1 : …) naar km",
-   "aanpak": [
-    "1 cm op de kaart is zoveel cm in het echt als het schaalgetal.",
-    "Vermenigvuldig de afstand op de kaart in cm met het schaalgetal.",
-    "Reken de uitkomst om: cm → m (: 100) → km (: 1000)."
-   ],
-   "model": "De maten-trap: cm → m → km.",
-   "valkuilen": [
-    "Vergeten om te rekenen naar km → volg de maten-trap stap voor stap."
-   ],
-   "concreter": "Reken eerst de kaartafstand om naar cm in het echt. Zet die cm daarna om naar km."
   },
   "tijdBasis.2a": {
    "naam": "Aankomsttijd (uren en minuten erbij)",

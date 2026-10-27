@@ -867,6 +867,16 @@ const verhoudingen = {
       { unit: 'gram', visual: vtabel([['personen', p1, 1, fmt(p2)], ['gram', g, '', '?']]) }),
       guide: [st(`Hoeveel gram voor 1 persoon? ${g} : ${p1} = ?`, g / p1, 'Ga in de tabel eerst naar 1.', { unit: 'gram' })], guideFinal: `${fmt(p2)} × ${fmt(g / p1)}` });
     }
+    if (t === 'perkilo' && Math.random() < 0.5) {
+      // Prijs bij een gewicht (zoals de methode): kiloprijs in centen, via 100 gram naar het gevraagde gewicht.
+      const cent = rnd(12, 48) * 10, gram = pick([200, 300, 400, 600, 700, 800, 900]), wat = pick(['appels', 'kaas', 'druiven', 'tomaten', 'kersen', 'gehakt']);
+      const p100 = cent / 10, totCent = p100 * (gram / 100);
+      return tpl('verhoudingen.2d', { ...num(`1 kilo ${wat} kost ${euro(cent / 100)}. Hoeveel kost ${gram} gram?`, totCent / 100, [
+        `Verhoudingstabel: 1000 gram → ${cent} cent.`, `100 gram is een tiende: ${cent} : 10 = ${fmt(p100)} cent.`, `${gram} gram is ${gram / 100} × 100 gram: ${gram / 100} × ${fmt(p100)} = ${fmt(totCent)} cent = ${euro(totCent / 100)}.`],
+      { money: true, visual: vtabel([['gram', 1000, 100, gram], ['cent', cent, '', '?']]) }),
+      guide: [st(`Hoeveel cent is ${euro(cent / 100)}?`, cent, '1 euro = 100 cent.', { unit: 'cent' }), st(`100 gram is een tiende van een kilo. Hoeveel cent kost 100 gram?`, p100, 'Deel door 10.', { unit: 'cent' })],
+      guideFinal: `${gram} gram is ${gram / 100} × 100 gram: ${gram / 100} × ${fmt(p100)} cent, en dan naar euro` });
+    }
     if (t === 'perkilo') {
       const gram = pick([100, 200, 250, 500]), perKilo = rnd(8, 24), prijs = (perKilo * gram) / 1000;
       return tpl('verhoudingen.2b', { ...num(`${gram} gram kaas kost ${euro(prijs)}. Hoeveel kost 1 kilo?`, perKilo, [
@@ -904,6 +914,22 @@ const verhoudingen = {
   },
 };
 
+// Bouwtekening op schaal 1 : 50, 1 : 100 of 1 : 200, beide kanten op (tekening → echt en echt → tekening).
+function schaalTekening() {
+  const s = pick([50, 100, 200]), perCm = s / 100, wat = pick(['de kamer', 'de keuken', 'het klaslokaal', 'de schuur', 'de garage', 'de slaapkamer']);
+  const stap1 = st(`Schaal 1 : ${s}: 1 cm op de tekening is ${s} cm in het echt. Hoeveel meter is dat?`, perCm, '100 cm = 1 m: deel door 100.', { unit: 'm' });
+  if (Math.random() < 0.5) {
+    const cm = s === 100 ? rnd(4, 24) / 2 : rnd(3, 14), m = cm * perCm;
+    return tpl('schaal.2b', { ...num(`Op een bouwtekening met schaal 1 : ${s} is ${wat} ${fmt(cm)} cm lang. Hoe lang is ${wat} in het echt (in meter)?`, m, [
+      `1 cm op de tekening is ${s} cm = ${fmt(perCm)} m in het echt.`, `${fmt(cm)} cm → ${fmt(cm)} × ${fmt(perCm)} = ${fmt(m)} m.`], { unit: 'm', visual: vtabel([['tekening (cm)', 1, fmt(cm)], ['echt (cm)', s, '?']]) }),
+    guide: [stap1], guideFinal: `${fmt(cm)} cm op de tekening: ${fmt(cm)} × ${fmt(perCm)} m` });
+  }
+  const m = s === 200 ? rnd(2, 8) * 2 : rnd(3, 12), cm = m / perCm;
+  return tpl('schaal.2c', { ...num(`${cap(wat)} is in het echt ${m} m lang. Hoe lang teken je ${wat} op een bouwtekening met schaal 1 : ${s} (in cm)?`, cm, [
+    `1 cm op de tekening is ${s} cm = ${fmt(perCm)} m in het echt.`, `Hoe vaak past ${fmt(perCm)} m in ${m} m? ${m} : ${fmt(perCm)} = ${fmt(cm)}, dus ${fmt(cm)} cm.`], { unit: 'cm' }),
+  guide: [stap1], guideFinal: `Hoe vaak past ${fmt(perCm)} m in ${m} m` });
+}
+
 const schaal = {
   0() {
     const per = pick([1, 2, 3, 4, 5, 10, 20]), h = rnd(2, 12), wat = pick(['Een pad', 'Een gang', 'Het schoolplein', 'Een sloot', 'Een hek', 'De zandbak', 'Een tuinpad', 'Een muur']);
@@ -917,23 +943,26 @@ const schaal = {
     guide: [st(`Hoeveel ${unit} is 2 cm op de kaart?`, 2 * per, `2 × ${per}.`, { unit })], guideFinal: `${cm} cm: ${cm} × ${per}` });
   },
   2() {
-    const s = pick([10000, 20000, 25000, 40000, 50000, 100000, 200000]), cm = rnd(2, 15), echtCm = cm * s, wat = pick(['de afstand', 'de fietsroute', 'het pad langs het water', 'de weg naar het strand', 'de afstand tussen twee kerken']);
+    if (Math.random() < 0.45) return schaalTekening();
+    // Zoals de methode: eerst wat 1 cm op de kaart in het echt is, in meter ("1 : 100 → 1 cm is 100 cm = 1 m"), dan de verhoudingstabel.
+    const s = pick([10000, 20000, 25000, 40000, 50000, 100000, 200000]), cm = rnd(2, 15), echtCm = cm * s, perCm = s / 100, wat = pick(['de afstand', 'de fietsroute', 'het pad langs het water', 'de weg naar het strand', 'de afstand tussen twee kerken']);
     return tpl('schaal.2a', { ...num(`Een kaart heeft schaal 1 : ${fmt(s)}. Op de kaart is ${wat} ${cm} cm. Hoeveel kilometer is dat in het echt?`, echtCm / 100000, [
-      `1 cm op de kaart is ${fmt(s)} cm in het echt.`, `${cm} cm → ${cm} × ${fmt(s)} = ${fmt(echtCm)} cm.`,
-      `Van cm naar m: deel door 100 → ${fmt(echtCm / 100)} m.`, `Van m naar km: deel door 1000 → ${fmt(echtCm / 100000)} km.`], { unit: 'km' }),
-    guide: [st(`Hoeveel cm in het echt? ${cm} × ${fmt(s)} = ?`, echtCm, '1 cm op de kaart = ' + fmt(s) + ' cm echt.', { unit: 'cm' }),
-      st(`Van cm naar meter: ${fmt(echtCm)} : 100 = ?`, echtCm / 100, '100 cm = 1 m.', { unit: 'm' })], guideFinal: `Van meter naar km: ${fmt(echtCm / 100)} : 1000` });
+      `1 : ${fmt(s)} betekent: 1 cm op de kaart is ${fmt(s)} cm in het echt = ${fmt(perCm)} m.`, `Verhoudingstabel: 1 cm → ${fmt(perCm)} m, dus ${cm} cm → ${cm} × ${fmt(perCm)} = ${fmt(echtCm / 100)} m.`,
+      `Van m naar km: deel door 1000 → ${fmt(echtCm / 100000)} km.`], { unit: 'km', visual: vtabel([['kaart (cm)', 1, cm], ['echt (cm)', fmt(s), '?']]) }),
+    guide: [st(`1 cm op de kaart is ${fmt(s)} cm in het echt. Hoeveel meter is dat?`, perCm, '100 cm = 1 m: deel door 100.', { unit: 'm' }),
+      st(`${cm} cm op de kaart is hoeveel meter in het echt?`, echtCm / 100, `Verhoudingstabel: ${cm} cm is ${cm} keer zoveel als 1 cm.`, { unit: 'm' })], guideFinal: `Van meter naar km: ${fmt(echtCm / 100)} : 1000` });
   },
   3() {
     // verzonnen plekken: met echte plaatsnamen zou de afstand niet kloppen
     const [A, B] = pick([['de school', 'de sporthal'], ['het dorp', 'het strand'], ['de boerderij', 'de molen'], ['de camping', 'het meer'], ['de kerk', 'de haven'], ['het station', 'het kasteel'], ['de brug', 'de vuurtoren'], ['het bos', 'de dierentuin']]);
     if (Math.random() < 0.5) {
       const s = pick([10000, 20000, 25000, 50000, 100000]), km = rnd(1, 24) / 2, cm = (km * 100000) / s;
-      if (!Number.isInteger(cm * 10) || cm > 40 || cm < 1) return tpl('schaal.3a', schaal[3]());
+      if (!Number.isInteger(cm * 10) || cm > 40 || cm < 2) return tpl('schaal.3a', schaal[3]());
+      // Echt → op de kaart (de methode): 1 cm op de kaart is ... m echt; hoe vaak past dat in de echte afstand?
       return tpl('schaal.3b', { ...num(`De afstand tussen ${A} en ${B} is in het echt ${fmt(km)} km. Hoeveel cm is dat op een kaart met schaal 1 : ${fmt(s)}?`, cm, [
-        `${fmt(km)} km = ${fmt(km * 1000)} m = ${fmt(km * 100000)} cm.`, `Elke cm op de kaart is ${fmt(s)} cm echt.`, `${fmt(km * 100000)} : ${fmt(s)} = ${fmt(cm)} cm.`], { unit: 'cm' }),
-      guide: [st(`${fmt(km)} km = ? m`, km * 1000, 'Kilo betekent duizend: in 1 kilometer zitten duizend meter.', { unit: 'm' }), st(`${fmt(km * 1000)} m = ? cm`, km * 100000, '1 m = 100 cm.', { unit: 'cm' })],
-      guideFinal: `Hoe vaak past ${fmt(s)} in ${fmt(km * 100000)}` });
+        `1 cm op de kaart is ${fmt(s)} cm = ${fmt(s / 100)} m in het echt.`, `${fmt(km)} km = ${fmt(km * 1000)} m.`, `Hoe vaak past ${fmt(s / 100)} m in ${fmt(km * 1000)} m? ${fmt(km * 1000)} : ${fmt(s / 100)} = ${fmt(cm)}, dus ${fmt(cm)} cm.`], { unit: 'cm' }),
+      guide: [st(`1 cm op de kaart is ${fmt(s)} cm in het echt. Hoeveel meter is dat?`, s / 100, '100 cm = 1 m: deel door 100.', { unit: 'm' }), st(`${fmt(km)} km = ? m`, km * 1000, 'Kilo betekent duizend: in 1 kilometer zitten duizend meter.', { unit: 'm' })],
+      guideFinal: `Hoe vaak past ${fmt(s / 100)} m in ${fmt(km * 1000)} m` });
     }
     const cm = pick([2, 3, 4, 5, 6, 8, 10, 12]), s = pick([1000, 5000, 10000, 20000, 25000, 50000]), m = (cm * s) / 100;
     return tpl('schaal.3c', { ...num(`Op een kaart is de weg van ${A} naar ${B} ${cm} cm. In het echt is die weg ${fmt(m)} meter. Wat is de schaal? Vul in: 1 : ...`, s, [
@@ -962,6 +991,17 @@ const metriek = {
     return tpl('metriek.0a', { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: t[4], guideFinal: t[5] });
   },
   1() {
+    if (Math.random() < 0.35) {
+      // Gewicht met de oude namen (zoals de methode): ons = 100 g, pond = 500 g, ton = 1000 kg; trap kg – hg – dag – g.
+      const [txt, ans, unit, per, vraag, tip] = pick([
+        () => { const v = rnd(2, 9); return [`${v} ons = ... gram`, v * 100, 'gram', 100, 'Hoeveel gram is 1 ons?', 'Een ons is een hectogram: op de trap kg – hg – dag – g is dat 2 treden boven de gram.']; },
+        () => { const v = rnd(2, 9); return [`${v} pond = ... gram`, v * 500, 'gram', 500, 'Hoeveel gram is 1 pond?', 'Een pond is een halve kilo.']; },
+        () => { const v = rnd(2, 12); return [`${v} ton = ... kg`, v * 1000, 'kg', 1000, 'Hoeveel kg is 1 ton?', 'Een kleine auto weegt ongeveer 1 ton.']; },
+        () => { const v = rnd(2, 9); return [`${v} hg = ... gram`, v * 100, 'gram', 100, 'Hoeveel gram is 1 hg (hectogram)?', 'Trap: kg – hg – dag – g. Van hg naar g zijn 2 treden omlaag, elke tree × 10.']; },
+      ])();
+      return tpl('metriek.1b', { ...num(txt, ans, [`1 ${txt.split(' ')[1]} = ${fmt(per)} ${unit}.`, `${txt.split(' ')[0]} × ${fmt(per)} = ${fmt(ans)}`], { unit }),
+        guide: [st(vraag, per, tip, { unit })], guideFinal: `${txt.split(' ')[0]} × ${fmt(per)}` });
+    }
     const t = pick([
       () => { const v = rnd(12, 95) / 10; return [`${fmt(v)} meter = ... cm`, v * 100, 'cm', [`1 m = 100 cm.`, `${fmt(v)} × 100 = ${fmt(v * 100)}`], 100]; },
       () => { const v = rnd(11, 95) * 100; return [`${fmt(v)} gram = ... kg`, v / 1000, 'kg', [`1 kg = 1000 g.`, `${fmt(v)} : 1000 = ${fmt(v / 1000)}`], 1000]; },
@@ -971,6 +1011,17 @@ const metriek = {
     return tpl('metriek.1a', { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: [st(`Met welk getal reken je om? (1 grote maat = ? kleine maten)`, t[4], 'Kijk op de trap hoeveel stappen het is tussen de twee maten. Elke stap scheelt 10 keer.')], guideFinal: t[3][1].split('=')[0].trim() });
   },
   2() {
+    if (Math.random() < 0.35) {
+      // Maten optellen (de methode): eerst alles in dezelfde maat, dan pas optellen. 6 km + 1530 m = 6000 m + 1530 m.
+      const [g, k, per, a, b] = pick([
+        () => ['km', 'm', 1000, rnd(2, 9), rnd(11, 99) * 10 + rnd(0, 9)],
+        () => ['kg', 'gram', 1000, rnd(2, 6), rnd(1, 19) * 50],
+        () => ['m', 'cm', 100, rnd(2, 9), rnd(5, 95)],
+        () => ['liter', 'ml', 1000, rnd(1, 4), pick([150, 250, 330, 500, 750])],
+      ])();
+      return tpl('metriek.2b', { ...num(`${a} ${g} + ${fmt(b)} ${k} = ... ${k}`, a * per + b, [`Maak eerst dezelfde maat: ${a} ${g} = ${fmt(a * per)} ${k}.`, `${fmt(a * per)} + ${fmt(b)} = ${fmt(a * per + b)} ${k}.`], { unit: k }),
+        guide: [st(`Maak eerst dezelfde maat: ${a} ${g} = ? ${k}`, a * per, `Hoeveel ${k} zit er in 1 ${g}? Kijk op de trap.`, { unit: k })], guideFinal: `Nu optellen: ${fmt(a * per)} + ${fmt(b)}` });
+    }
     const t = pick([
       () => { const v = rnd(11, 99) / 100; return [`${fmt(v)} liter = ... cl`, v * 100, 'cl', [`Trap: liter – dl – cl – ml. Van liter naar cl is 2 stappen omlaag.`, `Twee stappen = × 100: ${fmt(v)} × 100 = ${fmt(v * 100)}`], 2, 'omlaag (×)']; },
       () => { const v = rnd(12, 95) / 10; return [`${fmt(v)} km = ... m`, v * 1000, 'm', [`Trap: ${TRAP}. Van km naar m is 3 stappen omlaag. Omlaag op de trap = keer.`, `3 stappen is × 10 × 10 × 10 = × 1000: ${fmt(v)} × 1000 = ${fmt(v * 1000)}`], 3, 'omlaag (×)']; },
@@ -985,6 +1036,8 @@ const metriek = {
       () => { const v = rnd(12, 95) * 100; return [`${fmt(v)} cm³ = ... liter`, v / 1000, 'liter', [`1 liter = 1 dm³ = 1000 cm³.`, `${fmt(v)} : 1000 = ${fmt(v / 1000)} liter`], [st('Hoeveel cm³ past er in 1 liter?', 1000, '1 liter = 1 dm³ = 10 × 10 × 10 cm³.', { unit: 'cm³' })], `${fmt(v)} : 1000`]; },
       () => { const v = rnd(2, 9) / 2; return [`${fmt(v)} m³ = ... liter`, v * 1000, 'liter', [`1 m³ = 1000 dm³ = 1000 liter.`, `${fmt(v)} × 1000 = ${fmt(v * 1000)}`], [st('Hoeveel liter is 1 m³?', 1000, 'Een kubus van 1 m is 10 × 10 × 10 blokjes van 1 dm³, en elk blokje van 1 dm³ is 1 liter.', { unit: 'liter' })], `${fmt(v)} × 1000`]; },
       () => { const v = rnd(2, 9); return [`${v} hectare = ... m²`, v * 10000, 'm²', [`1 hectare (ha) = 100 m × 100 m = 10 000 m².`, `${v} × 10 000 = ${fmt(v * 10000)}`], [st('1 hectare is een veld van 100 m bij 100 m. Hoeveel m² is dat?', 10000, '100 × 100.', { unit: 'm²' })], `${v} × 10 000`]; },
+      () => { const v = rnd(2, 9); return [`${v} are = ... m²`, v * 100, 'm²', [`1 are = 1 dam² = 10 m × 10 m = 100 m².`, `${v} × 100 = ${v * 100}`], [st('1 are is een veld van 10 m bij 10 m. Hoeveel m² is dat?', 100, '10 × 10. Op de trap van de m² is are (dam²) één tree boven de m², en bij m² is elke tree × 100.', { unit: 'm²' })], `${v} × 100`]; },
+      () => { const v = rnd(2, 9) + pick([0, 0.5]); return [`${fmt(v)} ha = ... are`, v * 100, 'are', [`Hectare = hm² en are = dam²: op de trap van de m² is dat één tree.`, `Eén tree bij m² is × 100: ${fmt(v)} × 100 = ${fmt(v * 100)}`], [st('Op de trap van de m² is hectare hm² en are dam². Hoeveel treden is dat?', 1, 'km² – hm² – dam² – m²: tel de treden.'), st('Bij m² is één tree keer ...?', 100, '1 hm² = 10 dam × 10 dam.')], `${fmt(v)} × 100`]; },
       () => { const v = rnd(2, 8) * 1000 + 500; return [`${fmt(v)} kg = ... ton`, v / 1000, 'ton', [`1 ton = 1000 kg.`, `${fmt(v)} : 1000 = ${fmt(v / 1000)}`], [st('Hoeveel kg is 1 ton?', 1000, 'Een kleine auto weegt ongeveer 1 ton.', { unit: 'kg' })], `${fmt(v)} : 1000`]; },
     ])();
     return tpl('metriek.3a', { ...num(t[0], t[1], t[3], { unit: t[2] }), guide: t[4], guideFinal: t[5] });
@@ -1010,7 +1063,16 @@ const oppervlakte = {
     guide: [st(`Lengte + breedte: ${l} + ${b} = ?`, l + b, 'Dat is de halve rand.', { unit: 'm' })], guideFinal: `De hele rand is twee keer zoveel: 2 × ${l + b}` });
   },
   2() {
-    if (Math.random() < 0.5) {
+    const r = Math.random();
+    if (r < 0.3) {
+      // Inhoud als blokjes van 1 dm³ (de methode): eerst één laag op de bodem, dan het aantal lagen.
+      const l = rnd(2, 8), b = rnd(2, 5), h = rnd(2, 5), wat = pick(['Een doos', 'Een kist', 'Een bak', 'Een krat']);
+      return tpl('oppervlakte.2c', { ...num(`${wat} is ${l} dm lang, ${b} dm breed en ${h} dm hoog. Hoeveel blokjes van 1 dm³ passen erin?`, l * b * h,
+        [`Op de bodem past één laag: ${l} × ${b} = ${l * b} blokjes.`, `Er passen ${h} lagen op elkaar: ${h} × ${l * b} = ${l * b * h} blokjes (= ${l * b * h} dm³ = ${l * b * h} liter).`], { unit: 'blokjes' }),
+      guide: [st(`Hoeveel blokjes passen op de bodem (één laag)? ${l} × ${b} = ?`, l * b, 'Een rij langs de lange kant, en zoveel rijen als de breedte.', { unit: 'blokjes' })],
+      guideFinal: `Er passen ${h} lagen op elkaar: ${h} × ${l * b}` });
+    }
+    if (r < 0.62) {
       const l = pick([10, 15, 20, 25, 30, 40, 50]), b = pick([10, 15, 20, 25]), h = pick([10, 20, 30, 40]), cm3 = l * b * h, wat = pick(['Een doos', 'Een kist', 'Een bak', 'Een koelbox', 'Een plantenbak']);
       return tpl('oppervlakte.2a', { ...num(`${wat} (balk) is ${l} cm lang, ${b} cm breed en ${h} cm hoog. Hoeveel liter past erin?`, cm3 / 1000,
         [`Inhoud = lengte × breedte × hoogte.`, `${l} × ${b} × ${h} = ${fmt(cm3)} cm³.`, `1 liter = 1000 cm³, dus ${fmt(cm3)} : 1000 = ${fmt(cm3 / 1000)} liter.`], { unit: 'liter' }),
@@ -1022,7 +1084,14 @@ const oppervlakte = {
     guide: [st(`Kijk naar de stippel-rechthoek om de driehoek. Hoe groot is die? ${basis} × ${hoogte} = ?`, basis * hoogte, 'Rechthoek = breed × hoog.', { unit: 'cm²' })], guideFinal: `De driehoek is precies de helft van de rechthoek. Reken ${basis * hoogte} : 2` });
   },
   3() {
-    const t = pick(['tegels', 'vierkant', 'aquarium', 'lvorm']);
+    const t = pick(['tegels', 'vierkant', 'aquarium', 'lvorm', 'lvorm', 'lomtrek', 'blokken2']);
+    if (t === 'blokken2') {
+      // Blokken van 2 dm³ (S in de methode): eerst de inhoud in dm³, dan hoeveel blokken van 2 dm³ daarin passen.
+      const l = rnd(2, 5) * 2, b = rnd(2, 5), h = rnd(2, 4);
+      return tpl('oppervlakte.3e', { ...num(`Een kist is ${l} dm lang, ${b} dm breed en ${h} dm hoog. Hoeveel blokken van 2 dm³ (2 dm lang, 1 dm breed, 1 dm hoog) passen erin?`, (l * b * h) / 2,
+        [`Inhoud van de kist: ${l} × ${b} × ${h} = ${l * b * h} dm³.`, `Elk blok is 2 dm³: ${l * b * h} : 2 = ${(l * b * h) / 2} blokken.`], { unit: 'blokken' }),
+      guide: [st(`Hoeveel dm³ is de kist? ${l} × ${b} × ${h} = ?`, l * b * h, 'Eerst één laag op de bodem (lengte × breedte), dan keer het aantal lagen.', { unit: 'dm³' })], guideFinal: `Elk blok is 2 dm³: ${l * b * h} : 2` });
+    }
     if (t === 'tegels') {
       const l = rnd(4, 7), b = rnd(3, 5), p = pick([15, 20, 25, 30]);
       return tpl('oppervlakte.3a', { ...num(`Een kamer is ${l} m lang en ${b} m breed. Een nieuwe vloer kost € ${p} per m². Hoeveel kost de vloer?`, l * b * p,
@@ -1043,6 +1112,21 @@ const oppervlakte = {
         st(`Grondvlak in dm²: ${l / 10} × ${b / 10} = ?`, (l / 10) * (b / 10), 'Lengte × breedte in dm.', { unit: 'dm²' })], guideFinal: `Keer de hoogte (${h / 10} dm). 1 dm³ = 1 liter` });
     }
     const A = rnd(8, 12), B = rnd(6, 9), a = rnd(3, A - 3), b = rnd(2, B - 3);
+    const lvis = { kind: 'lshape', A, B, a, b, unit: 'm' };
+    if (t === 'lomtrek') {
+      // Omtrek van een samengestelde figuur (de methode): alle zijden optellen; de twee zijden zonder maat eerst uitrekenen.
+      return tpl('oppervlakte.3g', { ...num(`Een L-vormig speelveld is een rechthoek van ${A} m bij ${B} m waar een hoek van ${a} m bij ${b} m uit is gehaald. Hoe lang is de rand rondom (de omtrek)?`, 2 * (A + B),
+        [`Het veld heeft 6 zijden: ${A} m, ${B} m, ${a} m, ${b} m en twee zijden zonder maat.`, `Die twee: ${A} − ${a} = ${A - a} m en ${B} − ${b} = ${B - b} m.`, `Alles opgeteld: ${A} + ${B} + ${a} + ${b} + ${A - a} + ${B - b} = ${2 * (A + B)} m.`], { unit: 'm', visual: lvis }),
+      guide: [st(`Eén zijde zonder maat: ${A} − ${a} = ?`, A - a, 'De lange kant min het stuk dat eruit is gehaald.', { unit: 'm' }), st(`De andere zijde zonder maat: ${B} − ${b} = ?`, B - b, 'De korte kant min het stuk dat eruit is gehaald.', { unit: 'm' })],
+      guideFinal: `Tel alle 6 zijden op: ${A} + ${B} + ${a} + ${b} + ${A - a} + ${B - b}` });
+    }
+    if (Math.random() < 0.5) {
+      // Samengestelde figuur in rechthoeken verdelen (de methode): twee rechthoeken uitrekenen en optellen.
+      return tpl('oppervlakte.3f', { ...num(`Een L-vormig speelveld is een rechthoek van ${A} m bij ${B} m waar een hoek van ${a} m bij ${b} m uit is gehaald. Hoe groot is de oppervlakte?`, A * B - a * b,
+        [`Verdeel het veld in twee rechthoeken.`, `Een strook over de hele lengte: ${A} m bij ${B} − ${b} = ${B - b} m → ${A} × ${B - b} = ${A * (B - b)} m².`, `Het stuk ernaast: ${A} − ${a} = ${A - a} m bij ${b} m → ${A - a} × ${b} = ${(A - a) * b} m².`, `Samen: ${A * (B - b)} + ${(A - a) * b} = ${A * B - a * b} m².`], { unit: 'm²', visual: lvis }),
+      guide: [st(`Rechthoek 1 is een strook van ${A} m bij ${B - b} m. Hoe groot is die?`, A * (B - b), 'Lengte × breedte.', { unit: 'm²' }), st(`Rechthoek 2 is ${A - a} m bij ${b} m. Hoe groot is die?`, (A - a) * b, 'Lengte × breedte.', { unit: 'm²' })],
+      guideFinal: `Tel de twee rechthoeken op: ${A * (B - b)} + ${(A - a) * b}` });
+    }
     return tpl('oppervlakte.3d', { ...num(`Een L-vormig speelveld is een rechthoek van ${A} m bij ${B} m waar een hoek van ${a} m bij ${b} m uit is gehaald. Hoe groot is de oppervlakte?`, A * B - a * b,
       [`Grote rechthoek: ${A} × ${B} = ${A * B} m².`, `Weggehaald stuk: ${a} × ${b} = ${a * b} m².`, `${A * B} − ${a * b} = ${A * B - a * b} m².`], { unit: 'm²', visual: { kind: 'lshape', A, B, a, b, unit: 'm' } }),
     guide: [st(`De hele rechthoek: ${A} × ${B} = ?`, A * B, 'Doe alsof de hoek er nog in zit.', { unit: 'm²' }), st(`Het weggehaalde stuk: ${a} × ${b} = ?`, a * b, 'Het gestippelde stuk.', { unit: 'm²' })],
@@ -1136,6 +1220,39 @@ function metKlok(q) {
 }
 const toMin = (t) => { const [a, b] = String(t).split(':').map(Number); return a * 60 + b; };
 
+// Tijdsduur in uren en minuten (de methode): op de tijdlijn eerst hele uren springen, dan naar het hele uur, dan de rest.
+// 06:52 → 19:52 (13 uur) → 20:00 (8 min) → 20:28 (28 min): 13 uur en 36 minuten. Antwoord als uu:mm.
+function tijdsduurLang() {
+  const [wat, b0, b1, e0, e1] = pick([
+    ['Op een dag in september komt de zon op om {b} en gaat onder om {e}. Hoe lang is het licht?', 5, 7, 18, 20],
+    ['De schoolreis begint om {b} en de bus is om {e} terug. Hoe lang duurt de schoolreis?', 7, 8, 15, 17],
+    ['Een winkel gaat open om {b} en sluit om {e}. Hoe lang is de winkel open?', 7, 9, 17, 21],
+    ['Een vlucht vertrekt om {b} en landt om {e}. Hoe lang duurt de vlucht?', 6, 9, 12, 16],
+  ]);
+  const s = rnd(b0, b1) * 60 + rnd(31, 58), e = rnd(e0, e1) * 60 + rnd(3, 29);
+  const H = Math.floor((e - s) / 60), tus = s + H * 60, heel = Math.ceil(tus / 60) * 60, m = e - s - H * 60;
+  const tekst = wat.replace('{b}', hhmm(s)).replace('{e}', hhmm(e));
+  return tpl('tijdBasis.2c', { ...time(`${tekst} Schrijf je antwoord als uren:minuten (bijv. 2:05 is 2 uur en 5 minuten).`, H * 60 + m, [
+    `Spring eerst hele uren: van ${hhmm(s)} tot ${hhmm(tus)} is ${H} uur.`, `Dan naar het hele uur: van ${hhmm(tus)} tot ${hhmm(heel)} is ${heel - tus} minuten.`,
+    `Dan de rest: van ${hhmm(heel)} tot ${hhmm(e)} is ${e - heel} minuten.`, `Samen: ${H} uur en ${heel - tus} + ${e - heel} = ${m} minuten.`], { display: `${H}:${String(m).padStart(2, '0')} (${H} uur en ${m} minuten)`, visual: { kind: 'clocks', items: [{ time: hhmm(s), look: 'wall', label: 'begin' }, { time: hhmm(e), look: 'wall', label: 'einde' }] } }),
+  guide: [st(`Spring eerst hele uren, tot vlak voor het einde: van ${hhmm(s)} tot ${hhmm(tus)} is hoeveel uur?`, H, 'Alleen het uur verandert; de minuten blijven hetzelfde.', { unit: 'uur' }),
+    st(`Van ${hhmm(tus)} tot het hele uur ${hhmm(heel)} = ? minuten`, heel - tus, 'Een uur is 60 minuten.', { unit: 'minuten' }),
+    st(`Van ${hhmm(heel)} tot ${hhmm(e)} = ? minuten`, e - heel, 'Kijk naar de minuten van de eindtijd.', { unit: 'minuten' })],
+  guideFinal: `Samen: ${H} uur en ${heel - tus} + ${e - heel} minuten` });
+}
+// Begintijd terugrekenen (de methode): eerst de hele uren terug, dan de minuten terug via het hele uur.
+function begintijd() {
+  const H = rnd(1, 2), m = rnd(5, 11) * 5, e = rnd(17, 22) * 60 + rnd(1, Math.floor(m / 5) - 1) * 5, s = e - H * 60 - m;
+  const naHeel = e - H * 60, heel = Math.floor(naHeel / 60) * 60;
+  const wat = pick([['De film', 'begon de film'], ['De voetbalwedstrijd', 'begon de wedstrijd'], ['Het concert', 'begon het concert'], ['De musical', 'begon de musical']]);
+  return tpl('tijdBasis.2d', { ...time(`${wat[0]} is om ${hhmm(e)} afgelopen en duurde ${H} uur en ${m} minuten. Hoe laat ${wat[1]}?`, s, [
+    `Terugrekenen. Eerst de hele uren terug: ${hhmm(e)} − ${H} uur = ${hhmm(naHeel)}.`, `Dan ${m} minuten terug: eerst ${naHeel - heel} minuten naar ${hhmm(heel)}, dan nog ${m - (naHeel - heel)} minuten terug: ${hhmm(s)}.`],
+  { visual: { kind: 'digital', time: hhmm(e), look: 'phone', label: 'einde' } }),
+  guide: [{ ask: `Eerst de hele uren terug: ${hhmm(e)} − ${H} uur = ?`, type: 'time', answer: naHeel % 1440, display: hhmm(naHeel), tip: 'Alleen het uur verandert.' },
+    st(`Nu ${m} minuten terug. Eerst terug naar het hele uur ${hhmm(heel)}: hoeveel minuten moet je daarna nog terug?`, m - (naHeel - heel), `Van ${hhmm(naHeel)} naar ${hhmm(heel)} is al een stukje van de ${m} minuten.`, { unit: 'minuten' })],
+  guideFinal: `${hhmm(heel)} min ${m - (naHeel - heel)} minuten` });
+}
+
 const tijdBasis = {
   0() {
     const t = pick(['later', 'uur', 'halfuur']);
@@ -1191,7 +1308,10 @@ const tijdBasis = {
       guideFinal: `Tel 12 bij het uur op ('s middags/avonds)` });
   },
   2() {
-    if (Math.random() < 0.5) {
+    const r = Math.random();
+    if (r < 0.2) return tijdsduurLang();
+    if (r < 0.35) return begintijd();
+    if (r < 0.7) {
       const s = rnd(7 * 12, 16 * 12) * 5, d = rnd(16, 40) * 5;
       return tpl('tijdBasis.2a', { ...time(`De trein vertrekt om ${hhmm(s)}. De reis duurt ${Math.floor(d / 60)} uur en ${d % 60} minuten. Hoe laat komt de trein aan?`, s + d,
         [`Tel eerst de hele uren erbij: ${hhmm(s)} + ${Math.floor(d / 60)} uur = ${hhmm(s + Math.floor(d / 60) * 60)}.`, ...((s % 60) + (d % 60) >= 60 ? [`Dan de minuten: ${s % 60} + ${d % 60} = ${(s % 60) + (d % 60)} minuten. Dat is ${(s % 60) + (d % 60) === 60 ? 'precies 1 uur' : `1 uur en ${(s % 60) + (d % 60) - 60} minuten`}.`, `Dus ${hhmm(s + d)}.`] : [`Dan de minuten: + ${d % 60} min = ${hhmm(s + d)}.`])]),
@@ -1205,13 +1325,23 @@ const tijdBasis = {
     guideFinal: `In ${fmt(u)} uur` });
   },
   3() {
-    const t = pick(['gemsnel', 'minuten', 'zone']);
+    const t = pick(['gemsnel', 'gemsnel', 'minuten', 'zone', 'ms']);
     if (t === 'gemsnel') {
-      const v = pick([40, 60, 80, 90, 100, 120]), u = pick([1.5, 2.5, 0.5]);
-      return tpl('tijdBasis.3a', { ...num(`Een auto rijdt ${fmt(v * u)} km in ${u === 0.5 ? 'een half uur' : fmt(u) + ' uur'}. Wat is de gemiddelde snelheid in km per uur?`, v,
-        [`Snelheid = afstand : tijd.`, `${fmt(v * u)} : ${fmt(u)} = ${v}. Of: in een half uur ${fmt(v / 2)} km, dus in een heel uur ${v} km.`], { unit: 'km/u' }),
-      guide: u === 0.5 ? [st('Hoeveel halve uren zitten er in een heel uur?', 2, 'Twee helften maken een heel.')] : [st(`Hoeveel halve uren zijn ${fmt(u)} uur?`, u * 2, '1 uur = 2 halve uren.'), st(`Hoeveel km per half uur? ${fmt(v * u)} : ${u * 2} = ?`, v / 2, 'Verdeel de afstand.', { unit: 'km' })],
-      guideFinal: u === 0.5 ? `In een half uur ${fmt(v / 2)} km. In een heel uur rijdt hij twee keer zo ver` : `In een heel uur rijdt hij twee keer zo ver` });
+      // Gemiddelde snelheid met de verhoudingstabel (de methode): 75 km in 90 min → 25 km per 30 min → 50 km per 60 min.
+      const min = pick([20, 30, 40, 45, 90, 80, 15]), g = gcd(min, 60), c = rnd(Math.ceil((15 * g) / 60), Math.floor((120 * g) / 60)), v = (c * 60) / g, afst = (c * min) / g;
+      const tijdTxt = min === 90 ? 'anderhalf uur (90 minuten)' : min === 30 ? 'een half uur (30 minuten)' : `${min} minuten`;
+      return tpl('tijdBasis.3a', { ...num(`Een ${v <= 25 ? 'fietser' : 'auto'} rijdt ${afst} km in ${tijdTxt}. Wat is de gemiddelde snelheid in km per uur?`, v,
+        [`Verhoudingstabel: ${min} minuten → ${afst} km.`, ...(g !== min ? [`${min} minuten is ${min / g} × ${g} minuten. In ${g} minuten: ${afst} : ${min / g} = ${c} km.`] : []), `1 uur = 60 minuten = ${60 / g} × ${g} minuten: ${60 / g} × ${c} = ${v} km. Dus ${v} km per uur.`],
+      { unit: 'km/u', visual: vtabel(g !== min ? [['minuten', min, g, 60], ['km', afst, '', '?']] : [['minuten', min, 60], ['km', afst, '?']]) }),
+      guide: g !== min ? [st(`Hoeveel km in ${g} minuten? (${min} minuten is ${min / g} × ${g} minuten)`, c, `Wat je met de minuten doet, doe je met de km ook: deel door ${min / g}.`, { unit: 'km' })] : [st(`Hoe vaak past ${min} minuten in 1 uur (60 minuten)?`, 60 / min, `${min} × ? = 60`)],
+      guideFinal: g !== min ? `1 uur is ${60 / g} × ${g} minuten: ${60 / g} × ${c}` : `In 1 uur rijdt hij ${60 / min} keer zo ver: ${60 / min} × ${afst}` });
+    }
+    if (t === 'ms') {
+      // Meter per seconde (S in de methode): eerst per minuut, dan per seconde (1 minuut = 60 seconden).
+      const v = rnd(3, 8), min = pick([2, 4, 5, 10]), m = v * 60 * min, wie = pick(['Een hardloper', 'Een schaatser', 'Een fietser', 'Een skeeleraar']);
+      return tpl('tijdBasis.3e', { ...num(`${wie} legt ${fmt(m)} m af in ${min} minuten. Hoeveel meter per seconde is dat?`, v,
+        [`Per minuut: ${fmt(m)} : ${min} = ${v * 60} m.`, `1 minuut = 60 seconden: ${v * 60} : 60 = ${v} m per seconde.`], { unit: 'm/s', visual: vtabel([['tijd', `${min} min`, '1 min', '1 sec'], ['meter', fmt(m), '', '?']]) }),
+      guide: [st(`Hoeveel meter in 1 minuut? ${fmt(m)} : ${min} = ?`, v * 60, 'Deel de meters door het aantal minuten.', { unit: 'm' })], guideFinal: `1 minuut = 60 seconden: ${v * 60} : 60` });
     }
     if (t === 'minuten') {
       const v = pick([60, 90, 120, 48, 30]), min = pick([10, 20, 30, 40, 50]);

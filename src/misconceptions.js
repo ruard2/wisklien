@@ -46,6 +46,23 @@ export function misconceptionsFor(q) {
   if ((m = t.match(/zitten (\d+) kinderen\. (\d+) kinderen hebben een huisdier\. Hoeveel procent/))) {
     out.push(W(+m[2], 'Je gaf het aantal kinderen, niet het procent.', 'Procent = hoeveel van de 100. Maak van de breuk iets met 100 onder de streep.'));
   }
+  // --- maten optellen: zonder om te rekenen opgeteld (6 km + 1530 m als 1536) ---
+  if ((m = t.match(/^(\d+) (km|kg|m|liter) \+ ([\d.]+) (m|gram|cm|ml) = \.\.\./))) {
+    out.push(W(+m[1] + n(m[3]), 'Je hebt de getallen opgeteld, maar het waren verschillende maten.', `Maak eerst dezelfde maat: hoeveel ${m[4]} is ${m[1]} ${m[2]}? Tel daarna pas op.`));
+  }
+  // --- ons/pond/hg: verkeerde maat onthouden ---
+  if ((m = t.match(/^(\d+) (ons|hg|pond) = \.\.\. gram/))) {
+    out.push(W(+m[1] * 10, `Je hebt 1 ${m[2]} als 10 gram genomen.`, m[2] === 'pond' ? 'Een pond is een halve kilo: 500 gram.' : 'Een ons is een hectogram: 100 gram (trap kg – hg – dag – g).'));
+    if (m[2] === 'pond') out.push(W(+m[1] * 1000, 'Je hebt 1 pond als een hele kilo genomen.', 'Een pond is een halve kilo: 500 gram.'));
+  }
+  // --- prijs bij een gewicht: cent als euro geschreven ---
+  if (/^1 kilo .* kost €\s?[\d,]+\. Hoeveel kost \d+ gram\?$/.test(t) && typeof q.answer === 'number') {
+    out.push(W(round(q.answer * 100), 'Je hebt het bedrag in cent als euro’s geschreven.', 'Je rekende in cent. 100 cent is 1 euro: zet het terug naar euro (met de komma).'));
+  }
+  // --- blokjes in een doos: maten opgeteld in plaats van laag × lagen ---
+  if ((m = t.match(/is (\d+) dm lang, (\d+) dm breed en (\d+) dm hoog\. Hoeveel blokjes van 1 dm³/))) {
+    out.push(W(+m[1] + +m[2] + +m[3], 'Je hebt de lengte, breedte en hoogte opgeteld.', 'Tel eerst hoeveel blokjes er op de bodem passen (lengte × breedte), en dan hoeveel lagen erop passen.'));
+  }
   // --- maten omrekenen: verkeerde factor of verkeerde kant op ---
   if (/^[\d,\s ]+ (meter|km|m|mm|cm|gram|kg|kilo|ml|liter|dl|cl|m²|cm³|m³|hectare) = \.\.\. /.test(t) && typeof q.answer === 'number') {
     // De uitleg hangt af van de richting: naar een grotere maat deel je, naar een kleinere maat doe je keer.
