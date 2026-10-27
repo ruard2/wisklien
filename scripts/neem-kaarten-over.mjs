@@ -50,11 +50,16 @@ function keur(tpl, k, it) {
   }
   return f;
 }
+const { METHODES, standaardMethode } = await import('../src/methodes/index.js');
+const vast = new Set(METHODES[standaardMethode(lang)]?.eigenKaarten || []);
+const zonder = new Set((process.argv.find((a) => a.startsWith('--zonder=')) || '').replace('--zonder=', '').split(',').filter(Boolean));
 const nieuw = {}, afgekeurd = [];
 for (const it of job.items || []) {
   const v = normKaartOordeel(it.verdict);
   if (!v?.nieuwe_kaart) continue;
   const f = keur(it.tpl, v.nieuwe_kaart, it);
+  if (vast.has(it.tpl)) f.push('kaart is vastgelegd door de methode (src/methodes/: eigenKaarten); pas hem aan in src/uitleg/' + lang + '.js');
+  if (zonder.has(it.tpl)) f.push('overgeslagen (--zonder)');
   if (f.length) afgekeurd.push(`${it.tpl}: ${f.join('; ')}`); else nieuw[it.tpl] = v.nieuwe_kaart;
 }
 console.log(`${lang}: ${Object.keys(nieuw).length} kaarten overgenomen, ${afgekeurd.length} afgekeurd`);

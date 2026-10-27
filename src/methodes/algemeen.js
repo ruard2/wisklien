@@ -15,6 +15,8 @@ export default {
     'verhoudingen.3b': 'delen',
     lvorm: 'aftrekken',
     'aftrekken.groot': 'rijgen',
+    'keer.groot': 'splitsen',
+    'procent.hoeveel': 'noemer100',
   },
   uit: [],
   // De uitlegkaarten die bij de andere routes horen

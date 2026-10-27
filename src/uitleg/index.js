@@ -19,7 +19,12 @@ const metMethode = (lang, tpl, k) => {
   if (!k && !x) return null;
   return vervangDiep(x ? { ...(k || {}), ...x } : k, m);
 };
-export const kaartVoor = (lang, tpl) => (tpl ? metMethode(lang, tpl, BY[lang === 'af' ? 'af' : 'nl'][tpl] || null) : null);
+// Kaarten die de methode vastlegt (eigenKaarten) komen uit de handgeschreven kaart, niet uit de Kaartcheck.
+const basisKaart = (lang, tpl) => {
+  const L = lang === 'af' ? 'af' : 'nl';
+  return (methode(L)?.eigenKaarten || []).includes(tpl) ? (L === 'af' ? AF : NL)[tpl] || null : BY[L][tpl] || null;
+};
+export const kaartVoor = (lang, tpl) => (tpl ? metMethode(lang, tpl, basisKaart(lang, tpl)) : null);
 export const alleKaarten = (lang) => Object.fromEntries(Object.keys(BY[lang === 'af' ? 'af' : 'nl']).map((id) => [id, kaartVoor(lang, id)]));
 export const handKaarten = (lang) => (lang === 'af' ? AF : NL);
 

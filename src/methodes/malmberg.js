@@ -19,11 +19,16 @@ export default {
     'tijdBasis.3a': 'minuten-tabel', // 75 km in 90 min → 25 per 30 → 50 per 60
     'procenten.3c': 'breuk',         // € 5 van € 20 is 1/4 deel → 25%
     'verhoudingen.3b': 'tabel-tien', // 1 → 10 → 20 liter, de rest apart, dan optellen
-    lvorm: 'beide',
-    'aftrekken.groot': 'cijferend',  // aftrekken met grote getallen: cijferend met inwisselen (S); F-route rijgen/kolomsgewijs                  // samengestelde figuur: in rechthoeken verdelen of hele rechthoek min het stuk
+    lvorm: 'verdelen',               // samengestelde figuur: in rechthoeken verdelen en optellen (zoals het boek)
+    'aftrekken.groot': 'cijferend',
+    'keer.groot': 'cijferend',      // groep 8: cijferend vermenigvuldigen (eerst de eenheden, dan de tientallen met eerst een 0)
+    'procent.hoeveel': 'deel',      // hoeveel procent: welk deel is het (strook/breuk), of via 10%  // aftrekken met grote getallen: cijferend met inwisselen (S); F-route rijgen/kolomsgewijs                  // samengestelde figuur: in rechthoeken verdelen of hele rechthoek min het stuk
   },
   uit: [],
   kaarten: {},
+  // Uitlegkaarten die de methode vastlegt (geschreven naar het boek, in src/uitleg/nl.js): een verbetering uit de Kaartcheck
+  // (src/uitleg/kaartcheck-nl.json) mag die niet stilletjes vervangen door een andere route. Aanpassen = de kaart in nl.js.
+  eigenKaarten: ["breuken.1c", "breuken.2c", "breuken.2d", "breuken.2e", "breuken.2f", "breuken.3d", "breuken.3f", "delen.1b", "delen.1c", "delen.2e", "delen.3a", "delen.3b", "delen.3d", "getalbegrip.2e", "getalbegrip.2f", "getalbegrip.2g", "getalbegrip.3e", "getalbegrip.3f", "grafieken.2f", "grafieken.2g", "grafieken.3e", "grafieken.3f", "grafieken.3g", "grafieken.3h", "kommagetallen.1b", "kommagetallen.1c", "kommagetallen.1d", "kommagetallen.2e", "kommagetallen.2f", "kommagetallen.2k", "kommagetallen.3a", "kommagetallen.3k", "meetkunde.1f", "meetkunde.2f", "meetkunde.2g", "meetkunde.2h", "metriek.1b", "metriek.2b", "metriek.3a", "oppervlakte.2b", "oppervlakte.2c", "oppervlakte.3e", "oppervlakte.3f", "oppervlakte.3g", "optellen.1c", "optellen.2d", "optellen.2e", "optellen.3e", "optellen.3f", "procenten.1a", "procenten.1c", "procenten.1d", "procenten.1e", "procenten.2e", "procenten.3c", "procenten.3h", "procenten.3i", "schaal.2a", "schaal.2b", "schaal.2c", "schaal.3b", "tijdBasis.2c", "tijdBasis.2d", "tijdBasis.3a", "tijdBasis.3e", "verhoudingen.2d", "verhoudingen.2e", "verhoudingen.3b", "verhoudingen.3d", "vermenigvuldigen.1c", "vermenigvuldigen.2d", "vermenigvuldigen.3a"],
 
   taal: {
     woorden: {
@@ -157,7 +162,7 @@ export default {
         { doel: 'Hokjes tellen, omtrek van een rechthoek.', aanpak: ['Oppervlakte: hokjes in één rij × aantal rijen.', 'Omtrek: tel alle zijden op.'], voorbeeld: '4 rijen van 7 = 28.' },
         { doel: 'Oppervlakte rechthoek = lengte × breedte.', aanpak: ['Lengte × breedte, in m² (of cm²).'], voorbeeld: '4 m bij 3 m = 12 m².' },
         { doel: 'Driehoek; inhoud met blokjes.', aanpak: ['Driehoek: de helft van de rechthoek eromheen.', 'Inhoud: blokjes van 1 dm³; eerst één laag op de bodem (lengte × breedte), dan × het aantal lagen.', '1 dm³ = 1 liter.'], voorbeeld: 'Doos 4 × 3 × 2 dm: 12 per laag, 2 lagen = 24 dm³ = 24 liter.' },
-        { doel: 'Samengestelde figuren; omtrek; blokken van 2 dm³.', aanpak: ['Verdeel de figuur in rechthoeken en tel op (of: hele rechthoek min het weggehaalde stuk).', 'Omtrek: tel alle zijden op; reken de zijden zonder maat eerst uit.', 'Blokken van 2 dm³: inhoud in dm³ : 2.'], voorbeeld: 'L-vorm 10 × 6 met hoek 4 × 3 eruit: 10 × 3 + 6 × 3 = 48 m².' },
+        { doel: 'Samengestelde figuren; omtrek; blokken van 2 dm³.', aanpak: ['Verdeel de figuur in rechthoeken en tel ze op.', 'Omtrek: tel alle zijden op; reken de zijden zonder maat eerst uit.', 'Blokken van 2 dm³: inhoud in dm³ : 2.'], voorbeeld: 'L-vorm 10 × 6 met hoek 4 × 3 eruit: 10 × 3 + 6 × 3 = 48 m².' },
       ],
     },
 

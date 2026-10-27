@@ -131,6 +131,11 @@ routes en woorden. Methodes nu: **malmberg** (standaard voor Nederlands; het rek
 Kiezen: voorlopig krijgt iedereen de standaard (Nederlands: Malmberg). Met `METHODE_KEUZE=1` verschijnt in het ouderscherm →
 Instellingen → Rekenmethode van de school (per kind; kolom `kids.methode`); voor iedereen tegelijk: `METHODE_NL` / `METHODE_AF`. Nieuwe methode: kopieer `src/methodes/algemeen.js`, vul de verschillen in en zet hem in
 `src/methodes/index.js`. `npm test` controleert ook de kaarten van elke methode.
+Uitlegkaarten die de methode vastlegt (`eigenKaarten` in de methode) komen altijd uit `src/uitleg/nl.js`: een voorstel uit de
+Kaartcheck kan zo'n kaart niet stilletjes terugzetten naar een oude route (`scripts/neem-kaarten-over.mjs` slaat ze over).
+Een route vervangen = de oude route alleen nog in een andere methode (bijv. aftrekken rijgen in Algemeen), niet naast de nieuwe.
+De meetlat (src/meetlat/nl.json.gz, versie 3) is na de overstap naar Malmberg opnieuw gemaakt: runs van vóór versie 3 zijn niet
+1-op-1 vergelijkbaar.
 
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).

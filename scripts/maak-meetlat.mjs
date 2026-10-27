@@ -3,6 +3,7 @@
 // Twee runs op dezelfde meetlat zijn daardoor vergelijkbaar (/audit → Meetlat, en "vergelijk").
 //   node scripts/maak-meetlat.mjs        → src/meetlat/nl.json.gz en af.json.gz
 // Opnieuw maken alleen als er sjablonen bij zijn gekomen; oude runs zijn dan niet meer 1-op-1 te vergelijken.
+// NL versie 3 (27-10-2026): opnieuw gemaakt voor de methode Malmberg (nieuwe en vervangen soorten sommen).
 // Elk geval heeft een zaad: de Max-test maakt de som daarmee opnieuw, zodat verbeteringen in de vaste uitleg (stappen,
 // tussenstappen, tips) meetellen. Komt er een andere som uit (generator veranderd), dan gebruikt hij de bevroren som.
 process.env.DATABASE_URL ||= 'postgresql://niet-nodig@localhost/x';
@@ -48,7 +49,9 @@ const GOUD = {
 };
 
 fs.mkdirSync('src/meetlat', { recursive: true });
-for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
+// alleen één taal opnieuw: node scripts/maak-meetlat.mjs nl
+const alleen = process.argv[2];
+for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']].filter(([l]) => !alleen || l === alleen)) {
   await kidStore.run({ kid: 1, cur, lang, name: 'Sam' }, () => {
     const byTpl = {};
     const zaad = (ci, lv, k, extra = 0) => (lang === 'af' ? 5_000_000 : 1_000_000) + extra + (ci * 4 + lv) * 20_000 + k;
@@ -73,7 +76,7 @@ for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
       const f = fout(found.q);
       cases.push({ id: `${lang}:goud:${tpl}`, cat: found.cat, level: found.level, seed: found.seed, q: found.q, fout: f.raw, foutSoort: f.soort, bedoeling: 'snapniet', step: found.q.guide.length > 1 ? 1 : 0, ...extra(found.q), goud: waarom });
     }
-    const out = { lang, versie: 2, gemaakt: new Date().toISOString().slice(0, 10), cases };
+    const out = { lang, versie: lang === 'nl' ? 3 : 2, gemaakt: new Date().toISOString().slice(0, 10), cases };
     fs.writeFileSync(`src/meetlat/${lang}.json.gz`, gzipSync(JSON.stringify(out), { level: 9 }));
     console.log(`${lang}: ${cases.length} gevallen (${cases.filter((c) => c.goud).length} gouden) → src/meetlat/${lang}.json.gz`);
   });
