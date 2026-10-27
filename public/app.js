@@ -2019,17 +2019,22 @@ function drawVisual(v) {
   }
   // grafiek (staaf of lijn) heeft waarden; een getallenlijn ('line' met from/to) niet
   if ((v.kind === 'bar' || v.kind === 'line') && Array.isArray(v.values) && v.values.length) {
-    const W = 340, H = 210, L = 38, B = 28, T = 26, top = Math.ceil(Math.max(...v.values) / v.step) * v.step + v.step;
+    const twee = Array.isArray(v.values2) && v.values2.length === v.values.length, C2 = '#c27c00';
+    const W = 340, H = 210, L = 38, B = 28, T = twee ? 40 : 26, top = Math.ceil(Math.max(...v.values, ...(twee ? v.values2 : [])) / v.step) * v.step + v.step;
     const xs = (i) => L + ((W - L - 10) / v.values.length) * (i + 0.5);
     const ys = (val) => H - B - ((H - B - T) * val) / top;
     let grid = '';
     for (let g = 0; g <= top; g += v.step) grid += `<line x1="${L}" x2="${W - 6}" y1="${ys(g)}" y2="${ys(g)}" stroke="${ink}" stroke-opacity=".12"/><text x="${L - 6}" y="${ys(g) + 4}" text-anchor="end" font-size="11" fill="${ink}" opacity=".7">${g}</text>`;
     const bw = ((W - L - 10) / v.values.length) * 0.6;
+    const lijn = (vals, kleur) => `<polyline points="${vals.map((val, i) => `${xs(i)},${ys(val)}`).join(' ')}" fill="none" stroke="${kleur}" stroke-width="3" stroke-linejoin="round"/>${vals.map((val, i) => `<circle cx="${xs(i)}" cy="${ys(val)}" r="4.5" fill="${kleur}"/>`).join('')}`;
     const marks = v.kind === 'bar'
-      ? v.values.map((val, i) => `<rect x="${xs(i) - bw / 2}" y="${ys(val)}" width="${bw}" height="${ys(0) - ys(val)}" rx="4" fill="var(--primary)"/>`).join('')
-      : `<polyline points="${v.values.map((val, i) => `${xs(i)},${ys(val)}`).join(' ')}" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linejoin="round"/>${v.values.map((val, i) => `<circle cx="${xs(i)}" cy="${ys(val)}" r="4.5" fill="var(--primary)"/>`).join('')}`;
+      ? (twee
+        ? v.values.map((val, i) => `<rect x="${xs(i) - bw / 2}" y="${ys(val)}" width="${bw / 2 - 1}" height="${ys(0) - ys(val)}" rx="3" fill="var(--primary)"/><rect x="${xs(i) + 1}" y="${ys(v.values2[i])}" width="${bw / 2 - 1}" height="${ys(0) - ys(v.values2[i])}" rx="3" fill="${C2}"/>`).join('')
+        : v.values.map((val, i) => `<rect x="${xs(i) - bw / 2}" y="${ys(val)}" width="${bw}" height="${ys(0) - ys(val)}" rx="4" fill="var(--primary)"/>`).join(''))
+      : lijn(v.values, 'var(--primary)') + (twee ? lijn(v.values2, C2) : '');
+    const legenda = twee && v.names ? `<rect x="${L}" y="22" width="12" height="10" rx="2" fill="var(--primary)"/><text x="${L + 16}" y="31" font-size="12" font-weight="700" fill="${ink}">${esc(v.names[0])}</text><rect x="${L + 110}" y="22" width="12" height="10" rx="2" fill="${C2}"/><text x="${L + 126}" y="31" font-size="12" font-weight="700" fill="${ink}">${esc(v.names[1])}</text>` : '';
     const labels = v.labels.map((l, i) => `<text x="${xs(i)}" y="${H - 9}" text-anchor="middle" font-size="12" font-weight="700" fill="${ink}">${esc(l)}</text>`).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(v.title)}"><text x="${L}" y="15" font-size="13" font-weight="800" fill="${ink}">${esc(v.title)}</text>${grid}${marks}${labels}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(v.title)}"><text x="${L}" y="15" font-size="13" font-weight="800" fill="${ink}">${esc(v.title)}</text>${legenda}${grid}${marks}${labels}</svg>`;
   }
   if (v.kind === 'pie') {
     const colors = ['#5b3df5', '#c27c00', '#12a150', '#e5484d'];

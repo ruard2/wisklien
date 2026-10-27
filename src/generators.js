@@ -956,7 +956,16 @@ const verhoudingen = {
     guide: [stC(`"1 op de ${d}" betekent:`, [`van elke ${d} kinderen doet er 1 het`, `${d} kinderen doen het`, `1 kind doet het`], 0, 'Denk aan groepjes.')], guideFinal: `Hoeveel groepjes van ${d} zitten er in ${d * k}` });
   },
   2() {
-    const t = pick(['recept', 'perkilo', 'verdeel']);
+    const t = pick(['recept', 'perkilo', 'verdeel', 'opde']);
+    if (t === 'opde') {
+      // "3 op de 4 van 500" (de methode): verhoudingstabel 3/4 → 300/400 → 75/100 → 375/500, of 3/4 deel van 500.
+      const [a, b] = pick([[3, 4], [2, 5], [3, 5], [1, 4], [3, 10], [2, 3], [4, 5]]), N = b * pick([20, 25, 40, 50, 60, 100, 125]), wat = pick([['kinderen op de school', 'gaan op vakantie'], ['leerlingen', 'komen op de fiets'], ['bezoekers', 'kopen een ijsje'], ['inwoners', 'hebben een hond']]);
+      if (N % b) return verhoudingen[2]();
+      return tpl('verhoudingen.2e', { ...num(`Er zijn ${fmt(N)} ${wat[0]}. ${a} op de ${b} ${wat[1]}. Hoeveel zijn dat?`, (N / b) * a, [
+        `${a} op de ${b} is ${a}/${b} deel.`, `1/${b} deel van ${fmt(N)} = ${fmt(N)} : ${b} = ${fmt(N / b)}.`, `${a}/${b} deel = ${a} × ${fmt(N / b)} = ${fmt((N / b) * a)}.`],
+      { visual: vtabel([['wel', a, '?'], ['totaal', b, fmt(N)]]) }),
+      guide: [st(`${a} op de ${b} is ${a}/${b} deel. Hoeveel is 1/${b} deel van ${fmt(N)}?`, N / b, `Deel ${fmt(N)} door ${b}.`)], guideFinal: a === 1 ? `1 op de ${b}: dat was het al` : `${a}/${b} deel is ${a} keer zoveel: ${a} × ${fmt(N / b)}` });
+    }
     if (t === 'recept') {
       const p1 = pick([2, 4]), g = pick([150, 200, 250, 300]), p2 = p1 * pick([1.5, 2.5, 3]);
       return tpl('verhoudingen.2a', { ...num(`Voor ${p1} personen heb je ${g} gram pasta nodig. Hoeveel gram heb je nodig voor ${fmt(p2)} personen?`, (g / p1) * p2, [
@@ -987,7 +996,22 @@ const verhoudingen = {
     guideFinal: `${n1} krijgt ${a} delen: ${a} × ${k}` });
   },
   3() {
-    const t = pick(['voordelig', 'verbruik', 'mengen']);
+    const t = pick(['voordelig', 'verbruik', 'mengen', 'valuta']);
+    if (t === 'valuta') {
+      // Vreemd geld (de methode): verhoudingstabel 1 → 100 → het bedrag. Koersen zijn voorbeelden.
+      const [munt, kort, koers] = pick([['Amerikaanse dollars', 'dollar', pick([1.08, 1.12, 1.17])], ['Britse ponden', 'pond', pick([0.84, 0.86])], ['Zwitserse franken', 'frank', pick([0.94, 0.96])], ['Deense kronen', 'kroon', 7.46]]);
+      const terug = Math.random() < 0.35 && kort === 'dollar';
+      if (terug) {
+        const k2 = pick([0.85, 0.9, 0.92]), b = pick([200, 300, 400, 500, 600]);
+        return tpl('verhoudingen.3d', { ...num(`Dagkoers (voorbeeld): 1 ${kort} = ${euro(k2)}. Hoeveel euro krijg je voor ${b} ${kort}?`, k2 * b, [
+          `Verhoudingstabel: 1 ${kort} → ${euro(k2)}, 100 ${kort} → ${euro(k2 * 100)}.`, `${b} ${kort} is ${b / 100} × 100: ${b / 100} × ${euro(k2 * 100)} = ${euro(k2 * b)}.`], { money: true, visual: vtabel([[kort, 1, 100, b], ['euro', fmt(k2, 2), '', '?']]) }),
+        guide: [st(`Hoeveel euro krijg je voor 100 ${kort}?`, k2 * 100, '× 100: elk cijfer schuift 2 plekken naar links.', { money: true })], guideFinal: `${b} ${kort} is ${b / 100} × zoveel` });
+      }
+      const b = pick([200, 300, 400, 500, 600, 800]);
+      return tpl('verhoudingen.3d', { ...num(`Je gaat op reis en wisselt ${b} euro om in ${munt}. Dagkoers (voorbeeld): 1 euro = ${fmt(koers, 2)} ${kort}. Hoeveel ${kort} krijg je?`, koers * b, [
+        `Verhoudingstabel: 1 euro → ${fmt(koers, 2)} ${kort}, 100 euro → ${fmt(koers * 100)} ${kort}.`, `${b} euro is ${b / 100} × 100 euro: ${b / 100} × ${fmt(koers * 100)} = ${fmt(koers * b)} ${kort}.`], { unit: kort, visual: vtabel([['euro', 1, 100, b], [kort, fmt(koers, 2), '', '?']]) }),
+      guide: [st(`Hoeveel ${kort} krijg je voor 100 euro?`, koers * 100, '× 100: elk cijfer schuift 2 plekken naar links.', { unit: kort })], guideFinal: `${b} euro is ${b / 100} × 100 euro: ${b / 100} × ${fmt(koers * 100)}` });
+    }
     if (t === 'voordelig') {
       const hoog = rnd(12, 18) / 10, laag = round(hoog - pick([0.1, 0.2]), 2), a = pick([3, 4]), b = pick([5, 6]);
       const groteGoedkoper = Math.random() < 0.6, pa = groteGoedkoper ? hoog : laag, pb = groteGoedkoper ? laag : hoog;
@@ -999,9 +1023,14 @@ const verhoudingen = {
     }
     if (t === 'verbruik') {
       const per = pick([12, 15, 16, 18, 20]), l = rnd(15, 40);
+      // Verhoudingstabel zoals de methode: 1 → 10 → 20 liter, de rest apart (6 liter), en dan optellen (20 + 6).
+      const tien = Math.floor(l / 10) * 10, rest = l - tien;
       return tpl('verhoudingen.3b', { ...num(`Een auto rijdt 1 op ${per}: met 1 liter benzine rijdt hij ${per} km. Hoeveel liter heeft hij nodig voor ${per * l} km?`, l, [
-        `Verhoudingstabel: 1 liter → ${per} km.`, `${per * l} : ${per} = ${l}.`, `Dus ${l} liter.`], { unit: 'liter' }),
-      guide: [st(`Hoeveel km met 10 liter?`, per * 10, `10 × ${per}.`, { unit: 'km' })], guideFinal: `Hoe vaak past ${per} in ${per * l}? (tip: ${per * 10} km = 10 liter)` });
+        `Verhoudingstabel: 1 liter → ${per} km, 10 liter → ${per * 10} km, ${tien} liter → ${per * tien} km.`, ...(rest ? [`Er blijft ${per * l} − ${per * tien} = ${per * rest} km over: dat is ${rest} liter (${rest} × ${per}).`, `Samen: ${tien} + ${rest} = ${l} liter.`] : [`Dus ${l} liter.`])],
+      { unit: 'liter', visual: vtabel([['liter', 1, 10, tien, '?'], ['km', per, '', '', per * l]]) }),
+      guide: [st(`Hoeveel km met ${tien} liter?`, per * tien, `10 liter is 10 × ${per} km${tien > 10 ? `, en ${tien} liter is ${tien / 10} keer zoveel` : ''}.`, { unit: 'km' }),
+        ...(rest ? [st(`Hoeveel km moet de auto daarna nog? ${per * l} − de km van ${tien} liter = ?`, per * rest, 'Haal je vorige antwoord van de hele afstand af.', { unit: 'km' })] : [])],
+      guideFinal: rest ? `Hoeveel liter is die rest? (: ${per}) Tel die op bij de ${tien} liter` : `${tien} liter` });
     }
     const w = pick([4, 5, 6, 7]), totaalDl = (w + 1) * rnd(2, 4), ml = (totaalDl * 100) / (w + 1);
     return tpl('verhoudingen.3c', { ...num(`Limonade maak je met 1 deel siroop op ${w} delen water. Je wilt ${fmt(totaalDl / 10)} liter limonade maken. Hoeveel milliliter siroop heb je nodig?`, ml, [
@@ -1491,6 +1520,45 @@ function combinaties(level) {
   return tpl('combinaties.b', { ...num(`In de snackbar kies je een broodje (${a} soorten), een drankje (${b} soorten) en een toetje (${c} soorten). Hoeveel verschillende menu's zijn er?`, a * b * c, [`Broodje en drankje: ${a} × ${b} = ${a * b}.`, `Bij elk daarvan ${c} toetjes: ${a * b} × ${c} = ${a * b * c}.`]),
     guide: [st(`Broodje + drankje: ${a} × ${b} = ?`, a * b, 'Elk broodje met elk drankje.')], guideFinal: `Met de toetjes erbij: ${a * b} × ${c}` });
 }
+// ---------- verbanden zoals de methode: as met × 100, twee jaren/lijnen vergelijken, tijd-afstandgrafiek ----------
+function staafHonderd() {
+  const labels = ['1', '2', '3', '4'], a = labels.map(() => rnd(6, 17) * 5), b = a.map((x) => Math.max(10, x + pick([-10, -5, 5, 10, 15])));
+  const vis = { kind: 'bar', title: 'Bezoekers per kwartaal (× 100)', labels: labels.map((l) => `kw ${l}`), values: a, values2: b, names: ['jaar 1', 'jaar 2'], step: 10 };
+  const i = rnd(0, 3);
+  if (Math.random() < 0.5) return tpl('grafieken.2f', { ...num(`Kijk naar het staafdiagram (de as is × 100). Hoeveel bezoekers waren er in kwartaal ${labels[i]} van jaar 2?`, b[i] * 100, [
+    `Zoek de staaf van jaar 2 bij kwartaal ${labels[i]}: die komt tot ${b[i]}.`, `De as is × 100: ${b[i]} × 100 = ${fmt(b[i] * 100)} bezoekers.`], { visual: vis }),
+  guide: [st(`Tot welk getal op de as komt de staaf van jaar 2 bij kwartaal ${labels[i]}?`, b[i], 'Volg de bovenkant van de staaf naar links, naar de as. Tussen twee lijnen is het de helft.')], guideFinal: `De as is × 100: ${b[i]} × 100` });
+  return tpl('grafieken.2g', { ...num(`Kijk naar het staafdiagram (de as is × 100). Hoeveel bezoekers ${b[i] > a[i] ? 'meer' : 'minder'} waren er in kwartaal ${labels[i]} van jaar 2 dan in jaar 1?`, Math.abs(b[i] - a[i]) * 100, [
+    `Jaar 1: ${a[i]}, jaar 2: ${b[i]} (× 100).`, `Verschil: ${Math.abs(b[i] - a[i])} × 100 = ${fmt(Math.abs(b[i] - a[i]) * 100)}.`], { visual: vis }),
+  guide: [st(`Tot welk getal komt de staaf van jaar 1 bij kwartaal ${labels[i]}?`, a[i], 'Volg de bovenkant naar de as.'), st(`En de staaf van jaar 2?`, b[i], 'Volg de bovenkant naar de as.')], guideFinal: `Het verschil, en dan × 100` });
+}
+function lijnTweeLijnen() {
+  const labels = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun'];
+  let m, sprong, w;
+  do { let v = rnd(10, 25); m = labels.map((_, k) => (v = k === 0 ? v : v + rnd(-3, 12))); sprong = m.slice(1).map((x, k) => x - m[k]); } while (new Set(sprong).size < 5 || sprong.filter((x) => x === Math.max(...sprong)).length > 1 || Math.max(...m) > 80);
+  let v2 = rnd(25, 40); w = labels.map((_, k) => (v2 = k === 0 ? v2 : Math.max(5, v2 + rnd(-10, 8))));
+  const k = sprong.indexOf(Math.max(...sprong)), opts = sprong.map((_, j) => `${labels[j]} en ${labels[j + 1]}`);
+  return tpl('grafieken.3f', { ...choice(`Kijk naar de lijngrafiek van de bezoekers (× 100). Tussen welke twee maanden steeg het aantal mannen het meest?`, opts, k, [
+    `De lijn stijgt het meest waar hij het steilst omhoog gaat.`, ...sprong.map((x, j) => `${opts[j]}: ${x >= 0 ? '+' : ''}${x}`), `Het meest: ${opts[k]}.`],
+  { visual: { kind: 'line', title: 'Bezoekers (× 100)', labels, values: m, values2: w, names: ['mannen', 'vrouwen'], step: 10 } }),
+  guide: [stC('Waar zie je in de grafiek dat het aantal het meest steeg?', ['waar de lijn het steilst omhoog gaat', 'waar de lijn het hoogst is', 'waar de lijn het langst is'], 0, 'Steil omhoog = in één maand veel erbij.')], guideFinal: 'Zoek bij de lijn van de mannen het steilste stuk omhoog' });
+}
+function tijdAfstand() {
+  const labels = ['0', '5', '10', '15', '20', '25', '30'];
+  const v = pick([12, 18, 24]), stap = v / 12; // km per 5 minuten
+  const a = labels.map((_, k) => Math.round(k * stap * 10) / 10);
+  let b; do { b = [0]; for (let k = 1; k < 7; k++) b.push(b[k - 1] + pick([0, 1, 2, 2, 3])); } while (b[6] < 6 || b[6] === a[6]);
+  const [n1, n2] = shuffle(NAMES).slice(0, 2);
+  const vis = { kind: 'line', title: 'Afstand (km) na … minuten', labels, values: a, values2: b, names: [n1, n2], step: 2 };
+  if (Math.random() < 0.5) return tpl('grafieken.3g', { ...num(`Kijk naar de grafiek van de fietstocht. ${n1} fietst steeds even hard. Hoeveel km per uur fietst ${n1}?`, v, [
+    `Na 30 minuten is ${n1} ${fmt(a[6])} km ver.`, `1 uur = 2 × 30 minuten: 2 × ${fmt(a[6])} = ${v} km per uur.`], { unit: 'km/u', visual: vis }),
+  guide: [st(`Hoeveel km is ${n1} na 30 minuten?`, a[6], 'Kijk bij 30 minuten naar de lijn en lees links af.', { unit: 'km' })], guideFinal: `1 uur is 2 × 30 minuten: 2 × ${fmt(a[6])}` });
+  const t = rnd(2, 6);
+  return tpl('grafieken.3h', { ...num(`Kijk naar de grafiek van de fietstocht. Hoeveel km verschil was er tussen ${n1} en ${n2} na ${labels[t]} minuten?`, Math.abs(a[t] - b[t]), [
+    `${n1}: ${fmt(a[t])} km, ${n2}: ${fmt(b[t])} km.`, `Verschil: ${fmt(Math.abs(a[t] - b[t]))} km.`], { unit: 'km', visual: vis }),
+  guide: [st(`Hoeveel km is ${n1} na ${labels[t]} minuten?`, a[t], 'Zoek de minuten onderaan, ga omhoog naar de lijn en lees links af.', { unit: 'km' }), st(`En ${n2}?`, b[t], 'Dezelfde minuten, de andere lijn.', { unit: 'km' })], guideFinal: 'Het verschil: groot min klein' });
+}
+
 const grafieken = {
   0() {
     if (Math.random() < 0.35) return tpl('grafieken.0a', rij(0));
@@ -1517,6 +1585,7 @@ const grafieken = {
     guide: [st('Hoeveel boeken waren er op de drukste dag (hoogste staaf)?', mx, 'Zoek de hoogste staaf.'), st('Hoeveel boeken waren er op de rustigste dag (laagste staaf)?', mn, 'Zoek de laagste staaf.')], guideFinal: `${mx} − ${mn}` });
   },
   2() {
+    if (Math.random() < 0.2) return staafHonderd();
     if (Math.random() < 0.3) return tpl('grafieken.2a', combinaties(2));
     if (Math.random() < 0.5) {
       const n = pick([4, 5]), mean = rnd(5, 9);
@@ -1538,6 +1607,8 @@ const grafieken = {
   3() {
     const r = Math.random();
     if (r < 0.12) return gemiddeldeRekenmachine();
+    if (r < 0.2) return lijnTweeLijnen();
+    if (r < 0.28) return tijdAfstand();
     if (r < 0.3) return tpl('grafieken.3a', rij(3));
     if (r < 0.35) return tpl('grafieken.3b', combinaties(3));
     if (Math.random() < 0.5) {
@@ -1573,6 +1644,34 @@ const grafieken = {
 // =====================================================================
 const RICHTING = ['noord', 'oost', 'zuid', 'west'];
 const draai = (start, kwart) => RICHTING[(RICHTING.indexOf(start) + kwart + 40) % 4];
+// Windrichtingen (de methode): standpunt aangeven en routes beschrijven met 8 windrichtingen.
+const W8 = ['noord', 'noordoost', 'oost', 'zuidoost', 'zuid', 'zuidwest', 'west', 'noordwest'];
+const tegen = (r) => W8[(W8.indexOf(r) + 4) % 8];
+function standpunt() {
+  const r = pick(W8), kijk = tegen(r), opts = shuffle([kijk, r, W8[(W8.indexOf(kijk) + 2) % 8], W8[(W8.indexOf(kijk) + 6) % 8]]);
+  return tpl('meetkunde.1f', { ...choice(`Je staat ten ${r}en van een huis en maakt een foto van het huis. Naar welke windrichting kijk je?`, opts, opts.indexOf(kijk), [
+    `Je staat aan de ${r}kant van het huis.`, `Om het huis te zien kijk je terug, de andere kant op: naar het ${kijk}en.`]),
+  guide: [stC('Je kijkt naar het huis. Is dat dezelfde kant op als waar je staat, of de tegenovergestelde kant?', ['de tegenovergestelde kant', 'dezelfde kant'], 0, 'Teken het huis met jou ernaast en een pijl naar het huis.')], guideFinal: `Wat is het tegenovergestelde van ${r}? (Kijk op de windroos)` });
+}
+function routeWind() {
+  const [ns, ow] = [pick(['noord', 'zuid']), pick(['oost', 'west'])], a = rnd(2, 5), b = rnd(1, 4), m = pick([10, 20, 25, 50]), n = pick(NAMES);
+  const t = pick(['richting', 'meter', 'terug']);
+  const route = `${n} loopt van huis ${a * m} m naar het ${ns}en en daarna ${b * m} m naar het ${ow}en, naar de bushalte.`;
+  if (t === 'meter') return tpl('meetkunde.2g', { ...num(`Op de kaart is elk hokje ${m} m. ${n} loopt van huis ${a} hokjes naar het ${ns}en en dan ${b} hokjes naar het ${ow}en. Hoeveel meter loopt ${n}?`, (a + b) * m, [
+    `Samen ${a} + ${b} = ${a + b} hokjes.`, `${a + b} × ${m} = ${(a + b) * m} m.`], { unit: 'm' }),
+  guide: [st(`Hoeveel hokjes loopt ${n} samen?`, a + b, 'Tel de hokjes van beide stukken op.')], guideFinal: `Elk hokje is ${m} m: ${a + b} × ${m}` });
+  if (t === 'terug') {
+    const opts = ['noord', 'oost', 'zuid', 'west'];
+    return tpl('meetkunde.2h', { ...choice(`${route} Later loopt ${n} dezelfde weg terug naar huis. Welke kant loopt ${n} als eerste op?`, opts, opts.indexOf(tegen(ow)), [
+      `Terug doe je de route achterstevoren: eerst het laatste stuk, en dan de andere kant op.`, `Het laatste stuk was naar het ${ow}en, dus terug eerst naar het ${tegen(ow)}en.`, `Daarna ${a * m} m naar het ${tegen(ns)}en.`]),
+    guide: [stC('Welk stuk van de route loop je als eerste terug?', ['het laatste stuk', 'het eerste stuk'], 0, 'Denk aan je stappen achteruit zetten.')], guideFinal: `Het laatste stuk was naar het ${ow}en. Wat is de andere kant op?` });
+  }
+  const goed = `${ns}${ow}`, opts = shuffle([goed, `${tegen(ns)}${ow}`, `${ns}${tegen(ow)}`, `${tegen(ns)}${tegen(ow)}`]);
+  return tpl('meetkunde.2f', { ...choice(`${route} In welke richting ligt de bushalte, vanaf het huis gezien?`, opts, opts.indexOf(goed), [
+    `${n} gaat naar het ${ns}en én naar het ${ow}en.`, `Tussen ${ns} en ${ow} ligt ${goed}.`]),
+  guide: [stC(`Naar welke twee windrichtingen gaat ${n}?`, [`${ns} en ${ow}`, `${tegen(ns)} en ${tegen(ow)}`], 0, 'Lees de route nog eens.')], guideFinal: 'Welke windrichting ligt daar precies tussenin? (Kijk op de windroos)' });
+}
+
 const meetkunde = {
   0() {
     const t = pick(['hoeken', 'richting', 'figuur', 'samen', 'samen', 'route']);
@@ -1607,7 +1706,8 @@ const meetkunde = {
     return tpl('meetkunde.0e', { ...choice(vraag, opts, opts.indexOf(goed), [WAT[goed], ...opts.filter((o) => o !== goed).map((o) => WAT[o]), `Dus: ${goed}.`]), guide: [], guideFinal: null });
   },
   1() {
-    const t = pick(['soorthoek', 'soorthoek', 'soorthoek', 'symmetrie', 'kubus', 'draai180']);
+    const t = pick(['soorthoek', 'soorthoek', 'soorthoek', 'symmetrie', 'kubus', 'draai180', 'standpunt']);
+    if (t === 'standpunt') return standpunt();
     if (t === 'soorthoek') {
       const [g, soort] = pick([[rnd(15, 80), 'scherpe hoek'], [90, 'rechte hoek'], [rnd(100, 170), 'stompe hoek'], [180, 'gestrekte hoek']]);
       const opts = ['scherpe hoek', 'rechte hoek', 'stompe hoek', 'gestrekte hoek'];
@@ -1630,7 +1730,8 @@ const meetkunde = {
       guide: [st('Hoeveel kwartslagen is een halve slag?', 2, 'Een kwartslag is 90°. Hoeveel keer 90° is 180°?')], guideFinal: `Twee stappen verder vanaf ${start}` });
   },
   2() {
-    const t = pick(['driehoek', 'klok', 'vierhoek', 'kwartslagen']);
+    const t = pick(['driehoek', 'klok', 'vierhoek', 'kwartslagen', 'route']);
+    if (t === 'route') return routeWind();
     if (t === 'driehoek') {
       const a = rnd(30, 80), b = rnd(30, 150 - a);
       return tpl('meetkunde.2a', { ...num(`In een driehoek is één hoek ${a}° en een andere hoek ${b}°. Hoe groot is de derde hoek?`, 180 - a - b, ['De drie hoeken van een driehoek zijn samen altijd 180°.', `${a} + ${b} = ${a + b}`, `180 − ${a + b} = ${180 - a - b}°`], { unit: '°' }),

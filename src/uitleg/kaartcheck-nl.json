@@ -860,19 +860,6 @@
    ],
    "concreter": "Teken evenveel vakjes als er delen samen zijn."
   },
-  "verhoudingen.3b": {
-   "naam": "Verbruik (1 op …)",
-   "aanpak": [
-    "Lees af hoeveel km bij 1 liter hoort.",
-    "Deel de totale afstand door het aantal km per liter.",
-    "Noteer het antwoord in liters."
-   ],
-   "model": "Verhoudingstabel met twee rijen: kilometers en liters. Bij 1 liter hoort het aantal km uit de som; deel de totale afstand door dat aantal.",
-   "valkuilen": [
-    "Vermenigvuldigen in plaats van delen → bedenk hoeveel keer de afstand per liter in de totale afstand past."
-   ],
-   "concreter": "Begin met: 1 liter rijdt … km. Vraag daarna hoe vaak die afstand in de totale afstand past."
-  },
   "verhoudingen.3c": {
    "naam": "Mengverhouding: één deel siroop en water",
    "aanpak": [

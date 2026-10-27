@@ -371,7 +371,7 @@ const completeLeraar = (kind, messages, opts) => complete(LERAAR_VAST(), metKind
 export function describeQuestion(q) {
   let s = `Som: ${q.text}`;
   if (q.options) s += `\nKeuzes: ${q.options.join(' | ')}`;
-  if ((q.visual?.kind === 'bar' || q.visual?.kind === 'line') && Array.isArray(q.visual.labels)) s += `\nGrafiek "${q.visual.title}": ${q.visual.labels.map((l, i) => `${l}=${q.visual.values?.[i]}`).join(', ')}`;
+  if ((q.visual?.kind === 'bar' || q.visual?.kind === 'line') && Array.isArray(q.visual.labels)) s += `\nGrafiek "${q.visual.title}"${q.visual.values2 ? ` (${q.visual.names?.[0] || 'reeks 1'})` : ''}: ${q.visual.labels.map((l, i) => `${l}=${q.visual.values?.[i]}`).join(', ')}${q.visual.values2 ? `; ${q.visual.names?.[1] || 'reeks 2'}: ${q.visual.labels.map((l, i) => `${l}=${q.visual.values2[i]}`).join(', ')}` : ''}`;
   else if (q.visual?.kind === 'line') s += `\nTekening: getallenlijn van ${q.visual.from} tot ${q.visual.to}${q.visual.ticks ? ` (streepjes bij ${q.visual.ticks.join(', ')})` : ''}${q.visual.mark != null ? `, met een pijltje bij ${q.visual.mark}` : ''}${q.visual.unit ? ` (${q.visual.unit})` : ''}`;
   if (q.visual?.kind === 'pie') s += `\nCirkeldiagram: ${q.visual.labels.map((l, i) => `${l} ${q.visual.values[i]}%`).join(', ')}`;
   if (q.visual?.kind === 'table') s += `\nTabel: ${JSON.stringify({ kop: q.visual.headers, rijen: q.visual.rows })}`;
