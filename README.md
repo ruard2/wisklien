@@ -97,8 +97,15 @@ voorbeelden, "Zo doe je het" en Meester Max volgen allemaal dezelfde aanpak en d
 - **Handelingsmodel**: eerst betekenis (geld, meten), dan een model (getallenlijn, strook, positieschema,
   verhoudingstabel), dan de kale som. Lukt het niet: één niveau concreter, daarna terugkoppelen naar de som.
 - **Schatten** (= met ronde getallen ongeveer uitrekenen) is een controle achteraf, nooit een onuitgelegde eerste stap.
-  Alleen bij kommagetal × kommagetal (groep 8) om de komma te plaatsen, en dan altijd uitgelegd en met keuzes.
-- **Procenten** via de ankers 50% / 25% / 10% / 5% en de strook; de 1%-regel pas als het niet anders kan.
+  Alleen bij kommagetal × kommagetal (groep 8) om de komma te plaatsen en bij de rekenmachine-sommen, en dan altijd
+  uitgelegd en met keuzes.
+- **Procenten** via de ankers 50% / 25% / 10% / 5% en de strook, gekoppeld aan breuk, kommagetal en "1 op de …";
+  "hoeveel procent" via "welk deel is het?"; meer dan 100% (nu 25% meer); via 1% bij lastige procenten (7% van € 640).
+- **Rekenmachine**: sommen met `rekenmachine: true` (kassabon, contextsom in stappen, gemiddelde, via 1%) tonen een
+  knop 🧮 met een gewone rekenmachine (ON/C, %, punt in plaats van komma). Eerst schatten, dan intoetsen, dan
+  kijken of het kan kloppen.
+- **Meten en tijd** zoals de methode: schaal via "hoeveel meter is 1 cm" en de verhoudingstabel, maten eerst gelijk maken
+  vóór optellen, m²-trap (are, hectare), blokjes van 1 dm³, tijdsduur met sprongen op de tijdlijn.
 - **Kommagetallen** via geld en het positieschema: 27,6 : 6 = € 27,60 eerlijk verdelen (eerst euro's, dan centen);
   × 10 = het getal wordt 10 keer zo groot (elk cijfer schuift één plek).
 - **Lessen van Max** volgen een instructie zoals op school: voorkennis → betekenis (met plaatje) → voordoen →

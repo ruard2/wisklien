@@ -55,6 +55,12 @@ export function misconceptionsFor(q) {
     out.push(W(+m[1] * 10, `Je hebt 1 ${m[2]} als 10 gram genomen.`, m[2] === 'pond' ? 'Een pond is een halve kilo: 500 gram.' : 'Een ons is een hectogram: 100 gram (trap kg – hg – dag – g).'));
     if (m[2] === 'pond') out.push(W(+m[1] * 1000, 'Je hebt 1 pond als een hele kilo genomen.', 'Een pond is een halve kilo: 500 gram.'));
   }
+  // --- via 1%: niet door 100 gedeeld, of door het procent gedeeld ---
+  if ((m = t.match(/kost €\s?([\d.,\s ]+)\. Je betaalt (\d+)% aanbetaling/))) {
+    const [B, p] = [n(m[1].replace(/\./g, '')), +m[2]];
+    out.push(W(round(B * p), 'Je hebt keer het procent gedaan, maar niet eerst door 100 gedeeld.', 'Procent is van de 100: reken eerst 1% uit (deel door 100), en doe dat dan keer het procent.'));
+    out.push(W(round(B / p, 2), 'Je hebt gedeeld door het procent.', 'Deel door 100 om 1% te krijgen, en doe dat dan keer het procent.'));
+  }
   // --- prijs bij een gewicht: cent als euro geschreven ---
   if (/^1 kilo .* kost €\s?[\d,]+\. Hoeveel kost \d+ gram\?$/.test(t) && typeof q.answer === 'number') {
     out.push(W(round(q.answer * 100), 'Je hebt het bedrag in cent als euro’s geschreven.', 'Je rekende in cent. 100 cent is 1 euro: zet het terug naar euro (met de komma).'));

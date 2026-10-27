@@ -649,19 +649,6 @@
    ],
    "concreter": "Schrijf de oude prijs, de verhoging en de nieuwe prijs als geldbedragen op."
   },
-  "procenten.3c": {
-   "naam": "Hoeveel procent korting?",
-   "aanpak": [
-    "Bereken de korting in euro: oude prijs − nieuwe prijs.",
-    "Bereken 10% van de oude prijs en daarna 5%.",
-    "Kijk hoe vaak 5% in de korting past; dat aantal keer 5% is het kortingspercentage."
-   ],
-   "model": "Procentenstrook: de oude prijs is 100%; laat zien hoeveel euro 5% is en hoeveel van die stukken de korting is.",
-   "valkuilen": [
-    "Een kortingsbedrag in euro verwarren met het kortingspercentage → vergelijk het bedrag met 5% van de oude prijs."
-   ],
-   "concreter": "Reken eventueel eerst met een klein voorbeeld, bijv. van € 20 naar € 18: de korting is € 2, oftewel 10%."
-  },
   "procenten.3e": {
    "naam": "Het geheel uit een deel (25% is bekend)",
    "aanpak": [

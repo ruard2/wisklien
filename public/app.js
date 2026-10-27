@@ -1525,7 +1525,8 @@ function drawAnswer() {
   } else {
     area.innerHTML = `${answerBox(S.input, q.unit, q.money)}
       ${q.type === 'fraction' ? `<p class="small muted" style="margin-top:6px;text-align:center">${t('Breuk: 3/4 · Gemengd getal: 2 spatie 1/2')}</p>` : ''}
-      ${q.type === 'time' ? `<p class="small muted" style="margin-top:6px;text-align:center">${t('Schrijf zo: 14:45')}</p>` : ''}`;
+      ${q.type === 'time' ? `<p class="small muted" style="margin-top:6px;text-align:center">${t('Schrijf zo: 14:45')}</p>` : ''}
+      ${c.calc?.open ? `<div id="calc">${calcPanel(c.calc)}</div>` : ''}`;
     controls.innerHTML = keypad(q.type, t('Controleer'), !!S.input) + helpRow();
     controls.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => keyPress(b.dataset.k)));
   }
@@ -1535,6 +1536,41 @@ function drawAnswer() {
   controls.querySelector('[data-guide]')?.addEventListener('click', startGuide);
   controls.querySelector('[data-ask]')?.addEventListener('click', () => openTeacher());
   controls.querySelector('[data-dunno]')?.addEventListener('click', dontKnow);
+  controls.querySelector('[data-calc]')?.addEventListener('click', () => { c.calc = { ...(c.calc || calcNieuw()), open: !c.calc?.open }; drawAnswer(); });
+  bindCalc(c);
+}
+
+// ---- Rekenmachine (zoals de methode: eerst schatten, dan intoetsen). Een gewone rekenmachine: punt in plaats van komma. ----
+const calcNieuw = () => ({ open: false, disp: '0', acc: null, op: null, fresh: true });
+const CALC_KEYS = ['C', '%', ':', '×', '7', '8', '9', '−', '4', '5', '6', '+', '1', '2', '3', '=', '0', '.'];
+function calcPanel(k) {
+  return `<div class="calc"><div class="calc-disp">${esc(k.disp)}</div><div class="calc-keys">${CALC_KEYS.map((x) => `<button class="key ${/[0-9.]/.test(x) ? '' : 'fn'} ${x === '0' ? 'wide' : ''}" data-ck="${x}">${x === 'C' ? 'ON/C' : x}</button>`).join('')}</div>
+    <p class="small muted" style="margin:6px 0 0;text-align:center">${t('Let op: de rekenmachine schrijft een punt, wij schrijven een komma.')}</p></div>`;
+}
+function calcReken(a, op, b) {
+  const r = op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : b === 0 ? NaN : a / b;
+  return r;
+}
+function calcToon(r) {
+  if (!Number.isFinite(r)) return 'E';
+  const s = String(Math.round(r * 1e8) / 1e8);
+  return s.length > 12 ? r.toPrecision(10).replace(/\.?0+$/, '') : s;
+}
+function calcKey(k, x) {
+  const n = Number(k.disp);
+  if (/[0-9]/.test(x)) { k.disp = k.fresh || k.disp === '0' ? x : (k.disp + x).slice(0, 12); k.fresh = false; return; }
+  if (x === '.') { if (k.fresh) { k.disp = '0.'; k.fresh = false; } else if (!k.disp.includes('.')) k.disp += '.'; return; }
+  if (x === 'C') { Object.assign(k, calcNieuw(), { open: true }); return; }
+  if (x === '%') { k.disp = calcToon(k.op === '×' ? (k.acc * n) / 100 : n / 100); k.acc = null; k.op = null; k.fresh = true; return; }
+  if (x === '=') { if (k.op != null) { k.disp = calcToon(calcReken(k.acc, k.op, n)); k.acc = null; k.op = null; } k.fresh = true; return; }
+  // + − × :
+  if (k.op != null && !k.fresh) k.disp = calcToon(calcReken(k.acc, k.op, n));
+  k.acc = Number(k.disp); k.op = x; k.fresh = true;
+}
+function bindCalc(c) {
+  const box = $app.querySelector('#calc');
+  if (!box) return;
+  box.querySelectorAll('[data-ck]').forEach((b) => (b.onclick = () => { calcKey(c.calc, b.dataset.ck); box.innerHTML = calcPanel(c.calc); bindCalc(c); }));
 }
 // Na afraffelen: de knop werkt pas na een paar seconden, met aftellen (eerst rustig lezen)
 function thinkPause(btn) {
@@ -1562,6 +1598,7 @@ function helpRow() {
   }
   if (q.hasSteps && !q.noHelp && !c.guided) btns.push(`<button class="btn ghost" data-hint ${S.hintMore === false || (c.hints || []).length >= (c.hintCount || 99) ? 'disabled' : ''}>💡 ${(c.hints || []).length ? t('Nog een hint') : t('Hint')}</button>`);
   if (STATE?.ai && !q.noHelp) btns.push(`<button class="btn ghost" data-ask>🧑‍🏫 ${t('Vraag {m}', { m: esc(STATE.teacher || 'de meester') })}</button>`);
+  if (q.rekenmachine) btns.push(`<button class="btn ghost" data-calc>🧮 ${c.calc?.open ? t('Rekenmachine weg') : t('Rekenmachine')}</button>`);
   btns.push(`<button class="btn ghost" data-dunno>🤷 ${t('Weet ik niet')}</button>`);
   return `<div class="help-row">${btns.join('')}</div>`;
 }

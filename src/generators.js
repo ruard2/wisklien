@@ -368,6 +368,40 @@ const delen = {
   },
 };
 
+// ---------- de rekenmachine (zoals de methode): eerst schatten, dan intoetsen, dan kijken of het kan kloppen ----------
+// De app toont bij deze sommen een rekenmachine (q.rekenmachine). Die schrijft een punt waar wij een komma schrijven.
+function kassabon() {
+  const n = rnd(2, 3);
+  let bedragen; do { bedragen = Array.from({ length: n }, () => rnd(150, 1499)); } while (bedragen.some((c) => [0, 50].includes(c % 100) || Math.abs((c % 100) - 50) < 8));
+  const tot = bedragen.reduce((a, b) => a + b, 0), schat = bedragen.reduce((a, c) => a + Math.round(c / 100), 0);
+  const opts = [`€ ${schat}`, `€ ${fmt(schat / 10, 2)}`, `€ ${schat * 10}`];
+  return tpl('kommagetallen.2k', { ...num(`Op de kassabon staan: ${bedragen.slice(0, -1).map((c) => euro(c / 100)).join(', ')} en ${euro(bedragen[n - 1] / 100)}. Hoeveel moet je samen betalen?`, tot / 100, [
+    `Schat eerst: rond af op hele euro's: ${bedragen.map((c) => Math.round(c / 100)).join(' + ')} = € ${schat}.`, `Reken precies uit (mag met de rekenmachine): ${bedragen.map((c) => fmt(c / 100, 2)).join(' + ')} = ${fmt(tot / 100, 2)}.`, `Kan het kloppen? ${euro(tot / 100)} ligt dicht bij € ${schat}.`],
+  { money: true, rekenmachine: true }),
+  guide: [stC(`Schat eerst (rond af op hele euro's). Welk bedrag past?`, opts, 0, 'Rond elk bedrag af op hele euro’s en tel die op.')],
+  guideFinal: `Reken nu precies uit (mag met de rekenmachine; die schrijft een punt in plaats van een komma). Klopt het met je schatting?` });
+}
+// Contextsom met meer stappen (de methode): wat weet je, wat reken je eerst uit, welke bewerking?
+function kassabonTerug() {
+  const [a, b, b1] = pick([['pennen', 'tassen', 'tas'], ['schriften', 'mappen', 'map'], ['broodjes', 'pakken sap', 'pak sap'], ['tennisballen', 'petten', 'pet']]);
+  const ka = rnd(3, 5), pa = rnd(9, 49) * 10 + 5, kb = rnd(2, 4), pb = rnd(25, 120) * 5, tot = ka * pa + kb * pb;
+  return tpl('kommagetallen.3k', { ...num(`Je koopt ${ka} ${a} van ${euro(pa / 100)} per stuk en ${kb} ${b}. Je betaalt samen ${euro(tot / 100)}. Wat kost 1 ${b1}?`, pb / 100, [
+    `Wat weet je? De prijs van de ${a} en het totaal.`, `Eerst de ${a}: ${ka} × ${fmt(pa / 100, 2)} = ${fmt((ka * pa) / 100, 2)}.`, `Dan de ${b} samen: ${fmt(tot / 100, 2)} − ${fmt((ka * pa) / 100, 2)} = ${fmt((kb * pb) / 100, 2)}.`, `Eén: ${fmt((kb * pb) / 100, 2)} : ${kb} = ${fmt(pb / 100, 2)}.`],
+  { money: true, rekenmachine: true }),
+  guide: [st(`Wat kosten de ${ka} ${a} samen? ${ka} × ${euro(pa / 100)} = ?`, (ka * pa) / 100, 'Keer (mag met de rekenmachine).', { money: true }),
+    st(`Wat kosten de ${kb} ${b} samen? Haal de ${a} van het totaal af.`, (kb * pb) / 100, 'Totaal min de ' + a + '.', { money: true })],
+  guideFinal: `Wat kost er één? Deel door ${kb}` });
+}
+// Gemiddelde met de rekenmachine (de methode): alles optellen, dan delen door het aantal.
+function gemiddeldeRekenmachine() {
+  const n = pick([4, 5]), vals = Array.from({ length: n }, () => rnd(130, 162)), som = vals.reduce((a, b) => a + b, 0);
+  const namen = shuffle(NAMES).slice(0, n);
+  return tpl('grafieken.3e', { ...num(`Hoe lang zijn deze kinderen gemiddeld? ${namen.map((x, i) => `${x}: ${vals[i]} cm`).join(', ')}.`, som / n, [
+    `Tel alle lengtes op: ${vals.join(' + ')} = ${som}.`, `Deel door het aantal kinderen: ${som} : ${n} = ${fmt(som / n)} cm.`, 'Kan het kloppen? Het gemiddelde ligt tussen de kleinste en de grootste lengte.'],
+  { unit: 'cm', rekenmachine: true, visual: { kind: 'table', headers: ['naam', 'lengte (cm)'], rows: namen.map((x, i) => [x, vals[i]]) } }),
+  guide: [st(`Tel alle lengtes op (mag met de rekenmachine): ${vals.join(' + ')} = ?`, som, 'Toets ze één voor één in, met + ertussen.', { unit: 'cm' })], guideFinal: `Deel door het aantal kinderen: ${som} : ${n}` });
+}
+
 const kommagetallen = {
   0() {
     if (Math.random() < 0.5) {
@@ -403,7 +437,8 @@ const kommagetallen = {
       guide: [st(`Eerst de helen eraf: ${a} − ${hb} = ?`, a - hb, 'Alleen het getal vóór de komma.')], guideFinal: `Nu nog ${fmt(b - hb, 2)} eraf: ${a - hb} − ${fmt(b - hb, 2)}` });
   },
   2() {
-    const t = pick(['tien', 'geld', 'deel']);
+    const t = pick(['tien', 'geld', 'deel', 'bon']);
+    if (t === 'bon') return kassabon();
     if (t === 'tien') {
       const m = pick([10, 100, 1000]), z = String(m).length - 1;
       if (Math.random() < 0.5) {
@@ -446,6 +481,7 @@ const kommagetallen = {
     guideFinal: `Iedereen krijgt € ${heel} en ${restC / d} cent. Schrijf dat als kommagetal (euro's vóór de komma)` });
   },
   3() {
+    if (Math.random() < 0.2) return kassabonTerug();
     if (Math.random() < 0.5) {
       // geen getallen die op ,5 eindigen: dan is "ongeveer" verwarrend (2,5 ligt precies tussen 2 en 3)
       let ai, bi; do { ai = rnd(15, 95); bi = rnd(12, 49); } while ([0, 5].includes(ai % 10) || [0, 5].includes(bi % 10));
@@ -739,6 +775,54 @@ const breuken = {
   },
 };
 
+// ---------- procenten volgens de methode (strook, breuk, kommagetal, via 1%) ----------
+// Procent koppelen aan breuk, kommagetal en "1 op de …" (25% = 1/4 = 0,25 = 1 op de 4).
+function procentKoppelen() {
+  const [p, n, d] = pick([[25, 1, 4], [50, 1, 2], [75, 3, 4], [10, 1, 10], [20, 1, 5], [40, 2, 5], [5, 1, 20], [30, 3, 10], [60, 3, 5]]);
+  const kg = p / 100;
+  const vis = vtabel([['%', 0, p, 100], ['deel', 0, '?', 1]]);
+  const v = pick(n === 1 ? ['komma', 'opde', 'terug'] : ['komma', 'terug']);
+  if (v === 'komma') return tpl('procenten.1c', { ...num(`Welk kommagetal hoort bij ${p}%?`, kg, [`${p}% = ${p}/100 = ${n}/${d} deel.`, `${p} honderdsten = ${fmt(kg)}.`], { visual: vis }),
+    guide: [st(`${p}% is ${p} van de 100. Hoeveel honderdsten is dat?`, p, 'Procent betekent: van de 100.', { unit: 'honderdsten' })], guideFinal: `Schrijf ${p} honderdsten als kommagetal (0,01 is één honderdste)` });
+  if (v === 'opde') return tpl('procenten.1d', { ...num(`${p}% is 1 op de ... (vul in)`, d, [`${p}% = ${p}/100 = 1/${d} deel.`, `Dus 1 op de ${d}.`]),
+    guide: [st(`Hoe vaak past ${p} in 100?`, d, `${p} × ? = 100`)], guideFinal: `${p}% is 1 van elke ... ` });
+  return tpl('procenten.1e', { ...num(`${fmt(kg)} is hoeveel procent?`, p, [`${fmt(kg)} = ${p} honderdsten = ${p}/100.`, `Dus ${p}%.`], { unit: '%' }),
+    guide: [st(`Hoeveel honderdsten is ${fmt(kg)}?`, p, 'Kijk naar het tweede cijfer achter de komma: de honderdsten. 0,1 is 10 honderdsten.', { unit: 'honderdsten' })], guideFinal: `Procent = honderdsten: ${p}/100 = ...%` });
+}
+// Hoeveel procent bij grotere aantallen (500 bezoekers, 125 met de trein): de procentstrook / welk deel.
+function procentVanGroot() {
+  const totaal = pick([200, 400, 500, 800, 1000, 600]), p = pick([5, 10, 20, 25, 50, 75]), deel = (totaal * p) / 100;
+  const wie = pick([['bezoekers', 'kwamen met de trein'], ['leerlingen', 'gaan op de fiets naar school'], ['fans', 'droegen een oranje shirt'], ['lopers', 'liepen de 5 km']]);
+  const breukRoute = [25, 50, 75, 20].includes(p);
+  const opts = ['3/4 deel', '1/2 deel', '1/4 deel', '1/5 deel'];
+  const br = { 25: '1/4 deel', 50: '1/2 deel', 75: '3/4 deel', 20: '1/5 deel' }[p];
+  return tpl('procenten.2e', { ...num(`Er zijn ${fmt(totaal)} ${wie[0]}. ${fmt(deel)} ${wie[0]} ${wie[1]}. Hoeveel procent is dat?`, p, [
+    `${fmt(totaal)} ${wie[0]} is 100%.`, breukRoute ? `${fmt(deel)} is ${br} van ${fmt(totaal)}.` : `10% van ${fmt(totaal)} = ${fmt(totaal / 10)}${p === 5 ? `, en 5% is de helft: ${fmt(totaal / 20)}` : ''}.`, `Dus ${p}%.`],
+  { unit: '%', visual: vtabel([[wie[0], fmt(totaal), fmt(deel)], ['%', 100, '?']]) }),
+  guide: breukRoute ? [stC(`Welk deel van ${fmt(totaal)} is ${fmt(deel)}?`, opts, opts.indexOf(br), `Denk aan de strook: de helft van ${fmt(totaal)} is ${fmt(totaal / 2)}.`)]
+    : [st(`Wat is 10% van ${fmt(totaal)}?`, totaal / 10, 'Deel door 10.')],
+  guideFinal: breukRoute ? `${br} is hoeveel procent?` : p === 5 ? `${fmt(deel)} is de helft van 10%` : `${fmt(deel)} is hoeveel keer 10%?` });
+}
+// Procenten boven 100% (de methode): "nu 25% meer" → 25% van de oude hoeveelheid erbij.
+function procentMeer() {
+  const p = pick([10, 20, 25, 50]), [wat, unit] = pick([['Een zak chips', 'g'], ['Een fles shampoo', 'ml'], ['Een pak hagelslag', 'g'], ['Een fles limonade', 'ml']]);
+  const oud = p === 25 ? pick([200, 400, 600, 800]) : p === 50 ? pick([150, 250, 300, 500]) : pick([250, 300, 500, 750]), bij = (oud * p) / 100;
+  const g = p === 25 ? [st(`25% is 1/4 deel. Hoeveel is 1/4 van ${oud} ${unit}?`, bij, 'Deel door 4.', { unit })] : p === 50 ? [st(`50% is de helft. Hoeveel is de helft van ${oud} ${unit}?`, bij, 'Deel door 2.', { unit })]
+    : [st(`10% van ${oud} ${unit} = ?`, oud / 10, 'Deel door 10.', { unit }), ...(p === 20 ? [st(`20% is 2 × 10%. Hoeveel ${unit} is dat?`, bij, 'Twee keer zoveel.', { unit })] : [])];
+  return tpl('procenten.3h', { ...num(`${wat} had een inhoud van ${oud} ${unit}. Nu zit er ${p}% meer in. Hoeveel ${unit} zit er nu in?`, oud + bij, [
+    `De oude inhoud is 100%. Er komt ${p}% bij: samen ${100 + p}%.`, `${p}% van ${oud} = ${bij} ${unit}.`, `${oud} + ${bij} = ${oud + bij} ${unit}.`], { unit, visual: vtabel([['%', 100, p, 100 + p], [unit, oud, '?', '?']]) }),
+  guide: g, guideFinal: `Tel het erbij op: ${oud} + ${bij}` });
+}
+// Via 1% (de methode, ook met de rekenmachine): 7% van € 640 → 1% = € 6,40 → 7 × € 6,40.
+function procentViaEen() {
+  const p = pick([3, 4, 6, 7, 8, 9, 12, 14, 18, 21]), base = pick([640, 320, 450, 780, 1200, 960, 850, 1500, 2400]), een = base / 100;
+  const item = pick(['Een laptop', 'Een fiets', 'Een vakantie', 'Een bank', 'Een tv']);
+  return tpl('procenten.3i', { ...num(`${item} kost ${euro(base)}. Je betaalt ${p}% aanbetaling. Hoeveel euro is dat?`, (base * p) / 100, [
+    `Reken via 1%: 1% van ${euro(base)} = ${euro(base)} : 100 = ${euro(een)}.`, `${p}% = ${p} × ${euro(een)} = ${euro((base * p) / 100)}.`, `Met de rekenmachine: ${fmt(base)} : 100 = ${fmt(een)}, en dan ${p} × ${fmt(een)}.`],
+  { money: true, rekenmachine: true, visual: vtabel([['%', 100, 1, p], ['euro', fmt(base), '?', '?']]) }),
+  guide: [st(`Reken via 1%: 1% van ${euro(base)} = ? (deel door 100)`, een, 'Elk cijfer schuift 2 plekken naar rechts.', { money: true })], guideFinal: `${p}% = ${p} × ${euro(een)} (mag met de rekenmachine)` });
+}
+
 const procenten = {
   0() {
     const t = pick(['helft', 'tien', 'heel']);
@@ -762,13 +846,15 @@ const procenten = {
       guide: [stF(`${p}% is welke breuk?`, br, `${p}% = ${p}/100. Vereenvoudig.`), ...(p === 75 ? [st(`1/4 van ${base} = ?`, base / 4, 'Deel door 4.')] : [])],
       guideFinal: p === 75 ? `3/4 van ${base} = 3 × ${base / 4}` : `${base} : ${br[1]}` });
     }
+    if (Math.random() < 0.4) return procentKoppelen();
     const [b, p] = pick([['1/2', 50], ['1/4', 25], ['3/4', 75], ['1/5', 20], ['7/10', 70], ['2/5', 40], ['3/10', 30], ['9/10', 90], ['3/5', 60], ['4/5', 80]]);
     const [bn, bd] = b.split('/').map(Number);
     return tpl('procenten.1b', { ...num(`${b} deel is hoeveel procent?`, p, [`Procent betekent "van de 100".`, `Maak de noemer 100: ${b} = ${p}/100 = ${p}%.`], { unit: '%' }),
       guide: [st(`Maak de noemer 100: ${bd} × ? = 100`, 100 / bd, 'Hoe vaak past de noemer in 100?'), st(`Doe de teller ook keer ${100 / bd}: ${bn} × ${100 / bd} = ?`, p, 'Teller en noemer allebei.')], guideFinal: `${p}/100 = ...%` });
   },
   2() {
-    const t = pick(['vanX', 'korting', 'hoeveel']);
+    const t = pick(['vanX', 'korting', 'hoeveel', 'hoeveel']);
+    if (t === 'hoeveel' && Math.random() < 0.5) return procentVanGroot();
     if (t === 'vanX') {
       const p = pick([15, 30, 35, 45, 60]), base = rnd(2, 16) * 20;
       const g = [st(`Eerst 10% van ${base} = ?`, base / 10, '10% = deel door 10.')];
@@ -795,7 +881,9 @@ const procenten = {
     guideFinal: Number.isInteger(100 / totaal) ? `${p}/100 = ...%` : `Zoveel keer 10%` });
   },
   3() {
-    const t = pick(['welkpct', 'totaal', 'oud', 'omhoog']);
+    const t = pick(['welkpct', 'totaal', 'oud', 'omhoog', 'meer', 'een', 'een']);
+    if (t === 'meer') return procentMeer();
+    if (t === 'een') return procentViaEen();
     if (t === 'omhoog') {
       const p = pick([5, 10, 15, 20]), oud = rnd(2, 15) * 20, bij = (oud * p) / 100;
       return tpl('procenten.3a', { ...num(`Een abonnement kost € ${oud} per jaar. Volgend jaar wordt het ${p}% duurder. Wat is de nieuwe prijs?`, oud + bij, [
@@ -804,8 +892,17 @@ const procenten = {
       guideFinal: `Duurder: tel het erbij op` });
     }
     if (t === 'welkpct') {
-      const oud = rnd(4, 16) * 20, p = pick([5, 15, 20, 25, 35]), nieuw = oud - (oud * p) / 100;
+      const oud = rnd(4, 16) * 20, p = pick([5, 15, 20, 25, 35, 25, 50]), nieuw = oud - (oud * p) / 100;
       if (!Number.isInteger(nieuw)) return tpl('procenten.3b', procenten[3]());
+      if ([20, 25, 50].includes(p)) {
+        // Zoals de methode (S): korting in euro, dan "welk deel van de oude prijs is dat?" → breuk → procent.
+        const d = 100 / p, k = oud - nieuw, item = pick(['Een spelcomputer', 'Een game', 'Een fiets', 'Een paar schoenen']);
+        return tpl('procenten.3c', { ...num(`${item} kostte € ${oud}. Nu kost ${item.startsWith('Een paar') ? 'het' : 'hij'} € ${nieuw}. Hoeveel procent korting is dat?`, p, [
+          `Korting in euro: ${oud} − ${nieuw} = ${k}.`, `Welk deel van € ${oud} is € ${k}? ${k} × ${d} = ${oud}, dus 1/${d} deel.`, `1/${d} deel = ${p}%.`], { unit: '%' }),
+        guide: [st(`Hoeveel euro korting is het? ${oud} − ${nieuw} = ?`, k, 'Oude prijs min nieuwe prijs.', { money: true }),
+          stC(`Welk deel van € ${oud} is die korting?`, ['1/2 deel', '1/4 deel', '1/5 deel', '1/10 deel'], ['1/2 deel', '1/4 deel', '1/5 deel', '1/10 deel'].indexOf(`1/${d} deel`), `Hoe vaak past de korting in € ${oud}?`)],
+        guideFinal: `1/${d} deel is hoeveel procent? (1/2 = 50%, 1/4 = 25%, 1/5 = 20%, 1/10 = 10%)` });
+      }
       return tpl('procenten.3c', { ...num(`Een spelcomputer kostte € ${oud}. Nu kost hij € ${nieuw}. Hoeveel procent korting is dat?`, p, [
         `Korting in euro: ${oud} − ${nieuw} = ${oud - nieuw}.`, `10% van ${oud} = ${fmt(oud / 10)}, en 5% is de helft daarvan: ${fmt(oud / 20)}.`,
         `5% van ${oud} is ${fmt(oud / 20)}. Hoe vaak past ${fmt(oud / 20)} in ${oud - nieuw}? ${oud - nieuw} : ${fmt(oud / 20)} = ${p / 5}. Dus ${p / 5} × 5% = ${p}%.`], { unit: '%' }),
@@ -1440,7 +1537,8 @@ const grafieken = {
   },
   3() {
     const r = Math.random();
-    if (r < 0.2) return tpl('grafieken.3a', rij(3));
+    if (r < 0.12) return gemiddeldeRekenmachine();
+    if (r < 0.3) return tpl('grafieken.3a', rij(3));
     if (r < 0.35) return tpl('grafieken.3b', combinaties(3));
     if (Math.random() < 0.5) {
       const labels = ['8:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
