@@ -25,10 +25,10 @@ const TXT = {
     nul: (a, b, k) => `Reken eerst ${a} × ${b}, en zet er dan ${k === 1 ? 'een nul' : `${k} nullen`} achter.`,
     deel: (a, b) => (a / b > 4 ? `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op: ${b}, ${2 * b}, ${3 * b}, … tot je bij ${a} bent, en tel hoeveel stappen dat zijn.` : `Welk getal keer ${b} is ${a}? Zeg de tafel van ${b} op tot je bij ${a} bent, en tel hoeveel stappen dat zijn.`),
     deelGroot: (a, b) => `Welk getal keer ${b} is ${a}? Probeer eerst 10 × ${b} = ${10 * b}: is dat te veel of te weinig?`,
-    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: eerst ${a} − ${t}, dan daar nog ${e} af.` : `Begin op de getallenlijn bij ${a} en spring ${b} terug.`),
+    min: (a, b, t, e) => (t && e ? `Trek het in stukjes af: begin bij ${a}, eerst − ${t}, dan − ${e.join(', dan − ')}.` : `Begin op de getallenlijn bij ${a} en spring ${b} terug.`),
     minBrug: (a, b) => (b % 10 === 0 || Math.ceil(b / 10) * 10 >= a ? `Tel verder vanaf ${b} tot ${a}. Hoeveel stapjes is dat?` : `Vul aan: van ${b} naar ${a}. Spring eerst naar ${Math.ceil(b / 10) * 10}, dan verder tot ${a}. Tel de sprongen op.`),
-    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: eerst ${a} + ${t}, dan daar nog ${e} bij.` : `Begin op de getallenlijn bij ${a} en spring ${b} vooruit.`),
-    een: 'Wat verandert er als je maar één groepje hebt?',
+    plus: (a, b, t, e) => (t && e ? `Tel het in stukjes op: begin bij ${a}, eerst + ${t}, dan + ${e.join(', dan + ')}.` : `Begin op de getallenlijn bij ${a} en spring ${b} vooruit.`),
+    een: 'Keer 1: het getal blijft hetzelfde (1 groepje).',
     tijdZelfde: (a, b) => `${a} en ${b} zijn in hetzelfde uur: kijk alleen naar de minuten en tel van de ene naar de andere.`,
     tijdOver: (a, h, b) => `Tel eerst van ${a} tot het hele uur ${h}, en dan verder tot ${b}. Tel de stukjes op.`,
     desMaal: (a, b, n, eenh) => `${a} is ${n} ${eenh}. Reken ${n} × ${b} = ? ${eenh}, en schrijf dat dan als kommagetal.`,
@@ -46,9 +46,9 @@ const TXT = {
     nul: (a, b, k) => `Reken eers ${a} × ${b}, en sit dan ${k === 1 ? '’n nul' : `${k} nulle`} agter.`,
     deel: (a, b) => (a / b > 4 ? `Watter getal maal ${b} is ${a}? Sê die tafel van ${b}: ${b}; ${2 * b}; ${3 * b}; … tot jy by ${a} kom, en tel hoeveel stappe dit is.` : `Watter getal maal ${b} is ${a}? Sê die tafel van ${b} op tot jy by ${a} kom, en tel hoeveel stappe dit is.`),
     deelGroot: (a, b) => `Watter getal maal ${b} is ${a}? Probeer eers 10 × ${b} = ${10 * b}: is dit te veel of te min?`,
-    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: eers ${a} − ${t}, dan daarvan nog ${e} af.` : `Begin op die getallelyn by ${a} en spring ${b} terug.`),
+    min: (a, b, t, e) => (t && e ? `Trek dit in stukkies af: begin by ${a}, eers − ${t}, dan − ${e.join(', dan − ')}.` : `Begin op die getallelyn by ${a} en spring ${b} terug.`),
     minBrug: (a, b) => (b % 10 === 0 || Math.ceil(b / 10) * 10 >= a ? `Tel verder van ${b} tot ${a}. Hoeveel treetjies is dit?` : `Tel aan: van ${b} tot ${a}. Spring eers na ${Math.ceil(b / 10) * 10}, dan verder tot ${a}. Tel die spronge bymekaar.`),
-    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: eers ${a} + ${t}, dan daarby nog ${e}.` : `Begin op die getallelyn by ${a} en spring ${b} vorentoe.`),
+    plus: (a, b, t, e) => (t && e ? `Tel dit in stukkies op: begin by ${a}, eers + ${t}, dan + ${e.join(', dan + ')}.` : `Begin op die getallelyn by ${a} en spring ${b} vorentoe.`),
     een: 'Wat verander as jy net een groepie het?',
     tijdZelfde: (a, b) => `${a} en ${b} is in dieselfde uur: kyk net na die minute en tel van die een na die ander.`,
     tijdOver: (a, h, b) => `Tel eers van ${a} tot by die heel uur ${h}, en dan verder tot ${b}. Tel die stukkies bymekaar.`,
@@ -71,7 +71,9 @@ export function betterTip(ask, lang = 'nl') {
   if (dm) { const d = dm[2].length, n = Math.round(Number(dm[1].replace(',', '.')) * 10 ** d); return T.desMaal(dm[1], dm[3], n, lang === 'af' ? (d === 1 ? 'tiendes' : 'honderdstes') : (d === 1 ? 'tienden' : 'honderdsten')); }
   // een rij optellingen ("21 + 21 + 15 + 15 = ?", "3 + 8 + 1 = ?"): één voor één, ronde paren eerst
   const rij = ask.match(new RegExp(`(${NUM}(?:\\s*\\+\\s*${NUM}){2,})\\s*=\\s*\\?`));
-  if (rij) { const xs = rij[1].split('+').map((x) => x.trim()); const ns = xs.map(toN); const paar = ns.some((x, i) => ns.some((y, j) => j > i && (x + y) % 10 === 0)); return lang === 'af' ? `Tel een vir een: eers ${xs[0]} + ${xs[1]}, tel dan ${xs.slice(2).join(', dan ')} by.${paar ? ' Kyk of twee getalle saam ’n ronde getal maak.' : ''}` : `Tel één voor één: eerst ${xs[0]} + ${xs[1]}, tel daar dan ${xs.slice(2).join(', dan ')} bij.${paar ? ' Kijk of twee getallen samen een rond getal maken.' : ''}`; }
+  if (rij) { const xs = rij[1].split('+').map((x) => x.trim()); const ns = xs.map(toN); let paar = null; ns.forEach((x, i) => ns.forEach((y, j) => { if (!paar && j > i && (x + y) % 10 === 0 && !(i === 0 && j === 1)) paar = [xs[i], xs[j]]; }));
+    if (paar) return lang === 'af' ? `Soek getalle wat saam ’n ronde getal maak: ${paar[0]} + ${paar[1]}. Tel dié eers op, en tel dan die res een vir een by.` : `Zoek getallen die samen een rond getal maken: ${paar[0]} + ${paar[1]}. Tel die eerst op, en tel daarna de rest één voor één erbij.`;
+    return lang === 'af' ? `Tel een vir een: eers ${xs[0]} + ${xs[1]}, tel dan ${xs.slice(2).join(', dan ')} by.` : `Tel één voor één: eerst ${xs[0]} + ${xs[1]}, tel daar dan ${xs.slice(2).join(', dan ')} bij.`; }
   const dd = ask.match(/(\d+),(\d{1,2})\s*[:÷]\s*(\d+)\s*=\s*\?/);
   if (dd) { const n = Number(dd[1] + dd[2].padEnd(2, '0')); return lang === 'af' ? `Reken in sent (sonder die komma): ${n} ÷ ${dd[3]}. Sit dan die komma terug: 100 sent = R1.` : `Reken in centen (zonder komma): ${n} : ${dd[3]}. Zet daarna de komma terug: 100 cent = 1 euro.`; }
   const dp = ask.match(/(\d+,\d+)\s*([+−–-])\s*(\d+,\d+)\s*=\s*\?/);
@@ -94,6 +96,7 @@ export function betterTip(ask, lang = 'nl') {
       if (a === 1 || b === 1) return T.een;
       if (a === 10) return T.tafel10(b);
       if (a === 9) return T.tafel9(b);
+      if (a >= 6 && b > 1 && b <= 5) return `${a} × ${b} = ${b} × ${a}. ` + (b === 5 ? T.tafel5(a) : T.tafelKlein(b, a));
       if (a >= 6) return T.tafelGroot(a, b);
       if (a === 5) return T.tafel5(b);
       return T.tafelKlein(a, b);
@@ -112,12 +115,12 @@ export function betterTip(ask, lang = 'nl') {
     if (b < 10) return T.min(a, b, 0, 0);
     if (a - b < 20 && a > 50) return T.minBrug(a, b);
     const p = parts(b);
-    return p.length >= 2 ? T.min(a, b, p[0], p.slice(1).join(' en ')) : T.sprong(p[0], '−');
+    return p.length >= 2 ? T.min(a, b, p[0], p.slice(1)) : T.sprong(p[0], '−');
   }
   if (op === '+') {
     if (b < 10) return T.plus(a, b, 0, 0);
     const p = parts(b);
-    return p.length >= 2 ? T.plus(a, b, p[0], p.slice(1).join(' en ')) : T.sprong(p[0], '+');
+    return p.length >= 2 ? T.plus(a, b, p[0], p.slice(1)) : T.sprong(p[0], '+');
   }
   return null;
 }

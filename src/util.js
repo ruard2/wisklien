@@ -158,7 +158,7 @@ export function zonderEenKeer(q) {
 export function vereenvoudigStap(q, lang = 'nl') {
   if (q.type !== 'fraction' || !(q.steps || []).length) return q;
   const last = q.steps.at(-1);
-  if (/vereenvoudig|zo klein|eenvoudig|allebei goed|albei is reg|hetzelfde als|dieselfde as/i.test(last)) return q;
+  if (/vereenvoudig|zo klein|eenvoudig|allebei goed|albei is reg|hetzelfde als|dieselfde as|helen eruit|= 1 hele|heles uit/i.test(last)) return q;
   const m = [...String(last).matchAll(/(?:(\d+)\s+)?(\d+)\/(\d+)/g)].at(-1);
   if (!m) return q;
   const w = m[1] ? Number(m[1]) : 0, a = Number(m[2]), b = Number(m[3]), g = gcd(a, b);
