@@ -8,7 +8,8 @@
 // het over. Een eigen vraag van het kind, of iets wat de app niet kan nakijken, gaat naar de gewone Max.
 import { makkelijker } from './tips.js';
 import { snaptNiet } from './kwaliteit.js';
-import { antwoordVan, isZelfde, WEET_NIET, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
+import { antwoordVan, isZelfde, WEET_NIET, ZETTEN, ZETTEN_AF, deelBeurt, deelInfo } from './stapgesprek.js';
+import { deelstappen } from './hulp.js';
 
 const GOKT = /gegokt|gegok|geraai|raai|zomaar|maar wat|weet (ik )?niet (meer|precies)|weet nie (meer|mooi)|geen idee|ek weet nie|vergist|vergis|snel gedaan|vinnig gedoen|fout gemaak|in mijn hoofd|in my kop/i;
 const VRAAG = /^\s*(waarom|hoe(?!\s+kwam)|wat|wie|welke|wanneer|kan|mag|moet|hoekom|watter|is dit omdat)\b/i;
@@ -46,6 +47,17 @@ export const FOUTZETTEN = {
     regels: 'Noem de uitkomst van de stap zelf niet. Geen apart voorbeeld waar het kind eerst op moet antwoorden: na dit bericht doet het kind de stap.',
     vbUitkomst: true,
   },
+  tussen_verder: {
+    doel: 'Het kind vulde een TUSSENANTWOORD in: die stap (TUSSENSTAP hieronder) had het goed, maar de som gaat nog verder. Zeg in één korte zin dat dat getal klopt én wat het is (bijv. "14 klopt: dat zijn de kinderen van de eerste twee sporten"), en dat de som nog verder gaat. Vraag dan meteen de volgende stap (de VRAAG hieronder).',
+    opties: ['"… klopt: dat is … . Maar de som vraagt meer: …?"', 'zet wat het kind al had en wat er nog moet kort onder elkaar en vraag de volgende stap'],
+    regels: 'Vraag de stap die het kind al goed had NIET opnieuw, ook niet in andere woorden, en ook geen stap daarvoor. Noem het eindantwoord niet en ook niet de uitkomst van de VRAAG.',
+  },
+  goed_klaar: {
+    doel: 'Het kind heeft nu het GOEDE eindantwoord. Zeg dat het klopt en noem in één zin wat het nu goed deed (bijv. dat het doorrekende tot het eind, of de aanpak die werkte). Zeg dat het kind het kan invullen. Stel geen vraag meer.',
+    opties: ['"Ja! Nu ben je doorgegaan tot het eind. Vul het maar in."', 'kort compliment over de aanpak + "vul het maar in"'],
+    regels: 'Schrijf het goede getal of de som met uitkomst niet nog eens op. Vraag NIET wat er de eerste keer anders ging: dat is al duidelijk.',
+    vbUitkomst: true, geenVraagLabel: true,
+  },
   goed_nu: {
     doel: 'Het kind heeft nu het GOEDE eindantwoord. Zeg dat het nu klopt, en vraag kort wat er de eerste keer anders ging (noem het eerste, foute antwoord).',
     opties: ['"Nu klopt het! Eerst had je … Wat ging er toen anders?"', 'compliment over de aanpak + de vraag wat er anders ging'],
@@ -57,43 +69,66 @@ export const FOUTZETTEN = {
 // target: de stap waar het gesprek nu over gaat ({ask, answer, display, type, tip}); bij k == guide.length het slot.
 const doelStap = (q, k) => (k < q.guide.length ? q.guide[k] : { ask: q.guideFinal || q.text, answer: q.answer, display: q.display, type: q.type === 'choice' ? 'choice' : 'number', options: q.options, slot: true });
 
-export function foutPlan({ question: q, given, chat = [] }) {
+// Stopte het kind bij een tussenantwoord? Dan is dat de index van die tussenstap (de laatste die past), anders -1.
+// Meetlat #37: 96 van de 215 foute antwoorden waren een tussenantwoord, en daar vroeg Max die stap dan opnieuw (3,67).
+const KOLOMSTAP = /^(Eenheden|Tientallen|Honderdtallen|Duizendtallen|Tienduizendtallen|Honderdduizendtallen|Ene|Tiene|Honderde|Duisende|Tienduisende|Honderdduisende|Tienden|Honderdsten|Tiendes|Honderdstes)\b/i;
+export function tussenIndex(q, given) {
+  if (given == null || String(given).trim() === '') return -1;
+  if (isZelfde(String(given), q.type === 'choice' ? q.options?.[q.answer] : q.display)) return -1;
+  let j = -1;
+  (q.guide || []).forEach((st, i) => { if (st.type === 'number' && !KOLOMSTAP.test(String(st.ask)) && Math.abs(Number(st.answer)) > 1 && isZelfde(String(given), st.display)) j = i; });
+  return j;
+}
+
+export function foutPlan({ question: q, given, chat = [], misconception = null, lang = 'nl' }) {
   const g = (q.guide || []).filter((s) => s.type !== 'choice' || s.options);
-  if (!g.length || !chat.length || chat.at(-1)?.role === 'teacher') return null;
-  const s = { fase: 'open', k: 0, vb: null, snap: 0, fout: 0, foutVb: 0, zetten: [] };
-  let zet = null, vorigeZet = 'opening';
+  if (!g.length || chat.at(-1)?.role === 'teacher') return null;
+  const tj = tussenIndex(q, given), tussen = tj >= 0 ? q.guide[tj] : null;
+  const s = { fase: 'open', k: tussen ? tj + 1 : 0, vb: null, snap: 0, fout: 0, foutVb: 0, zetten: [], deel: null };
   const kindIdx = chat.map((m, i) => (m.role !== 'teacher' ? i : -1)).filter((i) => i >= 0);
+  // de opening na een tussenantwoord: de app weet al waar het kind is (de stap die het had, is klaar)
+  if (!kindIdx.length) return tussen && !chat.length ? { zet: 'tussen_verder', doel: doelStap(q, s.k), voorbeeld: null, k: s.k, fase: 'vraag', eerdereZetten: [], tussen, klaarStappen: q.guide.slice(0, s.k) } : null;
+  const eindZet = () => (!misconception && !tussen && !s.zetten.includes('diagnose') ? 'goed_nu' : 'goed_klaar');
+  const goedVan = (st) => (st.type === 'choice' ? st.options?.[st.answer] : st.display);
+  let zet = null, vorigeZet = 'opening';
   for (const i of kindIdx) {
     const tekst = chat[i].text;
     const vorigeMax = [...chat.slice(0, i)].reverse().find((m) => m.role === 'teacher');
     if (!vorigeMax) return null; // het kind begon zelf: gewone Max
     const doel = doelStap(q, s.k);
     if (vorigeZet === 'eigen_voorbeeld' && vorigeMax.vb) s.vb = vorigeMax.vb;
-    if (vorigeZet === 'opening') s.fase = vorigeMax.vb || !/hoe (kwam|heb|deed|ben)|hoe het jy|hoe kom jy|wat het jy gedoen|wat deed je/i.test(vorigeMax.text) ? 'vraag' : 'hoe';
+    if (vorigeZet === 'opening') s.fase = tussen || vorigeMax.vb || !/hoe (kwam|heb|deed|ben)|hoe het jy|hoe kom jy|wat het jy gedoen|wat deed je/i.test(vorigeMax.text) ? 'vraag' : 'hoe';
     const verwacht = vorigeMax.vb || (s.fase === 'voorbeeld' ? s.vb : s.fase === 'vraag' ? { som: doel.ask, uitkomst: vb(doel) } : null);
     const heeftAntwoord = antwoordVan(tekst) != null || (verwacht && isZelfde(tekst, verwacht.uitkomst));
     const eind = isZelfde(tekst, q.type === 'choice' ? q.options[q.answer] : q.display) && !isZelfde(tekst, given);
-    zet = null;
+    zet = null; s.uitleg = null;
+    // de stap is af (alle deelstappen goed): door naar de volgende stap van de som
+    const stapAf = () => { s.deel = null; s.k += 1; s.fout = 0; s.hulp = 0; s.vb = null; return doelStap(q, s.k - 1).slot ? eindZet() : s.k >= q.guide.length ? 'laatste' : 'volgende'; };
+    const naarDeel = () => { const ds = doel.type === 'number' ? deelstappen(doel, { lang }) : null; if (!ds) return null; Object.assign(s, { deel: ds, sub: 0, dFout: 0, dSnap: 0 }); return 'deel_start'; };
+    const deelGoed = s.fase === 'deel' && s.deel?.[s.sub] && isZelfde(tekst, s.deel[s.sub].display);
     if (s.fase === 'klaar') zet = null;
+    else if (eind && !deelGoed) zet = eindZet();
     else if (/\b(ik snap het|ek verstaan dit)\b/i.test(tekst) && !/\b(niet|nie)\b/i.test(tekst)) zet = null;
     else if (VRAAG.test(tekst) && !WEET_NIET.test(tekst) && !snaptNiet(tekst) && !(verwacht && isZelfde(tekst, verwacht.uitkomst))) zet = null; // eigen vraag ("waarom 50?"): de gewone Max
+    else if (s.fase === 'deel') { const z = deelBeurt(s, tekst, vorigeMax.vb, goedVan(doel)); zet = z === 'af' ? stapAf() : z; }
     else if (s.fase === 'hoe') {
-      if (eind) zet = 'goed_nu';
-      else if (GOKT.test(tekst) || snaptNiet(tekst) || WEET_NIET.test(tekst)) zet = 'samen_begin';
+      if (GOKT.test(tekst) || snaptNiet(tekst) || WEET_NIET.test(tekst)) zet = 'samen_begin';
       else zet = 'diagnose';
     } else if (!heeftAntwoord && (snaptNiet(tekst) || WEET_NIET.test(tekst))) {
       s.snap++;
       if (s.fase === 'voorbeeld') zet = s.snap >= 3 || s.foutVb >= 1 ? 'vb_voordoen' : 'vb_concreter';
       else {
-        // Na een fout geen apart voorbeeld-omweggetje (Na een fout #23/#24: dat kostte twee beurten en het kind kwam niet
-        // verder): concreter bij de stap zelf, met een voorgedaan mini-voorbeeld; lukt het dan nog niet, samen doen.
-        const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]);
-        s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null;
-        s.hulp = (s.hulp || 0) + 1; zet = s.hulp >= 2 ? 'stap_samen' : 'stap_concreet';
+        // vastgelopen bij de stap: de hulpladder (kleine deelstappen van de app); anders concreter bij de stap zelf
+        zet = naarDeel();
+        if (!zet) {
+          const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]);
+          s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null;
+          s.hulp = (s.hulp || 0) + 1; zet = s.hulp >= 2 ? 'stap_samen' : 'stap_concreet';
+        }
       }
     } else if (heeftAntwoord && verwacht) {
       const goed = isZelfde(tekst, verwacht.uitkomst);
-      if (eind || (goed && doel.slot && s.fase !== 'voorbeeld')) zet = 'goed_nu';
+      if (goed && doel.slot && s.fase !== 'voorbeeld') zet = eindZet();
       else if (goed && s.fase === 'voorbeeld') zet = 'brug';
       else if (goed) {
         // welke stap was dit? een tussenstap uit de som → door naar de volgende; anders een deelvraag van Max
@@ -102,20 +137,19 @@ export function foutPlan({ question: q, given, chat = [] }) {
       } else if (s.fase === 'voorbeeld') { s.foutVb++; zet = s.foutVb >= 2 ? 'vb_voordoen' : 'vb_fout'; }
       else {
         s.fout++;
-        if (s.fout >= 2) { const app = doel.type !== 'choice' && makkelijker(doel.ask, doel.answer, [q.answer]); s.vb = app ? { som: app.vraag || app.som.includes('?') ? app.som : `${app.som} = ?`, uitkomst: app.uitkomst, vanApp: true, opstap: !!app.opstap } : null; s.hulp = (s.hulp || 0) + 1; }
-        zet = s.fout === 1 ? 'stap_hint' : s.hulp >= 2 || s.fout >= 3 ? 'stap_samen' : 'stap_concreet';
+        zet = s.fout === 1 ? 'stap_hint' : naarDeel() || (s.fout >= 3 ? 'stap_samen' : 'stap_concreet');
       }
     }
     if (zet) {
       s.zetten.push(zet);
-      s.fase = zet === 'goed_nu' ? 'klaar' : ['voorbeeld', 'eigen_voorbeeld', 'vb_fout', 'vb_concreter'].includes(zet) ? 'voorbeeld' : 'vraag';
+      s.fase = ['goed_nu', 'goed_klaar'].includes(zet) ? 'klaar' : zet.startsWith('deel_') ? 'deel' : ['voorbeeld', 'eigen_voorbeeld', 'vb_fout', 'vb_concreter'].includes(zet) ? 'voorbeeld' : 'vraag';
       if (zet === 'brug' || zet === 'vb_voordoen') s.fout = 0;
     }
     vorigeZet = zet;
   }
   if (!zet) return null;
   const doel = doelStap(q, s.k);
-  return { zet, doel, voorbeeld: s.vb, k: s.k, fase: s.fase, eerdereZetten: s.zetten.slice(0, -1) };
+  return { zet, doel, voorbeeld: s.deel ? null : s.vb, k: s.k, fase: s.fase, eerdereZetten: s.zetten.slice(0, -1), tussen, klaarStappen: q.guide.slice(0, s.k), ...(s.deel && zet.startsWith('deel_') ? { deelInfo: deelInfo(s, [q.answer], lang) } : {}) };
 }
 
 export const FOUTZETTEN_AF = {
@@ -125,6 +159,8 @@ export const FOUTZETTEN_AF = {
   laatste: { doel: 'Al die tussenstappe is reg. Sê dat dit klop en laat die kind nou self die laaste stukkie doen (die SLOT hieronder) om die finale antwoord te kry.', opties: ['"Puik! Nou die laaste stukkie: …"', 'sit die stappe kort onder mekaar en vra die slot'], regels: 'Moenie die finale antwoord noem nie; die kind werk dit self uit.' },
   stap_hint: { doel: 'Die kind het die stap verkeerd. Sê vriendelik dat dit nog nie reg is nie (noem die kind se getal) en gee die hulp van die WENK hieronder, konkreet vir hierdie stap. Vra die stap weer.', opties: ['die wenk in eie woorde, met die getalle van die stap', 'breek die stap in twee klein stukkies volgens die wenk en vra die eerste'], regels: 'Moenie die antwoord van die stap noem nie. Sê niks wat nie waar is oor die kind se getal nie.' },
   stap_concreet: { doel: 'Die kind verstaan hierdie stap nog nie. Help BY HIERDIE STAP, meer konkreet en op ’n ánder manier as jou vorige boodskap: wys met ’n baie klein voorbeeld hoe dit gaan (daardie voorbeeld mag jy heeltemal voordoen, mét antwoord; gebruik die makliker voorbeeld hieronder as dit daar is), of breek die stap in ’n kleiner stukkie, of gebruik die model van die kaart (geld, prentjie). Vra daarna in dieselfde boodskap dadelik die stap self (of die eerste klein stukkie daarvan).', opties: ['klein voorbeeld voordoen + "en by jou som?"', 'die stap in ’n kleiner stukkie, met ’n prentjie of geld'], regels: 'Moenie die antwoord van die stap self noem nie. Geen aparte voorbeeld waarop die kind eers moet antwoord nie: ná hierdie boodskap doen die kind die stap.' },
+  tussen_verder: { doel: 'Die kind het ’n TUSSENANTWOORD ingevul: daardie stap (TUSSENSTAP hieronder) was reg, maar die som gaan nog verder. Sê in een kort sin dat daardie getal klop én wat dit is (bv. "14 klop: dis die kinders van die eerste twee sportsoorte"), en dat die som nog verder gaan. Vra dan dadelik die volgende stap (die VRAAG hieronder).', opties: ['"… klop: dis … . Maar die som vra meer: …?"', 'sit wat die kind al het en wat nog moet kort onder mekaar en vra die volgende stap'], regels: 'Moenie die stap wat die kind al reg het weer vra nie, ook nie in ander woorde nie, en ook nie ’n stap daarvoor nie. Moenie die finale antwoord noem nie en ook nie die antwoord van die VRAAG nie.' },
+  goed_klaar: { doel: 'Die kind het nou die REGTE finale antwoord. Sê dat dit klop en noem in een sin wat die kind nou goed gedoen het (bv. dat hy tot die einde deurgewerk het, of die aanpak wat gewerk het). Sê dat die kind dit kan invul. Moenie nog ’n vraag vra nie.', opties: ['"Ja! Nou het jy tot die einde deurgewerk. Vul dit maar in."', 'kort kompliment oor die aanpak + "vul dit maar in"'], regels: 'Moenie die regte getal of die som met antwoord weer neerskryf nie. Moenie vra wat die eerste keer anders was nie: dit is al duidelik.', vbUitkomst: true, geenVraagLabel: true },
   goed_nu: { doel: 'Die kind het nou die REGTE finale antwoord. Sê dat dit nou klop, en vra kort wat die eerste keer anders was (noem die eerste, verkeerde antwoord).', opties: ['"Nou is dit reg! Eers het jy … gehad. Wat was toe anders?"', 'kompliment oor die aanpak + die vraag wat anders was'], regels: 'Moenie die regte getal of die som met antwoord weer neerskryf nie. "Vul dit maar in" sê jy eers daarna.' },
 };
 
@@ -162,7 +198,7 @@ export function foutAdvies({ question: q, given, chat = [], name = 'het kind', a
   if (t) L.push(`- ${T.advies}: ${t.doel}`);
   L.push(`- ${T.vry}`);
   // verboden: het eindantwoord en de uitkomst van de stap waar jullie nu zijn, tenzij het kind ze zelf al zei
-  const getal = (x) => { const m = String(x).replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/-?\d+(?:,\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
+  const getal = (x) => { const m = String(x).replace(/(\d)[\s\u00a0\u202f\u2009](?=\d{3}\b)/g, '$1').match(/-?\d+(?:,\d+)?/); return m ? Number(m[0].replace(',', '.')) : null; };
   const verboden = [];
   for (const x of [eindGoed, doel.slot ? null : vb(doel)]) { const g = x != null ? getal(x) : null; if (g != null && Math.abs(g) > 2 && !zei(x) && !(fp?.zet === 'goed_nu')) verboden.push(g); }
   if (verboden.length) L.push(`- ${T.verbode}: ${[...new Set(verboden)].map((x) => String(x).replace('.', ',')).join('; ')}.`);

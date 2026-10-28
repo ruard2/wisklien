@@ -17,7 +17,7 @@ import { algemeneDenkfouten } from './denkfouten.js';
 import { kaartVoor } from './uitleg/index.js';
 import { problemen } from './kwaliteit.js';
 import { improveTips } from './tips.js';
-import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm, enkelvoudSom, zonderEenKeer, vereenvoudigStap, stappenVolgenTussenstappen } from './util.js';
+import { rnd, pick, shuffle, gcd, lcm, round, fmt, euro, fracStr, numberWords, hhmm, enkelvoudSom, zonderEenKeer, vereenvoudigStap, stappenVolgenTussenstappen, schuif } from './util.js';
 import { misconceptionsFor } from './misconceptions.js';
 import { mnemonicsFor } from './mnemonics.js';
 import { DIDACTIEK, hintAanpak } from './didactiek.js';
@@ -588,19 +588,17 @@ const kommagetallen = {
       if (Math.random() < 0.5) {
         const a = rnd(1001, 9999) / 1000;
         return tpl('kommagetallen.2a', { ...num(`${fmt(a)} × ${fmt(m)} =`, a * m, [
-          `× ${fmt(m)} betekent: het getal wordt ${fmt(m)} keer zo groot.`,
-          `In het positieschema schuift elk cijfer ${z} plek${z > 1 ? 'ken' : ''} op naar de grotere kant (links). Het lijkt alsof de komma ${z} plek${z > 1 ? 'ken' : ''} naar rechts gaat.`,
+          schuif(m, true),
           `${fmt(a)} wordt ${fmt(a * m)}.`]),
-          guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken schuiven de cijfers op)`, z, `Tel de nullen van ${fmt(m)}.`)],
-          guideFinal: `Het getal wordt ${fmt(m)} keer zo groot: elk cijfer schuift ${z} plek${z > 1 ? 'ken' : ''} naar links (de komma ${z} naar rechts)` });
+          guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken gaat de komma op)`, z, `Tel de nullen van ${fmt(m)}.`)],
+          guideFinal: `Het getal wordt ${fmt(m)} keer zo groot: de komma gaat ${z === 1 ? 'één plek' : z + ' plekken'} naar rechts` });
       }
       const b = rnd(12, 980);
       return tpl('kommagetallen.2b', { ...num(`${b} : ${m} =`, b / m, [
-        `: ${fmt(m)} betekent: het getal wordt ${fmt(m)} keer zo klein.`,
-        `In het positieschema schuift elk cijfer ${z} plek${z > 1 ? 'ken' : ''} op naar de kleinere kant (rechts). Het lijkt alsof de komma ${z} plek${z > 1 ? 'ken' : ''} naar links gaat (${b} = ${b},0).`,
+        `${schuif(m, false)} (${b} = ${b},0)`,
         `${b} wordt ${fmt(b / m)}.`]),
-        guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken schuiven de cijfers op)`, z, `Tel de nullen van ${fmt(m)}.`)],
-        guideFinal: `Het getal wordt ${fmt(m)} keer zo klein: elk cijfer schuift ${z} plek${z > 1 ? 'ken' : ''} naar rechts (de komma ${z} naar links)` });
+        guide: [st(`Hoeveel nullen heeft ${fmt(m)}? (zoveel plekken gaat de komma op)`, z, `Tel de nullen van ${fmt(m)}.`)],
+        guideFinal: `Het getal wordt ${fmt(m)} keer zo klein: de komma gaat ${z === 1 ? 'één plek' : z + ' plekken'} naar links` });
     }
     if (t === 'geld') {
       const p = rnd(115, 495) / 100, k = rnd(3, 8), item = pick(['pakken melk', 'schriften', 'broodjes', 'tijdschriften']), h = Math.floor(p);
@@ -650,8 +648,8 @@ const kommagetallen = {
       `Reken in tienden: ${fmt(a10)} is ${t} tienden (één hele = 10 tienden). Nu ${t} : ${di}, kolomsgewijs met happen:`,
       ...hp.steps.slice(1),
       `Dat zijn ${qi} tienden = ${fmt(q)}.`, `Controle: ${fmt(d)} × ${fmt(q)} = ${fmt(a)}. Klopt!`]),
-    guide: [st(`Maak er een makkelijkere som van. ${fmt(d)} × 10 = ?`, di, 'Het getal wordt 10 keer zo groot (elk cijfer schuift één plek op).'),
-      st(`Doe het andere getal ook × 10: ${fmt(a)} × 10 = ?`, a10, '× 10: elk cijfer schuift één plek naar links in het positieschema (het getal wordt 10 keer zo groot).'),
+    guide: [st(`Maak er een makkelijkere som van. ${fmt(d)} × 10 = ?`, di, schuif(10, true, true) + '.'),
+      st(`Doe het andere getal ook × 10: ${fmt(a)} × 10 = ?`, a10, schuif(10, true, true) + '.'),
       st(`Reken in tienden. ${fmt(a10)} is hoeveel tienden?`, t, `${Math.floor(a10)} helen en ${Math.round((a10 % 1) * 10)} tienden. Eén hele = 10 tienden.`),
       ...hp.guide],
     guideFinal: `${hp.final}. Dat zijn tienden: schrijf het als kommagetal` });
@@ -1049,7 +1047,7 @@ function procentViaEen() {
   return tpl('procenten.3i', { ...num(`${item} kost ${euro(base)}. Je betaalt ${p}% aanbetaling. Hoeveel euro is dat?`, (base * p) / 100, [
     `Reken via 1%: 1% van ${euro(base)} = ${euro(base)} : 100 = ${euro(een)}.`, `${p}% = ${p} × ${euro(een)} = ${euro((base * p) / 100)}.`, `Met de rekenmachine: ${fmt(base)} : 100 = ${fmt(een)}, en dan ${p} × ${fmt(een)}.`],
   { money: true, rekenmachine: true, visual: vtabel([['%', 100, 1, p], ['euro', fmt(base), '?', '?']]) }),
-  guide: [st(`Reken via 1%: 1% van ${euro(base)} = ? (deel door 100)`, een, 'Elk cijfer schuift 2 plekken naar rechts.', { money: true })], guideFinal: `${p}% = ${p} × ${euro(een)} (mag met de rekenmachine)` });
+  guide: [st(`Reken via 1%: 1% van ${euro(base)} = ? (deel door 100)`, een, `${schuif(100, false, true)}. Schrijf ${fmt(base)} als ${fmt(base)},00 en zet de komma 2 plekken naar links.`, { money: true })], guideFinal: `${p}% = ${p} × ${euro(een)} (mag met de rekenmachine)` });
 }
 
 const procenten = {
@@ -1630,7 +1628,7 @@ function begintijd() {
     `Terugrekenen. Eerst de hele uren terug: ${hhmm(e)} − ${H} uur = ${hhmm(naHeel)}.`, `Dan ${m} minuten terug: eerst ${naHeel - heel} minuten naar ${hhmm(heel)}, dan nog ${m - (naHeel - heel)} minuten terug: ${hhmm(s)}.`],
   { visual: { kind: 'digital', time: hhmm(e), look: 'phone', label: 'einde' } }),
   guide: [{ ask: `Eerst de hele uren terug: ${hhmm(e)} − ${H} uur = ?`, type: 'time', answer: naHeel % 1440, display: hhmm(naHeel), tip: 'Alleen het uur verandert.' },
-    st(`Nu ${m} minuten terug. Eerst terug naar het hele uur ${hhmm(heel)}: hoeveel minuten moet je daarna nog terug?`, m - (naHeel - heel), `Van ${hhmm(naHeel)} naar ${hhmm(heel)} is al een stukje van de ${m} minuten.`, { unit: 'minuten' })],
+    st(`Nu ${m} minuten terug. Eerst terug naar het hele uur ${hhmm(heel)}: hoeveel minuten moet je daarna nog terug?`, m - (naHeel - heel), `Hoeveel minuten is het van ${hhmm(naHeel)} terug naar ${hhmm(heel)}? Dat stukje van de ${m} minuten heb je dan al; de rest moet je nog terug.`, { unit: 'minuten', deel: [st(`Van ${hhmm(naHeel)} terug naar ${hhmm(heel)} = ? minuten`, naHeel - heel, `Kijk alleen naar de minuten van ${hhmm(naHeel)}.`, { unit: 'minuten' }), st(`${m} − ${naHeel - heel} = ? minuten`, m - (naHeel - heel), '', { unit: 'minuten' })] })],
   guideFinal: `${hhmm(heel)} min ${m - (naHeel - heel)} minuten` });
 }
 
@@ -1668,7 +1666,7 @@ const tijdBasis = {
         const m1 = s % 60, m2 = (s + d) % 60;
         return tpl('tijdBasis.1b', { ...num(`De film begint om ${hhmm(s)} en is afgelopen om ${hhmm(s + d)}. Hoeveel minuten duurt de film?`, d,
           [`Het uur blijft hetzelfde, dus kijk alleen naar de minuten.`, `Van ${m1} naar ${m2} minuten: ${m2} − ${m1} = ${d} minuten.`], { unit: 'minuten' }),
-        guide: [st(`Het uur blijft hetzelfde. Kijk alleen naar de minuten: ${m2} − ${m1} = ?`, d, 'Het is hetzelfde uur, dus je kijkt alleen naar de minuten: hoeveel minuten van de eerste tijd tot de tweede?', { unit: 'minuten' })], guideFinal: 'Zoveel minuten duurt de film' });
+        guide: [st(`Het uur blijft hetzelfde. Kijk alleen naar de minuten: ${m2} − ${m1} = ?`, d, `Het is hetzelfde uur, dus je kijkt alleen naar de minuten. Tel verder van ${m1} tot ${m2} minuten, in sprongen van 5 of 10.`, { unit: 'minuten' })], guideFinal: 'Zoveel minuten duurt de film' });
       }
       return tpl('tijdBasis.1c', { ...num(`De film begint om ${hhmm(s)} en is afgelopen om ${hhmm(s + d)}. Hoeveel minuten duurt de film?`, d,
         [`Tel eerst door naar een heel uur: ${hhmm(s)} → ${hhmm(heel)} = ${heel - s} min.`, `Dan verder tot ${hhmm(s + d)}: ${s + d - heel} min.`, `Samen: ${heel - s} + ${s + d - heel} = ${d} minuten.`], { unit: 'minuten' }),

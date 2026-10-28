@@ -203,3 +203,14 @@ export function stappenVolgenTussenstappen(q, lang = 'nl') {
   q.stappenUitTussenstappen = true;
   return q;
 }
+
+// Eén vaste formulering voor × en : 10, 100, 1000 (de methode: het positieschema), zodat kaart, stappen, tips en Max
+// hetzelfde zeggen. Meetlat #37: "elk cijfer schuift naar links" los gezegd werd als fout gezien (het lijkt of de komma
+// naar rechts gaat). Daarom altijd allebei: groter/kleiner, de cijfers in het positieschema, en wat je op papier ziet.
+export function schuif(m, keer = true, kort = false) {
+  const z = String(m).length - 1, pl = z === 1 ? 'één plek' : `${z} plekken`;
+  if (kort) return keer ? `× ${m}: ${m} keer zo groot; de komma gaat ${pl} naar rechts` : `: ${m}: ${m} keer zo klein; de komma gaat ${pl} naar links`;
+  return keer
+    ? `× ${m}: het getal wordt ${m} keer zo groot. In het positieschema schuift elk cijfer ${pl} naar links, naar een grotere plek; op papier gaat de komma ${pl} naar rechts.`
+    : `: ${m}: het getal wordt ${m} keer zo klein. In het positieschema schuift elk cijfer ${pl} naar rechts, naar een kleinere plek; op papier gaat de komma ${pl} naar links.`;
+}

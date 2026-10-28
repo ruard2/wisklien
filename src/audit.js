@@ -284,11 +284,11 @@ export async function auditFout(lang, p, models = {}) {
     const zonderMeter = (fn) => kidStore.run({ ...kidStore.getStore(), meter: null }, fn);
     const variant = (aan) => {
       const meter = { aanroepen: 0, invoer: 0, vast: 0, uitvoer: 0 };
-      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan ? (process.env.AUDIT_FOUTMODUS || 'bewaking') : false, meter }, async () => {
+      return kidStore.run({ ...kidStore.getStore(), foutPlan: aan ? (process.env.AUDIT_FOUTMODUS || 'strak') : false, meter }, async () => {
         const chat = [], turns = [], fouten = [];
         const zeg = async () => {
           try {
-            const zet = aan ? (chat.length ? foutPlan({ question: q, given, chat })?.zet || 'vrij' : 'opening') : null;
+            const zet = aan ? (chat.length ? foutPlan({ question: q, given, chat, misconception: mis, lang })?.zet || 'vrij' : (foutPlan({ question: q, given, chat, misconception: mis, lang })?.zet || 'opening')) : null;
             const t0 = Date.now(); const r = await teacherTurn({ ...base, chat: [...chat] }); const { text, vb } = splitForm(r);
             if (!text) return false;
             chat.push({ role: 'teacher', text, ...(vb ? { vb } : {}) }); turns.push({ wie: 'max', tekst: text, ms: Date.now() - t0, ...(zet ? { zet } : {}), ...(vb ? { vb } : {}) });

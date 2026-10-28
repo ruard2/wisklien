@@ -133,19 +133,6 @@
    ],
    "concreter": "Maak de bedragen met euromunten en centmunten, bijvoorbeeld 1-euro-, 10-cent- en 1-centmunten."
   },
-  "kommagetallen.2a": {
-   "naam": "Kommagetal × 10, 100 of 1000",
-   "aanpak": [
-    "Bepaal of het getal 10, 100 of 1000 keer zo groot wordt.",
-    "Schuif elk cijfer in het positieschema zoveel plaatsen naar links als de vermenigvuldiger nullen heeft; de komma lijkt evenveel plaatsen naar rechts te gaan."
-   ],
-   "model": "Een positieschema met voldoende plaatsen: D H T E , t h d (breid zo nodig uit).",
-   "valkuilen": [
-    "Een nul achter het getal plakken alsof je ×10 doet → laat de cijfers in het positieschema opschuiven.",
-    "De cijfers de verkeerde kant op schuiven → bedenk of het getal groter of kleiner wordt."
-   ],
-   "concreter": "Denk aan een geldbedrag dat 10, 100 of 1000 keer zo groot wordt."
-  },
   "kommagetallen.2d": {
    "naam": "Kommagetal delen door heel getal met geld",
    "aanpak": [

@@ -7,6 +7,7 @@ import { KAARTEN as AF } from './af.js';
 
 import { readFileSync, existsSync } from 'node:fs';
 import { methode, vervangDiep } from '../methodes/index.js';
+import { hulpVoor } from './hulp-nl.js';
 
 // Verbeterde kaarten uit de Kaartcheck (/audit → Kaartcheck → scripts/neem-kaarten-over.mjs). Ze vervangen naam, aanpak,
 // model, valkuilen en concreter van de handgeschreven kaart; woorden en "niet doen" blijven van de handgeschreven kaart.
@@ -43,5 +44,8 @@ export function kaartTekst(lang, tpl) {
   if (k.valkuilen?.length) L.push(`${T.valkuilen}:\n${k.valkuilen.map((v) => `  - ${v}`).join('\n')}`);
   if (k.concreter) L.push(`${T.concreter}: ${k.concreter}`);
   if (k.niet?.length) L.push(`${T.niet}:\n${k.niet.map((v) => `  - ${v}`).join('\n')}`);
+  // Hulpplan bij vastlopen (src/uitleg/hulp-nl.js; meetlat #37): wat je eerst nagaat, welk materiaal, welk kleiner voorbeeld
+  const h = lang === 'nl' ? hulpVoor(tpl) : null;
+  if (h) L.push(`HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);
   return L.join('\n');
 }

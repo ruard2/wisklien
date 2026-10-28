@@ -19,7 +19,7 @@ import { kaartTekst } from './uitleg/index.js';
 import { methode, methodeId } from './methodes/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic, telrijFouten } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
-import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF, foutAdvies } from './foutgesprek.js';
+import { foutPlan, FOUTZETTEN, FOUTZETTEN_AF, foutAdvies, tussenIndex } from './foutgesprek.js';
 import { makkelijker } from './tips.js';
 import { vasteBeurt } from './vast.js';
 
@@ -288,7 +288,7 @@ HOE JE LESGEEFT
 - Laat ${name} in eigen woorden zeggen hoe het ging ("Hoe deed je dat?"): uitleggen helpt onthouden.
 - Zoek de denkfout in wat ${name} zegt of laat zien (bijv. getallen onder de streep opgeteld, komma verkeerd, tafel vergeten, eenheid niet omgerekend) en benoem die vriendelijk en concreet. Weet je niet hoe ${name} aan een antwoord kwam, raad dan niet maar vraag het ("Hoe kwam je op …?") en zoek de fout in de uitleg die ${name} geeft.
 - Laat ${name} zoveel mogelijk zelf doen. Vraag "Wat denk jij dat … is?" in plaats van alles voor te zeggen.
-- Keer of gedeeld door 10, 100 of 1000 (ook bij maten omrekenen): zeg het ALTIJD zo: bij keer schuift elk cijfer naar links in het positieschema (naar de grotere plekken) en wordt het getal groter; bij gedeeld door schuift elk cijfer naar rechts en wordt het getal kleiner. Zeg nooit dat "de komma naar links" gaat bij keer. Controleer: wordt het getal groter of kleiner?
+- Keer of gedeeld door 10, 100 of 1000 (ook bij maten omrekenen): zeg het ALTIJD in deze volgorde: 1) wordt het getal groter (keer) of kleiner (gedeeld door)? 2) in het positieschema schuift elk cijfer naar een grotere plek (keer: naar links) of een kleinere plek (gedeeld door: naar rechts); 3) op papier gaat de komma dus de ándere kant op (keer: naar rechts, gedeeld door: naar links). Zeg nooit alleen "de cijfers schuiven naar links" zonder dat het getal groter wordt en de komma naar rechts gaat; noem altijd het voorbeeld met de getallen van de som (bijv. 1,3 × 10: de 1 eenheid wordt 1 tiental → 13).
 - Lukt het na twee pogingen nog niet: doe het dan zelf heel duidelijk voor (stap voor stap, maximaal 4 korte stappen) en laat ${name} alleen de laatste stap zelf doen.
 - Is het antwoord op jouw vraag goed? Zeg dat duidelijk ("Ja! Precies.") en ga één stapje verder.
 - Prijs inzet en aanpak, niet "slim zijn". Fouten zijn normaal.
@@ -413,10 +413,10 @@ export const stapPlanAan = () => { const v = kidStore.getStore()?.stapPlan; if (
 // Na een fout: in de Max-test per variant (kidStore.foutPlan), anders MAX_FOUTPLAN=1 (nog uit tot de test).
 // Modus: 'strak' (de app kiest de zet, Max verwoordt), 'advies' (de app geeft feiten + advies, Max kiest; verboden getallen
 // hard bewaakt) of uit. Max-test: kidStore.foutPlan (true = strak); server: MAX_FOUTPLAN=strak|advies (1 = strak).
-export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null && v !== false ? v : v === false ? 'uit' : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' ? 'strak' : x === 'advies' ? 'advies' : x === 'bewaking' || x == null ? 'bewaking' : null; }; // standaard: bewaking (Na een fout #29/#30: didactiek gelijk, objectief voorzeggen 22–24 → 2)
+export const foutPlanModus = () => { const v = kidStore.getStore()?.foutPlan; const x = v != null && v !== false ? v : v === false ? 'uit' : process.env.MAX_FOUTPLAN; return x === true || x === '1' || x === 'strak' || (x == null && !isAF()) ? 'strak' : x === 'advies' ? 'advies' : x === 'bewaking' || x == null ? 'bewaking' : null; }; // standaard NL: strak met de hulpladder (meetlat #37); AF: bewaking tot de AF-test // standaard: bewaking (Na een fout #29/#30: didactiek gelijk, objectief voorzeggen 22–24 → 2)
 export const foutPlanAan = () => foutPlanModus() === 'strak';
 async function stapBeurt({ name, profile, memory, today, question, step, given, chat }) {
-  const plan = stapPlan({ question, step, chat });
+  const plan = stapPlan({ question, step, chat, lang: isAF() ? 'af' : 'nl' });
   if (!plan) return null;
   return planBeurt({ name, profile, memory, today, question, step, chat, plan, situatie: isAF() ? [
     `Die kind werk in tussenstappe en sit vas by die stap: "${step.ask}". Reg is ${plan.goedStap} (GEHEIM: moenie dit noem nie, die kind moet dit self vind). In die blokkie het die kind eers ingevul: "${given || '?'}".`,
@@ -428,23 +428,27 @@ async function stapBeurt({ name, profile, memory, today, question, step, given, 
 }
 // Gespreksplan na een fout (src/foutgesprek.js): de app loopt de tussenstappen van de som met het kind af.
 async function foutBeurt({ name, profile, memory, today, question, given, chat, misconception }) {
-  const fp = foutPlan({ question, given, chat });
+  const fp = foutPlan({ question, given, chat, misconception, lang: isAF() ? 'af' : 'nl' });
   if (!fp) return null;
   const tekst = FOUTZETTEN[fp.zet] || ZETTEN[fp.zet];
   if (!tekst) return null;
   const doel = fp.doel, goedStap = doel.type === 'choice' ? doel.options?.[doel.answer] : doel.display;
-  const plan = { ...tekst, zet: fp.zet, voorbeeld: fp.voorbeeld, goedStap, fase: fp.fase === 'voorbeeld' ? 'voorbeeld' : 'stap', eerdereZetten: fp.eerdereZetten };
+  const plan = { ...tekst, zet: fp.zet, voorbeeld: fp.voorbeeld, goedStap, fase: fp.fase === 'voorbeeld' ? 'voorbeeld' : 'stap', eerdereZetten: fp.eerdereZetten, deelInfo: fp.deelInfo, tussen: fp.tussen, klaarStappen: fp.klaarStappen, vraagStap: ['tussen_verder', 'volgende', 'samen_begin'].includes(fp.zet) ? fp.doel : null };
   const route = (question.guide || []).map((g, i) => `${i + 1}. ${g.ask} → ${g.type === 'choice' ? g.options[g.answer] : g.display}`).join(' / ');
   return planBeurt({ name, profile, memory, today, question, step: doel, chat, plan, situatie: isAF() ? [
     `${name} het eers "${given}" op die som geantwoord; dit is VERKEERD. Die regte finale antwoord is ${question.display} (GEHEIM: noem dit nooit; ${name} moet dit self vind).`,
     misconception ? `Herkende denkfout (seker): ${misconception.label} Wat help: ${misconception.fix}` : `Geen bekende denkfout herken nie: jy weet nie hoe ${name} by "${given}" uitgekom het nie, behalwe wat ${name} self vertel.`,
     `Die app se roete (tussenstappe met antwoord, GEHEIM): ${route}${question.guideFinal ? ` / slot: ${question.guideFinal} → ${question.display}` : ''}.`,
     `Waar julle nou is: ${doel.slot ? `die SLOT: "${doel.ask}"` : `tussenstap ${fp.k + 1}: "${doel.ask}" (reg: ${goedStap}, GEHEIM)`}.${doel.tip ? ` Die app se wenk by hierdie stap: "${doel.tip}".` : ''}`,
+    fp.tussen ? `TUSSENSTAP wat ${name} al REG gehad het (daarom het ${name} "${given}" ingevul): "${fp.tussen.ask}" = ${fp.tussen.type === 'choice' ? fp.tussen.options[fp.tussen.answer] : fp.tussen.display}.` : '',
+    fp.klaarStappen?.length ? `AL KLAAR (nooit weer vra nie, ook nie anders verwoord nie): ${fp.klaarStappen.map((g) => `${g.ask.replace(/\s*=\s*\?.*$/, '')} = ${g.type === 'choice' ? g.options[g.answer] : g.display}`).join(' / ')}.` : '',
   ] : [
     `${name} antwoordde eerst "${given}" op de som; dat is FOUT. Het goede eindantwoord is ${question.display} (GEHEIM: noem het nooit; ${name} moet het zelf vinden).`,
     misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : `Geen bekende denkfout herkend: je weet niet hoe ${name} aan "${given}" kwam, behalve wat ${name} zelf vertelt.`,
     `De route van de app (tussenstappen met uitkomst, GEHEIM): ${route}${question.guideFinal ? ` / slot: ${question.guideFinal} → ${question.display}` : ''}.`,
     `Waar jullie nu zijn: ${doel.slot ? `het SLOT: "${doel.ask}"` : `tussenstap ${fp.k + 1}: "${doel.ask}" (goed: ${goedStap}, GEHEIM)`}.${doel.tip ? ` Tip van de app bij deze stap: "${doel.tip}".` : ''}`,
+    fp.tussen ? `TUSSENSTAP die ${name} al GOED had (daarom vulde ${name} "${given}" in): "${fp.tussen.ask}" = ${fp.tussen.type === 'choice' ? fp.tussen.options[fp.tussen.answer] : fp.tussen.display}.` : '',
+    fp.klaarStappen?.length ? `AL KLAAR (nooit opnieuw vragen, ook niet anders verwoord): ${fp.klaarStappen.map((g) => `${g.ask.replace(/\s*=\s*\?.*$/, '')} = ${g.type === 'choice' ? g.options[g.answer] : g.display}`).join(' / ')}.` : '',
   ] });
 }
 async function planBeurt({ name, profile, memory, today, question, step, chat, plan: plan0, situatie = [] }) {
@@ -453,10 +457,29 @@ async function planBeurt({ name, profile, memory, today, question, step, chat, p
   const plan = afT ? { ...plan0, ...afT } : plan0;
   const { verboden } = getallenRegel({ question, step, chat, plan });
   const vb = plan.voorbeeld;
+  // De hulpladder (src/hulp.js): de app weet welke deelstap Max vraagt; die uitkomst mag niet in zijn bericht (behalve bij
+  // "samen voordoen" van een eerder stukje), en het label [VB: …] zet de app er zelf onder (de app kijkt het antwoord na).
+  const di = plan.deelInfo, vraag = di?.vraag || plan.vraagStap || null;
+  const kindZei = chat.filter((m) => m.role !== 'teacher').map((m) => m.text).join(' ');
+  const zeiGetal = (x) => getallenIn(kindZei).some((g) => Math.abs(g - x) < 1e-9);
+  if (vraag && vraag.type === 'number' && Math.abs(vraag.answer) > 2 && !zeiGetal(vraag.answer) && !verboden.includes(vraag.answer)) verboden.push(vraag.answer);
+  const kaal = (x) => String(x || '').replace(/\s*=\s*\?.*$/, '').trim();
+  const deelTekst = di ? (af ? [
+    `DEELSTAPPE van die app (GEHEIM, net vir jou; die kind sien dit nie): ${di.deel.map((x, i) => `${i + 1}. ${kaal(x.ask)} = ${x.display}${i < di.sub ? ' ✓ klaar' : i === di.sub ? ' ← NOU' : ''}`).join(' / ')}.`,
+    di.uitleg ? `VERDUIDELIKING (hierdie stukkie doen jy nou saam voor, mét die antwoord): ${kaal(di.uitleg.ask)} = ${di.uitleg.display}${di.uitleg.tip ? ` (aanpak: ${di.uitleg.tip})` : ''}.` : '',
+    `VRAAG (vra presies dit): ${di.vraag ? kaal(di.vraag.ask) : ''}${di.vraag?.tip ? ` — wenk: ${di.vraag.tip}` : ''}`,
+    di.voordoen && plan.zet === 'deel_voordoen' ? `VOORDOEN (deur die app nagewerk; doen dit heeltemal voor): ${di.voordoen.som} = ${di.voordoen.uitkomst}${di.voordoen.hoe ? ` — aanpak: ${di.voordoen.hoe}` : ''}.` : '',
+  ] : [
+    `DEELSTAPPEN van de app (GEHEIM, alleen voor jou; het kind ziet ze niet): ${di.deel.map((x, i) => `${i + 1}. ${kaal(x.ask)} = ${x.display}${i < di.sub ? ' ✓ klaar' : i === di.sub ? ' ← NU' : ''}`).join(' / ')}.`,
+    di.uitleg ? `UITLEG (dit stukje doe je nu samen voor, mét de uitkomst): ${kaal(di.uitleg.ask)} = ${di.uitleg.display}${di.uitleg.tip ? ` (aanpak: ${di.uitleg.tip})` : ''}.` : '',
+    `VRAAG (vraag precies dit): ${di.vraag ? kaal(di.vraag.ask) : ''}${di.vraag?.tip ? ` — tip: ${di.vraag.tip}` : ''}`,
+    di.voordoen && plan.zet === 'deel_voordoen' ? `VOORDOEN (door de app nagerekend; doe dit helemaal voor): ${di.voordoen.som} = ${di.voordoen.uitkomst}${di.voordoen.hoe ? ` — aanpak: ${di.voordoen.hoe}` : ''}.` : '',
+  ]).filter(Boolean) : plan.vraagStap ? [af ? `VRAAG (vra presies hierdie stap): ${kaal(plan.vraagStap.ask)}${plan.vraagStap.tip ? ` — wenk: ${plan.vraagStap.tip}` : ''}` : `VRAAG (vraag precies deze stap): ${kaal(plan.vraagStap.ask)}${plan.vraagStap.tip ? ` — tip: ${plan.vraagStap.tip}` : ''}`] : [];
   const ctx = [
     af ? 'GESPREKSPLAN (net vir jou): die app besluit WAT jy in hierdie boodskap doen, jy besluit HOE jy dit sê. Volg die OPDRAG presies; die algemene reëls geld verder gewoon.' : 'GESPREKSPLAN (alleen voor jou): de app bepaalt WAT je in dit bericht doet, jij bepaalt HOE je het zegt. Volg de OPDRACHT precies; de algemene regels gelden verder gewoon.',
     describeQuestion(question),
     ...situatie,
+    ...deelTekst,
     vb?.opstap ? (af ? 'Dit is ’n OPSTAPSOM: ’n maklike som waarop die regte stap voortbou volgens die wenk (bv. die helfte daarvan, of nog een keer by of af), nie "presies so met ander getalle" nie. Lê die brug so.' : 'Dit is een OPSTAPSOM: een makkelijke som waar de echte stap op voortbouwt volgens de tip (bijv. de helft ervan, of er nog één keer bij of af), niet "precies zo met andere getallen". Leg de brug zo.') : '',
     vb ? (af ? `MAKLIKER VOORBEELD${vb.vanApp ? ' (deur die app nagewerk)' : ' (wat jy vroeër gegee het)'}: ${vb.som} — antwoord ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (moenie daardie antwoord noem nie)'}.` : `MAKKELIJKER VOORBEELD${vb.vanApp ? ' (door de app nagerekend)' : ' (dat jij eerder gaf)'}: ${vb.som} — uitkomst ${vb.uitkomst}${plan.vbUitkomst ? '' : ' (noem die uitkomst niet)'}.`) : '',
     kaartTekst(isAF() ? 'af' : 'nl', question.tpl),
@@ -490,6 +513,17 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
       }
     }
     if (vorig && /snap|verstaan|weet/i.test(chat.at(-1)?.text || '') && zelfdeVraag(vorig.text, zicht)) f.push('Je stelt bijna dezelfde vraag als in je vorige bericht. Kies een ándere, kleinere of concretere vraag.');
+    // de hulpladder (meetlat #37): vraag precies de deelstap van de app, nooit een stap die al klaar is, en geen vaag "precies zo"
+    if (vraag && vraag.type === 'number') {
+      const nodig = getallenIn(kaal(vraag.ask).replace(/^[^:?\d]*[:?]\s*(?=\d)/, '')).filter((x) => !verboden.includes(x));
+      if (nodig.length && !nodig.every((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9))) f.push(af ? `Vra presies hierdie stukkie, met dié getalle: "${kaal(vraag.ask)}".` : `Vraag precies dit stukje, met deze getallen: "${kaal(vraag.ask)}".`);
+    }
+    const klaarAsks = [...(plan.klaarStappen || []), ...(di ? di.klaar : [])].map((g) => kaal(g.ask).replace(/^[^:?\d]*[:?]\s*(?=\d)/, '')).filter((x) => /\d\s*[+−×:x-]\s*\d/.test(x));
+    const herhaald = klaarAsks.find((x) => new RegExp(`${x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*')}\\s*(=\\s*)?\\?`).test(zicht));
+    if (herhaald) f.push(af ? `${name} het "${herhaald}" al reg gehad. Moenie dit weer vra nie: gaan verder met die VRAAG.` : `${name} had "${herhaald}" al goed. Vraag dat niet opnieuw: ga verder met de VRAAG.`);
+    if (plan.zet === 'deel_voordoen' && /\b(precies zo|op dezelfde manier|net zo|presies so|op dieselfde manier)\b/i.test(zicht)) f.push(af ? 'Moenie "presies so" sê nie: noem wát by die regte stukkie dieselfde is (die handeling, met die getalle).' : 'Zeg niet "precies zo" of "op dezelfde manier": noem wát er bij het echte stukje hetzelfde is (de handeling, met de getallen).');
+    if (plan.zet === 'deel_voordoen' && di?.voordoen && !getallenIn(di.voordoen.som).every((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9))) f.push(af ? `Gebruik die voorbeeld van die app: ${di.voordoen.som} = ${di.voordoen.uitkomst}.` : `Gebruik het voorbeeld van de app: ${di.voordoen.som} = ${di.voordoen.uitkomst}.`);
+    if ((zicht.match(/\?/g) || []).length > 1) f.push(af ? 'Hoogstens een vraag in jou boodskap.' : 'Hooguit één vraag in je bericht.');
     if (zicht.split(/\s+/).length > 70) f.push('Je bericht is te lang: hooguit 3 korte zinnen.');
     const pf = plaatjeFouten(zicht);
     if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}).`);
@@ -508,6 +542,8 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
     // een voorbeeld dat nog steeds niet klopt, gebruikt het plan niet (dan kan het het antwoord van het kind niet nakijken)
     if (f2.some((x) => /kloppen niet|voorbeeld heeft/i.test(x))) out = out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim();
   }
+  // de vraag van de app (deelstap of volgende stap): dat label zet de app er zelf onder, zodat het nakijken altijd klopt
+  if (vraag && typeof out === 'string') out = `${out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim()}\n[VB: ${kaal(vraag.ask).replace(/^[^:?\d]*[:?]\s*(?=\d)/, '')} = ${vraag.type === 'choice' ? vraag.options?.[vraag.answer] : vraag.display}]`;
   // het voorbeeld van de app: dat kent de app al, ook als Max het label vergat
   if (plan.zet === 'voorbeeld' && vb && !/\[VB:/i.test(out)) out = `${out}\n[VB: ${vb.som.replace(/\s*=\s*\?\s*$/, '')} = ${vb.uitkomst}]`;
   return out;
@@ -533,6 +569,10 @@ export function bewaakteGetallen(q, chat = []) {
 export async function teacherTurn({ name, profile, memory, today, question, levelName, phase, given, chat = [], step, misconception, scratch = null }) {
   // Vaste beurt (src/vast.js): weet de app al precies wat Max moet zeggen, dan geen AI-aanroep. Telt als "zonder AI" in het gebruik.
   const metPlan = phase === 'step' && step && stapPlanAan();
+  // Tussenantwoord (meetlat #37: 96 van de 215 foute antwoorden): de app opent zelf met "dat klopt, maar de som gaat verder"
+  // en vraagt meteen de volgende stap, in plaats van "Hoe kwam je op …?" of de stap die het kind al had.
+  const tussenOpening = phase === 'wrong' && foutPlanAan() && !chat.length && !scratch?.image && tussenIndex(question, given) >= 0;
+  if (tussenOpening) { const r = await foutBeurt({ name, profile, memory, today, question, given, chat, misconception }); if (r) return r; }
   const vast = process.env.VASTE_BEURTEN === '0' ? null : vasteBeurt({ question, phase, given, chat, step: metPlan ? null : step, misconception, scratch, af: isAF() });
   if (vast) { telGebruik(ZONDER_AI, {}); return vast; }
   // Gespreksplan bij een tussenstap (src/stapgesprek.js): de app kiest de zet, Max verwoordt. Geen zet (eigen vraag van
@@ -554,9 +594,10 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
     phase === 'before' ? `${name} heeft nog NIET geantwoord. Verklap het eindantwoord niet. Help op weg met een vraag of een tip. Vraagt ${name} "hoe begin ik?": noem alleen wat de eerste stap is (wat ga je eerst doen, met welk plaatje of welke aanpak van de kaart) en laat ${name} die stap zelf uitrekenen. Geef niet de hele berekening, niet de doorslaggevende tussenuitkomst en ook niet het kenmerk dat meteen het antwoord geeft.` : '',
     phase === 'wrong' ? `${name} antwoordde "${given}". Dat is FOUT.` : '',
     phase === 'wrong' && misconception ? `Herkende denkfout (zeker): ${misconception.label} Wat helpt: ${misconception.fix}` : '',
+    phase === 'wrong' && tussenIndex(question, given) >= 0 ? (() => { const j = tussenIndex(question, given), t = question.guide[j], nxt = question.guide[j + 1]; return `TUSSENANTWOORD: "${given}" is de uitkomst van de tussenstap "${t.ask}". Die stap (en alles ervoor) had ${name} dus GOED: vraag die NOOIT opnieuw, ook niet in andere woorden. Zeg dat het getal klopt en wat het is, en ga meteen verder met ${nxt ? `de volgende stap: "${nxt.ask}"` : `het slot: "${question.guideFinal || question.text}"`}.`; })() : '',
     phase === 'wrong' && !misconception ? `Er is GEEN bekende denkfout herkend: je weet dus NIET hoe ${name} aan "${given}" kwam. Raad geen oorzaak en zeg niet "waarschijnlijk heb je …", "misschien dacht je …" of iets dergelijks. Vraag eerst hoe ${name} het deed (${Z(`"Hoe kwam je op ${given}?"`, `"Hoe het jy by ${given} uitgekom?"`)}). Vertelt ${name} het, zoek dan de fout in díé uitleg, benoem die concreet en ga vanaf daar verder. Komt de uitleg van ${name} op een ánder getal uit dan "${given}" (bijv. de goede uitkomst): zeg dan niet alleen "Ja, precies", maar wijs op het verschil (${Z(`"Je rekende het goed uit, maar je vulde ${given} in. Zie je waar het misging?"`, `"Jy het dit reg uitgereken, maar jy het ${given} ingevul. Sien jy waar dit verkeerd geloop het?"`)}). Weet ${name} het niet meer of zegt ${name} "gewoon gegokt": begin samen bij de eerste stap.` : '',
     phase !== 'right' ? `NIET VOORZEGGEN: noem het eindantwoord (${question.display}) zelf NOOIT zolang ${name} het nog niet zelf heeft gezegd: ook niet als voorbeeld, als controle (zoals "5 × 7 = 35, dus …"), in een opsomming waaruit het meteen volgt, of in een plaatje (geen strook, cirkel of tabel waar het antwoord al in staat). Snapt ${name} het niet: maak het concreter (kleinere getallen, geld, een plaatje van de situatie), maar laat het laatste rekenwerk altijd aan ${name}.` : '',
-    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort (${Z('"Ja, precies!"', '"Ja, presies!"')}) en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan alleen dat het klopt en dat ${name} het nu kan invullen (${Z('"Dat is hem! Vul het maar in."', '"Dis reg! Vul dit maar in."')}), zonder het getal of de som met uitkomst nog eens op te schrijven (dus NIET "Dan kun je 48 : 4 = 12 invullen").${phase === 'wrong' ? ` LET OP: ${name} vulde eerst "${given}" in. Komt ${name} nu met het goede antwoord of de goede manier, zeg dan niet alleen dat het klopt: zeg dat het nu goed is en vraag kort wat er de eerste keer anders ging (${Z('"Nu klopt het! Maar eerst vulde je ' + given + ' in. Wat ging er toen anders?"', '"Nou is dit reg! Maar eers het jy ' + given + ' ingevul. Wat was toe anders?"')}). Pas als dat duidelijk is (of ${name} het niet weet), zeg je dat ${name} het kan invullen.` : ''}` : '',
+    phase !== 'right' ? `Zegt ${name} in het gesprek het goede antwoord of een goede tussenuitkomst: bevestig dat kort (${Z('"Ja, precies!"', '"Ja, presies!"')}) en ga één stap verder. Leg dan niet alles opnieuw uit en herhaal de berekening niet. Is het het eindantwoord, zeg dan alleen dat het klopt en dat ${name} het nu kan invullen (${Z('"Dat is hem! Vul het maar in."', '"Dis reg! Vul dit maar in."')}), zonder het getal of de som met uitkomst nog eens op te schrijven (dus NIET "Dan kun je 48 : 4 = 12 invullen").${phase === 'wrong' && !misconception && tussenIndex(question, given) < 0 ? ` LET OP: ${name} vulde eerst "${given}" in. Komt ${name} nu met het goede antwoord of de goede manier, zeg dan niet alleen dat het klopt: zeg dat het nu goed is en vraag kort wat er de eerste keer anders ging (${Z('"Nu klopt het! Maar eerst vulde je ' + given + ' in. Wat ging er toen anders?"', '"Nou is dit reg! Maar eers het jy ' + given + ' ingevul. Wat was toe anders?"')}). Pas als dat duidelijk is (of ${name} het niet weet), zeg je dat ${name} het kan invullen.` : ''}` : '',
     phase !== 'right' ? `Zegt ${name} iets wat niet klopt (ook als ${name} zegt dat jij je vergist): controleer het zelf aan de som. Klopt het niet, geef dan niet toe, maar laat vriendelijk zien waar het staat (${Z('"Kijk nog eens: in 8945 staat de 5 rechts van de 4"', '"Kyk weer: in 8945 staan die 5 regs van die 4"')}). Geef alleen toe als jij echt iets fout zei. Geef het antwoord ook niet als één van een paar keuzes ("is het 4, 8 of 9?").` : '',
     mnemonicText(question.cat) ? `Ezelsbruggetjes/geheugensteuntjes bij dit onderwerp:\n${mnemonicText(question.cat)}` : '',
     phase === 'right' ? `${name} antwoordde "${given}". Dat is GOED.` : '',
@@ -568,12 +609,14 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
   ].filter(Boolean).join('\n');
 
   const opener = {
-    wrong: misconception
+    wrong: tussenIndex(question, given) >= 0
+      ? `Begin het gesprek: zeg in één zin dat "${given}" klopt als tussenantwoord (en wat het is), maar dat de som nog verder gaat. Vraag dan meteen de volgende stap (zie TUSSENANTWOORD). Vraag de stap die ${name} al had niet opnieuw.`
+      : misconception
       ? `Begin het gesprek: zeg in één zin vriendelijk wat er misging (de herkende denkfout, in gewone woorden). Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`
       : (String(given ?? '').trim() && !/^\?+$/.test(String(given).trim())
         ? `Begin het gesprek: zeg in één korte zin vriendelijk dat "${given}" nog niet klopt, zonder te raden waarom. Vraag daarna alleen hoe ${name} aan "${given}" kwam (bijv. ${Z('"Hoe heb je het uitgerekend?"', '"Hoe het jy dit uitgereken?"')}). Leg nog niets uit.`
         : `Begin het gesprek: zeg in één korte zin vriendelijk dat het nog niet klopt. Stel daarna één eenvoudige vraag waarmee ${name} zelf de eerste stap van de oplossing zet.`),
-    step: 'Leg deze ene tussenstap uit met een MAKKELIJKER VOORBEELD: dezelfde soort stap met kleinere of rondere getallen (of met geld). Laat het kind eerst dát voorbeeld uitrekenen en zeg dan dat de echte stap precies zo gaat. Herhaal niet de vraag of de tip van de app. Noem de uitkomst van de echte stap niet, ook niet in een plaatje, een opsomming ("250, 500, 750, 1000") of een zin waaruit hij meteen volgt.',
+    step: 'Leg deze ene tussenstap uit met een MAKKELIJKER VOORBEELD: dezelfde soort stap met kleinere of rondere getallen (of met geld), en zeg erbij HOE je het voorbeeld uitrekent (dezelfde aanpak als de tip van de app en de kaart, in één zin). Laat het kind eerst dát voorbeeld uitrekenen en zeg wát er bij de echte stap hetzelfde is (niet alleen "precies zo"). Het voorbeeld is altijd makkelijker dan de echte stap (kleinere getallen, zelfde soort). Noem de uitkomst van de echte stap niet, ook niet in een plaatje, een opsomming ("250, 500, 750, 1000") of een zin waaruit hij meteen volgt.',
     right: 'Geef een kort compliment over de aanpak en één slimme tip voor dit soort sommen.',
     before: `Help op weg met alleen het eerste kleine stapje: zeg in gewone woorden wat de som vraagt of met welke aanpak je begint, en stel één vraag over de eerste deelberekening. Reken die niet voor.`,
   }[phase];
@@ -604,7 +647,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       if (vorig && snaptNiet(laatsteKind) && zelfdeVraag(vorig.text, t)) f.push(`${name} zegt dat het niet snapt, maar je stelt bijna dezelfde vraag als net. Stel een ándere, kleinere vraag: een makkelijker voorbeeld met kleinere getallen, een plaatje of een kleiner stapje.`);
       // Tegenspraak (meetlat #6 en AF #7, ±20×): het kind zegt nu het goede antwoord terwijl het eerst iets anders invulde,
       // en Max zegt alleen "Dis reg! Vul dit maar in." zonder het verschil te benoemen.
-      if (phase === 'wrong' && given != null && laatsteKind && noemtGetal(laatsteKind, question.display) && !noemtGetal(t, given) && /\b(klopt|precies|goed|juist|reg|presies|korrek)\b/i.test(t))
+      if (phase === 'wrong' && !misconception && tussenIndex(question, given) < 0 && given != null && laatsteKind && noemtGetal(laatsteKind, question.display) && !noemtGetal(t, given) && /\b(klopt|precies|goed|juist|reg|presies|korrek)\b/i.test(t))
         f.push(`${name} zegt nu het goede antwoord, maar vulde eerst "${given}" in. Zeg dat het nu klopt én vraag kort wat er de eerste keer anders ging (noem "${given}"). Zeg pas daarna dat ${name} het kan invullen.`);
       // Vastgelopen bij een tussenstap zonder voorbeeld van de app: dan moet Max zelf een makkelijker voorbeeld geven, met
       // andere (kleinere) getallen. Meetlat #13/#14: in ± 50% van die gevallen herhaalde Max de stap met dezelfde getallen.

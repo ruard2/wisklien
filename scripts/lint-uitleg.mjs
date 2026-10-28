@@ -15,7 +15,8 @@ const RAUW = process.argv.includes('--rauw');
 const strip = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const fouten = []; // harde fouten
 const rauw = {}; // sjabloon → { n, afgekeurd, regels }
-const zonderKaart = new Set();
+const zonderKaart = new Set(), zonderHulp = new Set();
+const { HULP } = await import('../src/uitleg/hulp-nl.js');
 let total = 0;
 
 for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
@@ -31,6 +32,7 @@ for (const [lang, cur] of [['nl', 'nl'], ['af', 'za']]) {
       const q = C.generate(c.id, lv);
       if (!q.tpl) fouten.push(`${lang} ${c.id} niveau ${lv}: som zonder sjabloon-id ("${strip(q.text).slice(0, 60)}")`);
       else if (!kaartVoor(lang, q.tpl)) zonderKaart.add(`${lang}:${q.tpl}`);
+      if (lang === 'nl' && q.tpl && !HULP[q.tpl]) zonderHulp.add(q.tpl);
       for (const p of problemen(q, { hints: C.hintsFor })) fouten.push(`${lang}:${q.tpl} — ${REGELS[p.regel]}: ${p.detail} ("${strip(q.text).slice(0, 60)}")`);
     }
   });
@@ -62,7 +64,8 @@ for (const f of uniek.slice(0, 40)) console.log('✗', f);
 if (uniek.length > 40) console.log(`  … en nog ${uniek.length - 40}`);
 for (const [k, s] of zwak) console.log(`✗ ${k}: ${Math.round((100 * s.afgekeurd) / s.n)}% van de sommen afgekeurd (${Object.keys(s.regels).join(', ')}) — repareer de generator`);
 if (zonderKaart.size) console.log(`✗ ${zonderKaart.size} sjablonen zonder uitlegkaart: ${[...zonderKaart].slice(0, 12).join(', ')}${zonderKaart.size > 12 ? ' …' : ''}`);
+if (zonderHulp.size) console.log(`✗ ${zonderHulp.size} NL-sjablonen zonder hulpplan bij vastlopen (src/uitleg/hulp-nl.js): ${[...zonderHulp].slice(0, 12).join(', ')}`);
 const afgekeurd = Object.values(rauw).reduce((a, s) => a + s.afgekeurd, 0);
-const ok = !uniek.length && !zwak.length && !zonderKaart.size;
+const ok = !uniek.length && !zwak.length && !zonderKaart.size && !zonderHulp.size;
 console.log(`${ok ? '✓' : '✗'} Uitleg-regels: ${total} sommen (NL en AF), ${Object.keys(rauw).length} sjablonen; de poort keurde ${(100 * afgekeurd / total).toFixed(1)}% van de rauwe sommen af.`);
 process.exit(ok ? 0 : 1);

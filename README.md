@@ -286,6 +286,30 @@ zelf). Heeft de app geen makkelijker voorbeeld, dan bedenkt Max er een en zet he
 erbij; de app rekent het na en kijkt daarmee het antwoord van het kind na. Een eigen vraag van het kind gaat naar de gewone
 Max. Aan voor NL (Tussenstappen #20) en AF (#31); `MAX_STAPPLAN=0` zet het uit. Testen: /audit → soort "Tussenstappen" (oud ↔ nieuw, blind beoordeeld).
 
+### De app stuurt, Max verwoordt: hulpladder en tussenantwoord (meetlat #37)
+Meetlat #37: Max na een fout 3,96 en bij een vastgelopen stap 3,95; 96 van de 215 foute antwoorden waren een
+**tussenantwoord**, en dan vroeg Max die stap opnieuw (3,67). Bij "snap ik niet" bedacht hij een eigen voorbeeld zonder te
+zeggen hoe het moet. Daarom:
+- **Hulpladder** (`src/hulp.js`): de app knipt een stap in kleine **deelstappen** volgens de route van de methode (rijgen in
+  stukjes, aanvullen, splitsen, de kleine som, delen met een bekende keersom, procent via de breuk of 10%, breuk van een
+  getal via 1 deel, tijdsduur via het hele uur, geld: euro's en centen apart). Elke deelstap is nagerekend; de laatste is de
+  uitkomst van de stap. Een generator kan een eigen route meegeven (`deel` op een tussenstap). Treden: tip → deelstappen →
+  mini-voorbeeld voordoen (door de app gemaakt, mét uitkomst en aanpak) → samen doen.
+- **Gespreksstaat door de app** (`src/foutgesprek.js`, `src/stapgesprek.js`): na een tussenantwoord opent de app met
+  "dat klopt, maar de som gaat verder" en vraagt meteen de volgende stap; stappen die klaar zijn vraagt Max nooit opnieuw;
+  "snap ik niet" = één trede hoger; "wat ging er anders?" alleen als de oorzaak nog onbekend is. Standaard aan voor NL
+  (`MAX_FOUTPLAN=bewaking` = de oude vrije Max met getallenbewaking).
+- **Strakke opdracht per zet + harde controles** (`planBeurt` in `src/ai.js`): Max krijgt de deelstap als VRAAG, de app zet
+  het label `[VB: …]` er zelf onder, en herschrijft als Max een andere vraag stelt, een klare stap opnieuw vraagt, "precies zo"
+  zegt zonder te zeggen wát, het voorbeeld van de app niet gebruikt, of meer dan één vraag stelt.
+- **Hulpplan per kaart** (`src/uitleg/hulp-nl.js`): per sjabloon wat je eerst nagaat, welk materiaal (precies, bijv. geld per
+  plek in het positieschema) en welk kleiner voorbeeld; Max krijgt het onder de kaart. `npm test` faalt als een NL-sjabloon
+  geen hulpplan heeft.
+- **× en : 10, 100, 1000**: één formulering overal (`schuif()` in `src/util.js`): groter/kleiner, de cijfers in het
+  positieschema, en de komma op papier.
+- Tests: `scripts/test-plannen.mjs` speelt ± 800 gesprekken na een tussenantwoord af; `scripts/test-generators.mjs` rekent
+  ook de tips ("in stukjes") en alle deelstappen na.
+
 ### Betere input naar de AI (alles wat de app zeker weet, rekent de app uit)
 - **Denkfouten** (`src/denkfouten.js`, NL en AF): bij kale sommen de gebruikelijke foute manieren (onthouden vergeten,
   kleinste van grootste, lenen zonder verlagen, ernaast in de tafel, nul vergeten, één keer te veel/weinig), bij

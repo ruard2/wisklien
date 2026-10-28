@@ -8,12 +8,13 @@
 // Het plan is staatloos: het speelt het hele gesprek opnieuw af (de berichten van het kind, en het voorbeeld dat Max gaf),
 // zodat er niets extra bewaard hoeft te worden en elke beurt hetzelfde uitkomt als je hem opnieuw berekent.
 import { makkelijker } from './tips.js';
+import { deelstappen, voordoen } from './hulp.js';
 import { snaptNiet } from './kwaliteit.js';
 
 const norm = (x) => String(x ?? '').toLowerCase().replace(/[€r$]\s?(?=\d)/g, '').replace(/\s+/g, ' ').trim();
 // getallen in een tekst, ook als woord ("2 kom drie keer voor" → 2 en 3; Tussenstappen AF #22 zag alleen de 2)
 const WOORDGETAL = { nul: 0, een: 1, één: 1, twee: 2, drie: 3, vier: 4, vijf: 5, vyf: 5, zes: 6, ses: 6, zeven: 7, sewe: 7, acht: 8, ag: 8, negen: 9, nege: 9, tien: 10, elf: 11, twaalf: 12 };
-const getallen = (s) => (String(s ?? '').replace(/(\d)[  ](?=\d{3}\b)/g, '$1').match(/-?\d+(?:[.,]\d+)?|\b(?:nul|één|twee|drie|vier|vijf|vyf|zes|ses|zeven|sewe|acht|negen|nege|tien|elf|twaalf)\b|\b(?:een|ag)\b(?=\s+(?:keer|maal|stuk|stukke|stukken|kere|ure|uur|minute|minuten|euro|rand|combinaties|kombinasies))/gi) || [])
+const getallen = (s) => (String(s ?? '').replace(/(\d)[\s\u00a0\u202f\u2009](?=\d{3}\b)/g, '$1').match(/-?\d+(?:[.,]\d+)?|\b(?:nul|één|twee|drie|vier|vijf|vyf|zes|ses|zeven|sewe|acht|negen|nege|tien|elf|twaalf)\b|\b(?:een|ag)\b(?=\s+(?:keer|maal|stuk|stukke|stukken|kere|ure|uur|minute|minuten|euro|rand|combinaties|kombinasies))/gi) || [])
   .map((x) => (/\d/.test(x) ? Number(x.replace(',', '.')) : WOORDGETAL[x.toLowerCase()]));
 // Het getal dat het kind als antwoord bedoelt: na het laatste "=", anders het laatste getal
 function antwoordVan(s) {
@@ -24,8 +25,15 @@ function antwoordVan(s) {
 }
 const isZelfde = (kind, goed) => {
   if (goed == null) return false;
+  // een breuk (4/5, 1 1/4): vergelijk de waarde van de breuken in wat het kind zegt
+  const fg = /^(?:\d+\s+)?\d+\s*\/\s*\d+$/.test(String(goed).trim()) ? goed : null;
+  if (fg != null) return [...String(kind ?? '').matchAll(/(?:\d+\s+)?\d+\s*\/\s*\d+/g)].some((m) => m[0].replace(/\s+/g, ' ').replace(/\s*\/\s*/, '/') === String(goed).trim().replace(/\s+/g, ' ').replace(/\s*\/\s*/, '/'));
+  // een tijd (18:10): vergelijk de tijd, niet het laatste getal
+  const tg = String(goed).trim().match(/^(\d{1,2})[:.](\d{2})(?!\d)/);
+  if (tg) return [...String(kind ?? '').matchAll(/(\d{1,2})[:.](\d{2})/g)].some((m) => +m[1] === +tg[1] && m[2] === tg[2])
+    || [...String(kind ?? '').matchAll(/(\d+)\s*(?:uur|ure)\s*(?:en\s*)?(\d+)\s*min/gi)].some((m) => +m[1] === +tg[1] && +m[2] === +tg[2]);
   const n = antwoordVan(kind), g = typeof goed === 'number' ? goed : Number(String(goed).replace(/[^\d,.-]/g, '').replace(',', '.'));
-  if (n != null && Number.isFinite(g) && String(goed).match(/\d/)) return Math.abs(n - g) < 1e-9;
+  if (n != null && Number.isFinite(g) && String(goed).match(/\d/) && (getallen(goed).length <= 1 || /^[−\-\d\s\u00a0\u202f\u2009.,€R%]+(?:\s?[a-zA-Z³²]+)?$/.test(String(goed).trim()))) return Math.abs(n - g) < 1e-9;
   // tekstantwoord ("tientallen", "na", "ja"): het woord komt voor in wat het kind zegt
   const w = norm(goed);
   return !!w && new RegExp(`(^|[^a-zà-ÿ])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-zà-ÿ])`).test(norm(kind));
@@ -92,6 +100,39 @@ export const ZETTEN = {
     regels: 'De uitkomst van de echte stap zelf noem je niet; het kind doet het laatste stukje.',
     vbUitkomst: true,
   },
+  // De hulpladder (src/hulp.js, meetlat #37): de app knipt de stap in kleine DEELSTAPPEN volgens de route van de kaart.
+  deel_start: {
+    doel: 'Het kind loopt vast bij deze stap. De app knipt hem in kleine DEELSTAPPEN (hieronder). Zeg in één korte zin hoe de aanpak gaat, met de getallen van deze som (zoals de kaart en de tip het zeggen), en vraag dan alleen de eerste DEELSTAP (de VRAAG hieronder).',
+    opties: ['"We doen het in stukjes: eerst …, dan … . Eerst: …?"', 'zet de stukjes kort onder elkaar en vraag het eerste'],
+    regels: 'Vraag precies de VRAAG hieronder (met die getallen) en niets anders. Noem de uitkomst ervan niet, en ook niet de uitkomst van de hele stap.',
+  },
+  deel_volgende: {
+    doel: 'Het kind had de vorige deelstap GOED. Zeg kort dat het klopt (noem het getal van het kind) en vraag de volgende DEELSTAP (de VRAAG hieronder). Laat zien hoe het vorige antwoord erin terugkomt.',
+    opties: ['"Klopt, dat is … . Nu …?"', 'zet de stukjes tot nu toe kort onder elkaar en vraag het volgende'],
+    regels: 'Vraag precies de VRAAG hieronder. Noem de uitkomst ervan niet. Vraag de stukjes die al klaar zijn niet opnieuw.',
+  },
+  deel_fout: {
+    doel: 'Het kind gaf een fout antwoord op de deelstap. Zeg vriendelijk dat het nog niet klopt (noem het getal van het kind), geef de hulp van de TIP van deze deelstap in eigen woorden, concreet met deze getallen, en vraag dezelfde deelstap opnieuw (de VRAAG hieronder).',
+    opties: ['de tip in eigen woorden', 'een plaatje (getallenlijn, geld) bij de tip'],
+    regels: 'Noem de uitkomst van de deelstap niet. Zeg niets onwaars over het getal van het kind.',
+  },
+  deel_voordoen: {
+    doel: 'Het kind snapt deze deelstap niet. Doe het VOORDOEN-voorbeeld hieronder helemaal voor: de som, hoe je het doet (de aanpak hieronder) en de uitkomst. Zeg daarna in één zin wat er bij de echte deelstap hetzelfde is (dezelfde handeling, noem die), en vraag de echte deelstap opnieuw (de VRAAG hieronder).',
+    opties: ['voorbeeld voordoen + "bij jouw stukje doe je hetzelfde: …"', 'voorbeeld voordoen met een plaatje (getallenlijn, geld) + de vraag'],
+    regels: 'Gebruik precies het voorbeeld van de app (andere getallen mag niet). Zeg niet alleen "precies zo" of "op dezelfde manier": noem wát hetzelfde is. Noem de uitkomst van de echte deelstap niet.',
+    vbUitkomst: true,
+  },
+  deel_samen: {
+    doel: 'Het lukt nog niet met dit stukje. Doe dit stukje (UITLEG hieronder) samen voor, kort en helemaal, mét de uitkomst, zodat het kind ziet hoe het gaat. Vraag daarna het volgende stukje (de VRAAG hieronder).',
+    opties: ['het stukje voordoen + de volgende vraag', 'het stukje met een plaatje voordoen + de volgende vraag'],
+    regels: 'De uitkomst van dit ene stukje (UITLEG) mag je noemen; de uitkomst van de VRAAG en van de hele stap niet.',
+    vbUitkomst: true,
+  },
+  deel_samen_laatste: {
+    doel: 'Het laatste stukje lukt nog niet. Zet alle stukjes die al klaar zijn onder elkaar (met hun uitkomst), en laat met een plaatje of geld zien wat er bij het laatste stukje gebeurt, zonder de uitkomst te noemen. Vraag het laatste stukje opnieuw (de VRAAG hieronder).',
+    opties: ['de stukjes onder elkaar + het laatste stukje met een getallenlijn', 'de stukjes onder elkaar + het laatste stukje met geld'],
+    regels: 'De uitkomst van de VRAAG noem je niet: die is het antwoord van de stap.',
+  },
   klaar: {
     doel: 'Het kind heeft de echte stap GOED. Zeg kort en gemeend dat het klopt en dat het dit nu in het vakje kan invullen. Prijs de aanpak (wat het kind goed deed), niet "slim zijn".',
     opties: ['kort compliment + "vul maar in"', 'compliment over hoe het voorbeeld hielp + "vul maar in"'],
@@ -105,11 +146,40 @@ export const ZETTEN = {
 // ([VB: vraag = antwoord], onzichtbaar voor het kind, door de app nagerekend). Zo kijkt de app élk antwoord van het kind
 // na tegen de vraag die er écht gesteld werd (Tussenstappen #19: "2" op het voorbeeld werd als goed antwoord op de echte
 // stap gezien; "67 + 103 = 170" op een deelvraag als fout, omdat het niet de hele stap was).
-export function stapPlan({ question: q, step, chat = [] }) {
+// De hulpladder bij de deelstappen: één beurt van het kind verwerken. s.deel (deelstappen), s.sub (waar we zijn), s.dFout,
+// s.dSnap. Geeft de zet, of 'af' als de hele stap nu klaar is (de laatste deelstap = de uitkomst van de stap).
+export function deelBeurt(s, tekst, vorigeVb, goedStap) {
+  const kaal = (x) => String(x ?? '').replace(/\s*=\s*\?.*$/, '').replace(/^[^:?\d]*[:?]\s*(?=\d)/, '').replace(/\s/g, '');
+  const sync = vorigeVb ? s.deel.findIndex((x) => kaal(x.ask) === kaal(vorigeVb.som)) : -1;
+  if (sync >= 0 && sync !== s.sub) { s.sub = sync; s.dFout = 0; s.dSnap = 0; }
+  const cur = s.deel[s.sub];
+  if (!cur) return 'af';
+  if (isZelfde(tekst, cur.display)) {
+    s.sub++; s.dFout = 0; s.dSnap = 0;
+    return s.sub >= s.deel.length ? 'af' : 'deel_volgende';
+  }
+  if (goedStap != null && isZelfde(tekst, goedStap)) { s.sub = s.deel.length; return 'af'; }
+  const heeft = antwoordVan(tekst) != null;
+  if (heeft) { s.dFout++; return s.dFout === 1 ? 'deel_fout' : s.dFout === 2 ? 'deel_voordoen' : samenZet(s); }
+  if (snaptNiet(tekst) || WEET_NIET.test(tekst)) { s.dSnap++; return s.dSnap === 1 ? 'deel_voordoen' : samenZet(s); }
+  return null; // iets anders (een eigen vraag): de gewone Max
+}
+function samenZet(s) {
+  if (s.sub < s.deel.length - 1) { s.uitleg = s.deel[s.sub]; s.sub++; s.dFout = 0; s.dSnap = 0; return 'deel_samen'; }
+  return 'deel_samen_laatste';
+}
+// Wat de app bij een deel-zet aan Max meegeeft: de vraag (deelstap), het voorbeeld om voor te doen, de stukjes die klaar zijn.
+export function deelInfo(s, verboden = [], lang = 'nl') {
+  const cur = s.deel[s.sub];
+  return { deel: s.deel, sub: s.sub, vraag: cur, klaar: s.deel.slice(0, s.sub), uitleg: s.uitleg || null, voordoen: cur ? voordoen(cur, verboden, lang) : null };
+}
+export function stapPlan({ question: q, step, chat = [], lang = 'nl' }) {
   if (!step || step.type === 'choice' && !step.options) return null;
   const appVb = step.type !== 'choice' ? makkelijker(step.ask, step.answer, [q.answer]) : null;
   const s = { fase: 'start', vb: appVb ? { som: appVb.vraag || appVb.som.includes('?') ? appVb.som : `${appVb.som} = ?`, uitkomst: appVb.uitkomst, vanApp: true, opstap: !!appVb.opstap } : null, snap: 0, foutVb: 0, foutStap: 0, zetten: [] };
   const goedStap = step.type === 'choice' ? step.options[step.answer] : step.display;
+  const ds = deelstappen(step, { lang });
+  if (ds) Object.assign(s, { deel: ds, sub: 0, dFout: 0, dSnap: 0 });
   const kindBeurten = [];
   chat.forEach((m, i) => { if (m.role !== 'teacher') kindBeurten.push(i); });
   if (!kindBeurten.length || chat.at(-1)?.role === 'teacher') return null;
@@ -121,8 +191,10 @@ export function stapPlan({ question: q, step, chat = [] }) {
     if (vorigeZet === 'eigen_voorbeeld' && vorigeMax?.vb) s.vb = vorigeMax.vb;
     const verwacht = vorigeMax?.vb || (s.fase === 'voorbeeld' ? s.vb : s.fase === 'stap' ? { som: step.ask, uitkomst: goedStap } : null);
     const heeftAntwoord = antwoordVan(tekst) != null || (verwacht && isZelfde(tekst, verwacht.uitkomst)) || isZelfde(tekst, goedStap);
-    if (s.fase === 'start') zet = s.vb ? 'voorbeeld' : 'eigen_voorbeeld';
+    s.uitleg = null;
+    if (s.fase === 'start') zet = s.deel ? 'deel_start' : s.vb ? 'voorbeeld' : 'eigen_voorbeeld';
     else if (s.fase === 'klaar') zet = null;
+    else if (s.fase === 'deel') { const z = deelBeurt(s, tekst, vorigeMax?.vb, goedStap); zet = z === 'af' ? 'klaar' : z; }
     else if (/\b(ik snap het|ek verstaan dit)\b/i.test(tekst) && !/\b(niet|nie)\b/i.test(tekst)) zet = null; // "Ik snap het!": de gewone Max
     else if (/^\s*(waarom|hoe|wat|wie|welke|wanneer|kan|mag|moet|hoekom|watter)\b/i.test(tekst) && !(verwacht && isZelfde(tekst, verwacht.uitkomst)) && !snaptNiet(tekst) && !WEET_NIET.test(tekst)) zet = null; // eigen vraag: de gewone Max
     else if (!heeftAntwoord && (snaptNiet(tekst) || WEET_NIET.test(tekst))) {
@@ -139,18 +211,18 @@ export function stapPlan({ question: q, step, chat = [] }) {
     } else zet = null; // eigen vraag, of een antwoord dat de app niet kan nakijken: de gewone Max (de fase blijft)
     if (zet) {
       s.zetten.push(zet);
-      s.fase = ['voorbeeld', 'eigen_voorbeeld', 'vb_fout', 'vb_concreter'].includes(zet) ? 'voorbeeld' : zet === 'klaar' ? 'klaar' : 'stap';
+      s.fase = zet.startsWith('deel_') ? 'deel' : ['voorbeeld', 'eigen_voorbeeld', 'vb_fout', 'vb_concreter'].includes(zet) ? 'voorbeeld' : zet === 'klaar' ? 'klaar' : 'stap';
     }
     vorigeZet = zet;
   }
   if (!zet) return null;
-  return { zet, ...ZETTEN[zet], voorbeeld: s.vb, goedStap, fase: s.fase, eerdereZetten: s.zetten.slice(0, -1) };
+  return { zet, ...ZETTEN[zet], voorbeeld: s.deel ? null : s.vb, goedStap, fase: s.fase, eerdereZetten: s.zetten.slice(0, -1), ...(s.deel && zet.startsWith('deel_') ? { deelInfo: deelInfo(s, [q.answer, step.answer], lang) } : {}) };
 }
 
 // Kan de app de vraag van Max narekenen? "30% van 12", "de helft van 18", "een kwart van 20", of een gewone som.
 // Geeft het juiste getal, of null als het geen rekensom is (bijv. "op welke plek staat de 4").
 export function rekenVraag(som) {
-  const t = String(som || '').toLowerCase().replace(/(\d)[  ](?=\d{3}\b)/g, '$1').replace(/€\s?|\br\s?(?=\d)/g, '');
+  const t = String(som || '').toLowerCase().replace(/(\d)[\s\u00a0\u202f\u2009](?=\d{3}\b)/g, '$1').replace(/€\s?|\br\s?(?=\d)/g, '');
   const n = (x) => Number(String(x).replace(',', '.'));
   let m;
   if ((m = t.match(/(\d+(?:[.,]\d+)?)\s*%\s*(?:van|of)\s*(\d+(?:[.,]\d+)?)/))) return (n(m[1]) * n(m[2])) / 100;
@@ -193,5 +265,11 @@ export const ZETTEN_AF = {
   stap_fout: { doel: 'Die kind het die REGTE stap verkeerd. Sê vriendelik dat dit nog nie reg is nie (noem die kind se getal) en wys waar dit verskil met hoe dit by die voorbeeld gegaan het, of watter stukkie van die aanpak (wenk) nog ontbreek. Vra die regte stap weer.', opties: ['vergelyk met die voorbeeld', 'breek die regte stap in twee stukkies en vra die eerste stukkie'], regels: 'Moenie die antwoord van die regte stap noem nie.' },
   stap_concreter: { doel: 'Die kind verstaan die regte stap nog nie (ná die voorbeeld). Maak dit meer konkreet op ’n ánder manier as jou vorige boodskap: breek die regte stap in twee klein stukkies volgens die wenk, of gebruik die model van die kaart (geld, prentjie). Vra net die eerste stukkie.', opties: ['in twee stukkies breek', 'met geld of ’n prentjie'], regels: 'Moenie dieselfde verduideliking as in jou vorige boodskap gebruik nie. Moenie die antwoord van die regte stap noem nie.' },
   stap_samen: { doel: 'Dit lukt nog steeds nie. Doen die regte stap saam: skryf dit in baie klein treetjies uit (hoogstens 3), werk alles voor behalwe die heel laaste klein stukkie, en laat die kind net daardie laaste stukkie doen.', opties: ['klein treetjies onder mekaar', 'met ’n prentjie en die treetjies'], regels: 'Die antwoord van die regte stap self noem jy nie; die kind doen die laaste stukkie.' },
+  deel_start: { doel: 'Die kind sit vas by hierdie stap. Die app breek dit in klein DEELSTAPPE (hieronder). Sê in een kort sin hoe die aanpak werk, met die getalle van hierdie som (soos die kaart en die wenk dit sê), en vra dan net die eerste DEELSTAP (die VRAAG hieronder).', opties: ['"Ons doen dit in stukkies: eers …, dan … . Eers: …?"', 'sit die stukkies kort onder mekaar en vra die eerste'], regels: 'Vra presies die VRAAG hieronder (met daardie getalle) en niks anders nie. Moenie die antwoord daarvan noem nie, en ook nie die antwoord van die hele stap nie.' },
+  deel_volgende: { doel: 'Die kind het die vorige deelstap REG. Sê kort dat dit klop (noem die kind se getal) en vra die volgende DEELSTAP (die VRAAG hieronder). Wys hoe die vorige antwoord daarin terugkom.', opties: ['"Reg, dis … . Nou …?"', 'sit die stukkies tot dusver onder mekaar en vra die volgende'], regels: 'Vra presies die VRAAG hieronder. Moenie die antwoord daarvan noem nie. Moenie stukkies wat klaar is weer vra nie.' },
+  deel_fout: { doel: 'Die kind het die deelstap verkeerd. Sê vriendelik dat dit nog nie reg is nie (noem die kind se getal), gee die hulp van die WENK van hierdie deelstap in eie woorde, konkreet met hierdie getalle, en vra dieselfde deelstap weer (die VRAAG hieronder).', opties: ['die wenk in eie woorde', '’n prentjie (getallelyn, geld) by die wenk'], regels: 'Moenie die antwoord van die deelstap noem nie. Sê niks wat nie waar is oor die kind se getal nie.' },
+  deel_voordoen: { doel: 'Die kind verstaan hierdie deelstap nie. Doen die VOORDOEN-voorbeeld hieronder heeltemal voor: die som, hoe jy dit doen (die aanpak hieronder) en die antwoord. Sê daarna in een sin wat by die regte deelstap dieselfde is (dieselfde handeling, noem dit), en vra die regte deelstap weer (die VRAAG hieronder).', opties: ['voorbeeld voordoen + "by jou stukkie doen jy dieselfde: …"', 'voorbeeld voordoen met ’n prentjie + die vraag'], regels: 'Gebruik presies die app se voorbeeld (geen ander getalle nie). Moenie net "presies so" sê nie: noem wát dieselfde is. Moenie die antwoord van die regte deelstap noem nie.', vbUitkomst: true },
+  deel_samen: { doel: 'Dit lukt nog nie met hierdie stukkie nie. Doen hierdie stukkie (VERDUIDELIKING hieronder) saam voor, kort en heeltemal, mét die antwoord. Vra daarna die volgende stukkie (die VRAAG hieronder).', opties: ['die stukkie voordoen + die volgende vraag', 'die stukkie met ’n prentjie voordoen + die volgende vraag'], regels: 'Die antwoord van hierdie een stukkie mag jy noem; die antwoord van die VRAAG en van die hele stap nie.', vbUitkomst: true },
+  deel_samen_laatste: { doel: 'Die laaste stukkie lukt nog nie. Sit al die stukkies wat klaar is onder mekaar (met hul antwoorde), en wys met ’n prentjie of geld wat by die laaste stukkie gebeur, sonder om die antwoord te noem. Vra die laaste stukkie weer (die VRAAG hieronder).', opties: ['die stukkies onder mekaar + die laaste stukkie met ’n getallelyn', 'die stukkies onder mekaar + die laaste stukkie met geld'], regels: 'Moenie die antwoord van die VRAAG noem nie: dit is die antwoord van die stap.' },
   klaar: { doel: 'Die kind het die regte stap REG. Sê kort en gemeend dat dit klop en dat hy dit nou in die blokkie kan invul. Prys die aanpak (wat die kind goed gedoen het), nie "slim wees" nie.', opties: ['kort kompliment + "vul dit maar in"', 'kompliment oor hoe die voorbeeld gehelp het + "vul dit maar in"'], regels: 'Moenie die getal of die som met antwoord weer neerskryf nie.' },
 };
