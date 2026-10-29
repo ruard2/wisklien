@@ -42,6 +42,7 @@ export const HULP = {
   'optellen.2e': H('Haalt het kind per plek het kleinste van het grootste (klein van groot)?', 'geld: euro\'s, tientjes en honderdjes; wissel 1 tientje in voor 10 euro\'s als het niet gaat', 'bijv. 52 − 27: 2 − 7 gaat niet, wissel een tientje in: 12 − 7 = 5, en dan 4 − 2 = 2'),
   'optellen.3e': H('Weet het kind wat er links gebeurt na inwisselen (1 minder), ook bij een 0?', 'geld: duizendjes, honderdjes, tientjes en euro\'s; bij een 0 eerst een plek verder inwisselen', 'bijv. 402 − 158: bij de 0 tientjes eerst een honderdje inwisselen voor 10 tientjes'),
   'optellen.3f': H('Weet het kind wat er links gebeurt na inwisselen (1 minder), ook bij een 0?', 'geld en het positieschema (TD D H T E); per plek van rechts naar links', 'eerst een som met drie cijfers en één keer inwisselen (bijv. 352 − 128)'),
+  'optellen.3g': H('Weet het kind wat voorgaat (haakjes, dan keer en delen, dan plus en min)?', 'onderstrepen wat je eerst doet en de som opnieuw opschrijven', 'bijv. 2 + 3 × 4: eerst 3 × 4 = 12, dan 2 + 12 = 14'),
   'optellen.3a': H('Weet het kind welke twee sommen er zijn (eerst samen, dan het verschil)?', 'een schema: wat weet je, wat reken je eerst uit, wat daarna', 'dezelfde vraag met kleine getallen (bijv. 3 en 4 kinderen samen, 2 gaan weg)'),
   'optellen.3b': H('Weet het kind dat de uitgaven eerst samen moeten?', 'geld: eerst alles wat je uitgeeft bij elkaar, dan van het budget af', 'bijv. budget € 20, uitgaven € 5 en € 7'),
   'optellen.3c': H('In welke stukjes gaat het tweede getal eraf?', 'de lege getallenlijn met grote sprongen (tienduizendtallen, duizendtallen)', 'bijv. 64 000 − 23 000: eerst − 20 000, dan − 3000'),
@@ -68,6 +69,7 @@ export const HULP = {
   'delen.1b': H('Ziet het kind de kleine som zonder de nul?', 'de kleine som; met tientjes eerlijk verdelen', 'bijv. 80 : 4: 8 : 4 = 2, dus 20'),
   'delen.1c': H('Snapt het kind "zo veel" (groter deeltal) en "zo weinig" (grotere deler)?', 'de kleine som met "× zo veel / × zo weinig"; met geld verdelen over 3 of 30 mensen', 'bijv. 600 : 30: 6 : 3 = 2, 600 : 3 = 200, : 30 is 10 × zo weinig: 20'),
   'delen.2e': H('Telt het kind de nullen van het deeltal en de deler apart?', 'de kleine som, dan eerst de nullen van het deeltal (zo veel), dan die van de deler (zo weinig)', 'bijv. 2400 : 60: 24 : 6 = 4, 2400 : 6 = 400, : 60 = 40'),
+  'delen.2f': H('Weet het kind naar welk cijfer (of welke cijfers) het moet kijken?', 'het laatste cijfer onderstrepen (bij 4 de laatste twee)', 'bijv. 1316 door 4: 16 zit in de tafel van 4, dus ja'),
   'delen.2a': H('Telt het kind alle cijfers op (niet alleen het laatste)?', 'de cijfers onder elkaar optellen; dan de tafel van 3 of 9', 'bijv. 123: 1 + 2 + 3 = 6, 6 zit in de tafel van 3'),
   'delen.2b': H('Neemt het kind een grote hap (10 × of 100 ×) en kijkt het wat overblijft?', 'het happen-schema: links wat er nog is, rechts de happen', 'bijv. 156 : 4: hap 30 × 4 = 120, 36 over, hap 9 × 4 = 36'),
   'delen.2c': H('Weet het kind dat de rest geen vol zakje is?', 'het happen-schema; de zakjes tekenen', 'bijv. 25 snoepjes in zakjes van 6: 4 zakjes, 1 over'),
@@ -75,6 +77,8 @@ export const HULP = {
   'delen.3a': H('Gebruikt het kind de hulptabel om een grote hap te kiezen?', 'het happen-schema met de hulptabel (1 ×, 2 ×, 5 ×, 10 × de deler); geld', 'bijv. € 360 : 15: hap 20 × 15 = 300, nog 60 = 4 × 15'),
   'delen.3b': H('Gebruikt het kind de hulptabel om een grote hap te kiezen, en trekt het goed af?', 'het happen-schema met de hulptabel; wat overblijft in stukjes aftrekken', 'bijv. 528 : 22: hap 20 × 22 = 440, nog 88 = 4 × 22'),
   'delen.3d': H('Stopt het kind als er minder dan de deler over is, en telt het de rest niet als doos?', 'het happen-schema met de hulptabel; de dozen tekenen', 'bijv. 50 flessen in kratten van 12: 4 kratten, 2 over'),
+  'delen.3f': H('Haalt het kind na elke stap het volgende cijfer erbij, en schrijft het een 0 als de deler niet past?', 'geld: honderdjes verdelen, de rest inwisselen voor tientjes', 'bijv. 84 : 4: 8 : 4 = 2, dan 4 : 4 = 1, dus 21'),
+  'delen.3g': H('Weet het kind wat een priemgetal is (precies twee delers)?', 'een factorboom; blokjes in een rechthoek leggen', 'bijv. 30 = 2 × 3 × 5'),
   'delen.3c': H('Weet het kind dat de kinderen die overblijven ook mee moeten?', 'bussen tekenen: volle bussen en een bus voor de rest', 'bijv. 10 kinderen, 4 per auto: 2 volle auto\'s en nog 2 kinderen, dus 3 auto\'s'),
 
   // ================= KOMMAGETALLEN =================
@@ -110,6 +114,7 @@ export const HULP = {
   'oppervlakte.3e': H('Rekent het kind eerst de inhoud in dm³ (blokjes van 1 dm³) en deelt het dan door 2?', 'blokjes: hoeveel blokjes van 1 dm³ passen in de kist (lengte × breedte × hoogte); een blok van 2 dm³ is 2 van die blokjes', 'bijv. een kist van 12 dm³ = 12 blokjes van 1 dm³ = 6 blokken van 2 dm³'),
   'oppervlakte.3f': H('Verdeelt het kind de figuur in rechthoeken en telt het ze op?', 'de figuur in stroken knippen (tekenen), elke strook apart', 'bijv. twee stroken van 4 × 2 en 3 × 2'),
   'oppervlakte.3g': H('Rekent het kind eerst de zijden zonder maat uit?', 'met de vinger langs de rand; elke zijde opschrijven', 'bijv. een L-vorm: de ontbrekende zijde is lang − kort'),
+  'oppervlakte.3h': H('Rekent het kind met de straal (niet met de middellijn)?', 'een cirkel in een vierkant tekenen', 'bijv. straal 1 m: 3,14 × 1 × 1 = 3,14 m²'),
 
   // ================= GRAFIEKEN, RIJEN, COMBINATIES =================
   'grafieken.0b': H('Kijkt het kind naar de goede staaf en de as?', 'je vinger vanaf de bovenkant van de staaf recht naar links naar de as', 'eerst een staaf die precies op een getal komt'),
@@ -131,6 +136,7 @@ export const HULP = {
   'rij.c': H('Schrijft het kind de verschillen eronder?', 'een tweede rij met de verschillen', 'bijv. 1, 2, 4, 7: verschillen 1, 2, 3'),
   'combinaties.a': H('Telt het kind op in plaats van keer?', 'een boomdiagram of tabel: bij elk shirt alle broeken', 'bijv. 2 shirts en 3 broeken: 2 × 3 = 6'),
   'combinaties.b': H('Telt het kind op in plaats van keer?', 'een boomdiagram: eerst broodjes, dan drankjes, dan toetjes', 'eerst alleen broodjes en drankjes'),
+  'combinaties.c': H('Ziet het kind dat je elk paar twee keer telt?', 'stippen met lijntjes ertussen', 'bijv. 3 kinderen: 3 × 2 = 6, maar elk paar dubbel, dus 3 handen'),
 
   // ================= GETALBEGRIP =================
   'getalbegrip.0a': H('Kijkt het kind naar de eenheden (het cijfer rechts van de tientallen)?', 'de getallenlijn tussen twee tientallen met het midden (5) erop', 'bijv. 47: tussen 40 en 50, de 7 is meer dan 5, dus 50'),
@@ -147,6 +153,8 @@ export const HULP = {
   'getalbegrip.3c': H('Maakt het kind de getallen even lang achter de komma?', 'geld of duizendsten: vul aan met nullen', 'bijv. 0,5 en 0,45: 0,50 en 0,45'),
   'getalbegrip.3e': H('Wijst het kind eerst het honderdduizendtal aan, en kijkt het dan rechts ervan?', 'de getallenlijn tussen twee honderdduizendtallen met het midden (50 000 erboven) erop', 'bijv. 1 260 000: tussen 1 200 000 en 1 300 000, de 6 is meer dan 5: 1 300 000'),
   'getalbegrip.3f': H('Kiest het kind een rond getal dat makkelijk rekent?', 'ronde bedragen en de kleine som', 'bijv. 3 × € 198 is ongeveer 3 × € 200'),
+  'getalbegrip.3h': H('Kent het kind de tekens en weet het dat een kleiner teken vóór een groter eraf gaat?', 'de tabel met tekens; in stukken lezen', 'bijv. XIV = 10 + 4 = 14'),
+  'getalbegrip.3i': H('Weet het kind dat ² keer zichzelf betekent (niet keer 2)?', 'een vierkant van hokjes', 'bijv. 6² = 6 × 6 = 36, en √36 = 6'),
   // ================= BREUKEN =================
   'breuken.0a': H('Telt het kind alle stukken (noemer) en de bedoelde stukken (teller)?', 'de pizza of strook: alle stukken tellen, dan de gekleurde', 'bijv. 4 stukken, 1 op: 1/4'),
   'breuken.0b': H('Weet het kind dat de helft betekent: in 2 gelijke stukken?', 'eerlijk verdelen over 2; een groot getal splitsen in een makkelijk stuk en de rest', 'bijv. de helft van 36: de helft van 30 = 15 en van 6 = 3, samen 18'),
@@ -187,6 +195,7 @@ export const HULP = {
   'procenten.3g': H('Weet het kind dat de nieuwe prijs minder dan 100% is?', 'de procentstrook: nieuwe prijs = 100% − korting', 'bijv. 25% korting, nu € 30: 75% is € 30, 25% is € 10, oude prijs € 40'),
   'procenten.3h': H('Rekent het kind het procent van de oude hoeveelheid en telt het dat erbij?', 'de procentstrook die langer wordt dan 100%', 'bijv. 200 g en 25% meer: 50 g erbij'),
   'procenten.3i': H('Deelt het kind eerst door 100 (1%) en doet het dan keer het procent?', 'de verhoudingstabel 100% → 1% → het procent; de rekenmachine', 'bijv. 7% van € 300: 1% = € 3, 7% = € 21'),
+  'procenten.3j': H('Vergelijkt het kind de stijging met het oude getal?', 'de procentstrook met het oude getal als 100%', 'bijv. van 10 naar 12: 2 erbij is 2/10 = 20%'),
   // ================= VERHOUDINGEN & SCHAAL =================
   'verhoudingen.1a': H('Ziet het kind hoeveel keer zoveel het aantal wordt?', 'de verhoudingstabel: wat je boven doet, doe je onder ook', 'bijv. 2 → € 6, 6 → 3 keer zoveel: € 18'),
   'verhoudingen.2a': H('Gaat het kind in de tabel eerst naar 1 persoon?', 'de verhoudingstabel met een kolom voor 1', 'bijv. 4 personen 200 g: 1 persoon 50 g'),
@@ -220,6 +229,7 @@ export const HULP = {
   'tijdBasis.1c': H('Springt het kind eerst naar het hele uur, dan verder?', 'de tijdlijn met twee sprongen', 'bijv. 9:50 tot 10:20: 10 + 20 = 30 minuten'),
   'tijdBasis.1d': H('Weet het kind dat een kwartier 15 minuten is?', 'de klok in vieren', 'bijv. 1,5 uur = 60 + 30 minuten'),
   'tijdBasis.1e': H('Zet het kind de tijd eerst op een wijzerklok en telt het er dan 12 bij?', 'een wijzerklok naast een digitale klok', 'bijv. half vier \'s middags = 3:30 → 15:30'),
+  'tijdBasis.1f': H('Weet het kind dat een minuut 60 seconden is (geen 100)?', 'een klok met secondewijzer', 'bijv. 2 minuten en 10 seconden: 120 + 10 = 130 seconden'),
   'tijdBasis.2a': H('Telt het kind eerst de hele uren erbij en dan de minuten?', 'de tijdlijn: eerst het uur, dan de minuten (via het hele uur)', 'bijv. 9:40 + 1 uur 30: 10:40, dan + 30 = 11:10'),
   'tijdBasis.2c': H('Springt het kind eerst hele uren, dan naar het hele uur, dan de rest?', 'de tijdlijn met boogjes', 'bijv. 7:40 tot 10:10: 2 uur tot 9:40, 20 minuten tot 10:00, nog 10'),
   'tijdBasis.2b': H('Weet het kind hoeveel km in 1 uur, en wat een half uur is?', 'de verhoudingstabel: uren boven, km onder', 'bijv. 60 km per uur, 1,5 uur: 60 + 30 = 90 km'),
@@ -235,6 +245,7 @@ export const HULP = {
   'meetkunde.0e': H('Telt het kind de zijden en hoeken, en kijkt het of ze recht zijn?', 'een blad papier als rechte hoek', 'eerst een vierkant en een rechthoek naast elkaar'),
   'meetkunde.0f': H('Snapt het kind dat het getal de hoogte van de stapel is (en een leeg vakje geen stapel)?', 'blokjes op een rooster stapelen en het bovenaanzicht ernaast leggen', 'bijv. twee vakjes met 2 en 3: samen 5 blokjes, van boven zie je er 2'),
   'meetkunde.0g': H('Ziet het kind dat je van voren per kolom alleen de hoogste stapel ziet?', 'het bouwwerk nabouwen en er op ooghoogte voor zitten', 'bijv. een kolom met stapels van 1 en 3 (achter elkaar): van voren zie je 3 hoog'),
+  'meetkunde.0h': H('Kijkt het kind naar de vlakken (plat of rond, vierkant of rechthoek)?', 'echte voorwerpen vastpakken: dobbelsteen, doos, bal, blik', 'bijv. een dobbelsteen: 6 even grote vierkanten, dus een kubus'),
   'meetkunde.1a': H('Vergelijkt het kind de hoek met 90° en 180°?', 'een blad papier (90°); twee bladen naast elkaar (180°)', 'bijv. 120° is meer dan 90° maar minder dan 180°: stomp'),
   'meetkunde.1b': H('Probeert het kind alle vouwlijnen (recht en schuin)?', 'vouwen of een spiegeltje', 'eerst een rechthoek: 2 vouwlijnen'),
   'meetkunde.1c': H('Weet het kind wat gevraagd wordt (hoekpunten, vlakken of ribben)?', 'een doos of dobbelsteen', 'eerst één kubus tellen'),
@@ -261,24 +272,31 @@ export const HULP = {
   'metriek.0a': H('Weet het kind hoeveel kleine maten in 1 grote zitten (1 cm = 10 mm, 1 m = 100 cm)?', 'een liniaal en een meetlat: de streepjes van mm, cm en dm', 'bijv. 3 m = 3 × 100 cm'),
   'metriek.1a': H('Telt het kind de treden op de goede trap?', 'de maten-trap: vinger op de maat waar je begint', 'bijv. van kg naar g: 3 treden, × 1000'),
   'metriek.1b': H('Kent het kind de oude namen (ons 100 g, pond 500 g, ton 1000 kg)?', 'een pak boter (250 g) en een pak suiker (1 kg) erbij', 'bijv. 2 pond = 2 × 500 g'),
+  'metriek.1c': H('Kent het kind de trap l – dl – cl – ml en telt het de treden?', 'een maatbeker; de trap getekend met vier treden', 'bijv. 2 l = 20 dl = 200 cl'),
   'metriek.2a': H('Gebruikt het kind de goede trap (lengte of inhoud)?', 'de maten-trap; omlaag × 10 per trede, omhoog : 10', 'bijv. 2 liter = 20 dl = 200 cl'),
   'metriek.3a': H('Weet het kind dat bij m² elke trede × 100 is (en bij m³ × 1000)?', 'de trap van de m²; een kubus van blokjes', 'bijv. 1 are = 100 m², 2 are = 200 m²'),
   // nieuwe sjablonen volgens de leerlijn van De wereld in getallen (groep 5-6)
   'optellen.0c': H('Weet het kind welk deel de honderdtallen zijn en welk de tientallen?', 'de getallenlijn met sprongen van 100 en van 10; geld: briefjes van € 100 en tientjes', 'bijv. 340 + 120: eerst + 100 = 440, dan + 20 = 460'),
+  'optellen.0d': H('Weet het kind dat je eerst doet wat tussen haakjes staat?', 'een boogje om de twee getallen; geld: eerst de bedragen die samen rond zijn', 'bijv. (35 + 65) + 12: eerst 100, dan 112'),
   'optellen.1d': H('Kan splitsen hier (geen overgang over het honderdtal of het tiental)?', 'het splitsdakje; geld: honderdjes, tientjes en euro\'s per soort apart', 'bijv. 342 + 125: 300 + 100, 40 + 20, 2 + 5'),
   'optellen.1e': H('Ziet het kind dat de getallen dicht bij elkaar liggen?', 'de getallenlijn: van het kleine getal vooruit springen, eerst naar het ronde getal', 'bijv. 302 − 297: van 297 naar 300 is 3, dan nog 2, samen 5'),
   'optellen.1f': H('Ziet het kind welke twee getallen samen een rond getal maken?', 'een boogje onder de twee getallen; vrienden van 100', 'bijv. 65 + 120 + 35: 65 + 35 = 100, dan + 120'),
   'optellen.1g': H('Weet het kind wat het doet als een plek niet gaat (onderste cijfer groter)?', 'geld per plek: honderdjes, tientjes, euro\'s; een tekort is wat je nog moet betalen', 'bijv. 52 − 27: 50 − 20 = 30, 2 − 7 gaat niet: 5 tekort, dus 30 − 5 = 25'),
+  'optellen.1h': H('Schrijft het kind de getallen precies onder elkaar en weet het wat onthouden is?', 'geld per plek: tien euro wissel je voor een tientje', 'bijv. 47 + 38: 7 + 8 = 15, schrijf 5, onthoud 1; 4 + 3 + 1 = 8, dus 85'),
   'vermenigvuldigen.1e': H('Ziet het kind dat het getal vlak onder een rond tiental ligt?', 'geld: met ronde bedragen betalen en per keer iets terugkrijgen', 'bijv. 3 × 49: 3 × 50 = 150, 3 × 1 te veel, dus 147'),
   'vermenigvuldigen.1f': H('Halveert het kind het ene getal en verdubbelt het het andere?', 'het rooster: een rechthoek doormidden knippen en de helften achter elkaar leggen', 'bijv. 4 × 15 = 2 × 30 = 60'),
+  'vermenigvuldigen.1h': H('Weet het kind dat omdraaien bij keer mag?', 'blokjes in rijen: 2 rijen van 3 en 3 rijen van 2', 'bijv. 23 × 3 = 3 × 23 = 3 × 20 + 3 × 3 = 69'),
+  'vermenigvuldigen.1g': H('Doet het kind eerst keer en pas daarna wat het onthield erbij?', 'kolomsgewijs ernaast: de stukken los uitrekenen en vergelijken', 'bijv. 3 × 26: 3 × 6 = 18, schrijf 8, onthoud 1; 3 × 2 + 1 = 7, dus 78'),
   'delen.1d': H('Kiest het kind een stuk dat goed door de deler gaat (10 × of 20 × de deler)?', 'het splitsdakje; eerst tientjes verdelen, dan losse euro\'s', 'bijv. 52 : 4: 40 : 4 = 10 en 12 : 4 = 3, samen 13'),
   'delen.1e': H('Weet het kind dat de rest geen vol zakje is?', 'zakjes tekenen; het splitsdakje', 'bijv. 47 in zakjes van 4: 40 : 4 = 10, 7 : 4 = 1 en 3 over, dus 11 vol'),
+  'delen.1f': H('Ziet het kind het ronde getal vlak boven het getal?', 'de getallenlijn met sprongen van de deler', 'bijv. 38 : 2: 40 : 2 = 20, 2 te veel is 1 keer 2, dus 19'),
   'metriek.0b': H('Weet het kind hoeveel kleine maten in 1 grote zitten (kilo = 1000)?', 'een pak suiker (1 kg) en een pak melk (1 liter); de omrekentabel', 'bijv. 3 kg = 3 × 1000 g'),
   // ================= ANDERE (meetlat #37: rekenfouten van Max bij het materiaal) =================
   'getalbegrip.0b': H('Weet het kind welke plek het cijfer heeft (van rechts: E, T, H)?', 'het HTE-schema; met geld PRECIES per plek: honderdtallen = briefjes van € 100, tientallen = tientjes, eenheden = losse euro\'s (bijv. in 457: 4 briefjes van € 100, 5 tientjes en 7 losse euro\'s)', 'een getal van twee cijfers (bijv. 57: de 5 is 5 tientjes = 50)'),
   'getalbegrip.1c': H('Telt het kind de plekken van rechts goed?', 'het positieschema met de groepjes van drie (HD TD D | H T E)', 'een getal met minder cijfers (bijv. 4 cijfers)'),
   'getalbegrip.3d': H('Kijkt het kind naar het tweede cijfer achter de komma (de honderdsten)?', 'geld: bijv. 7,475 is 7 euro, 4 dubbeltjes, 7 cent en een half cent; afronden op één cijfer achter de komma = afronden op dubbeltjes (7,4 of 7,5)', 'een getal met twee cijfers achter de komma (bijv. 3,46 → 3,5)'),
   'tijdBasis.2d': H('Gaat het kind terug in de tijd (niet vooruit)?', 'de tijdlijn met sprongen TERUG: eerst de hele uren terug, dan terug naar het hele uur, dan de rest terug', 'bijv. 10 minuten terug vanaf 15:05: eerst 5 minuten terug naar 15:00, dan nog 5 terug: 14:55'),
+  'tijdBasis.2e': H('Kan het kind met de verhoudingstabel naar een handig stukje tijd?', 'de verhoudingstabel met minuten boven en km onder', 'bijv. 60 km per uur: 10 minuten is 10 km, 30 km duurt 3 × 10 = 30 minuten'),
 };
 
 export function hulpVoor(tpl) {
