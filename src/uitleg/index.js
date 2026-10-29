@@ -47,5 +47,8 @@ export function kaartTekst(lang, tpl) {
   // Hulpplan bij vastlopen (src/uitleg/hulp-nl.js; meetlat #37): wat je eerst nagaat, welk materiaal, welk kleiner voorbeeld
   const h = lang === 'nl' ? hulpVoor(tpl) : null;
   if (h) L.push(`HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);
+  // Leerlijn van de methode (src/methodes/wig-leerlijn.js): groep, blok, basisstrategie en voorkennis van deze soort som
+  const ll = lang === 'nl' ? methode('nl')?.leerlijn : null;
+  if (ll?.leerlijnTekst) { const t = ll.leerlijnTekst(tpl); if (t) L.push(`${t} (Alleen voor jou: noem groep of blok niet tegen het kind.)`); }
   return L.join('\n');
 }

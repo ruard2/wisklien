@@ -2,7 +2,7 @@ import './src/env.js';
 import express from 'express';
 import crypto from 'node:crypto';
 import { q, one, migrate, getSetting, setSetting, connect, kidStore, currentKid, listKids, getKid, createKid, renameKid, deleteKid, kidContext, updateKidProfile, setKidPassword, kidPasswords, kidHasPassword } from './src/db.js';
-import { METHODES, methodeId, methodesVoor, standaardMethode, methodeKeuze } from './src/methodes/index.js';
+import { METHODES, methodeId, methodesVoor, standaardMethode, methodeKeuze, nogNietBegonnen } from './src/methodes/index.js';
 import { checkAnswer, publicQuestion, publicStep, hintsFor, CATEGORIES, catById, LEVEL_NAMES, startLevelForGroep, detectMisconception, MNEMONICS, mnemonicsFor, DIDACTIEK, pack } from './src/curriculum.js';
 import {
   PRACTICE_COUNT, FREE_GUIDED, SOLO_BONUS,
@@ -543,7 +543,8 @@ app.get('/api/state', child, wrap(async (req, res) => {
 // Het AI-deel duurt ~10 s, daarom wordt het na elke sessie alvast op de achtergrond gemaakt (nextPlan).
 async function askPlan(n) {
   const acc = Object.fromEntries((await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows.map((r) => [r.cat, r]));
-  const view = (await skillsView()).list;
+  const g = await groepVanKind();
+  const view = (await skillsView()).list.filter((v) => !nogNietBegonnen(v.cat, g));
   const rows = view.map((v) => ({ cat: v.cat, label: v.label, levelName: v.levelName, score: v.score, trend: v.trend, struggling: v.struggling, recent: acc[v.cat] ? `${acc[v.cat].ok}/${acc[v.cat].n} goed` : '', calib: v.calib > 0 }));
   return planSession({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), groep: (await getKid(currentKid()))?.grade ?? await getSetting('groep', 8), rows, n });
 }
@@ -552,7 +553,16 @@ async function precomputePlan() {
   const raw = await askPlan((await rewardCfg()).dailyCount);
   if (raw?.onderdelen) await setSetting('nextPlan', { made: todayNL(), raw });
 }
-async function makePlan(n, skills, struggling) {
+// Onderdelen die de methode in de groep van het kind nog niet aanbiedt (bijv. procenten vóór groep 7) komen niet in het
+// dagplan (src/methodes/wig-leerlijn.js). Blijven er te weinig over, dan toch alles.
+async function groepVanKind() { const g = Number((await getKid(currentKid()))?.grade ?? await getSetting('groep', null)); return Number.isInteger(g) && g > 0 ? g : null; }
+async function actieveOnderdelen(skills) {
+  const g = await groepVanKind();
+  const f = skills.filter((s) => !nogNietBegonnen(s.cat, g));
+  return f.length >= 4 ? f : skills;
+}
+async function makePlan(n, alleSkills, struggling) {
+  const skills = await actieveOnderdelen(alleSkills);
   if (aiEnabled()) {
     try {
       // eerst een klaarliggend plan (max 3 dagen oud) gebruiken, anders nu vragen

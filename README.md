@@ -125,7 +125,7 @@ De app rekent zoals de methode van de school van het kind. `src/methodes/` legt 
 
 Alles wat een methode niet noemt, komt uit de basis (sjablonen, `src/uitleg/`, `src/didactiek.js`). Max krijgt de methode in
 zijn vaste instructies, de uitlegkaart en de didactiekkaart; sommen, tussenstappen, hints en denkfouten gebruiken dezelfde
-routes en woorden. Methodes nu: **malmberg** (standaard voor Nederlands; het rekenboek groep 8 met S- en F-route),
+routes en woorden. Methodes nu: **malmberg** (standaard voor Nederlands: De wereld in getallen, groep 5–8, met S- en F-route en de leerlijn hieronder),
 **algemeen** (TAL/SLO-leerlijnen; ook het voorbeeld voor een nieuwe methode) en **kabv** (Afrikaans).
 
 Kiezen: voorlopig krijgt iedereen de standaard (Nederlands: Malmberg). Met `METHODE_KEUZE=1` verschijnt in het ouderscherm →
@@ -136,6 +136,24 @@ Kaartcheck kan zo'n kaart niet stilletjes terugzetten naar een oude route (`scri
 Een route vervangen = de oude route alleen nog in een andere methode (bijv. aftrekken rijgen in Algemeen), niet naast de nieuwe.
 De meetlat (src/meetlat/nl.json.gz, versie 3) is na de overstap naar Malmberg opnieuw gemaakt: runs van vóór versie 3 zijn niet
 1-op-1 vergelijkbaar.
+
+### Leerlijn van De wereld in getallen (groep 5–8)
+`src/methodes/wig-leerlijn.js` zet de leerlijn van De wereld in getallen (Malmberg, editie 5/5.1) naast de app, **in eigen
+woorden** (geen tekst, opgaven of voorbeeldsommen uit de methode; de getallen in de app zijn van ons):
+- `STRATEGIE`: de strategieën en modellen (rijgen, splitsen, aanvullen, rekenen met teveel, kleine som, halveren en verdubbelen,
+  kolomsgewijs, cijferend, strook, verhoudingstabel …), met basis- of variastrategie;
+- `DOELEN`: per groep en blok wat er per onderdeel aan bod komt (groep 3–4 alleen als voorkennis);
+- `KAART`: voor elke soort som de groep en het blok in de methode, de strategie en de voorkennis (`extra` = geen apart doel in de
+  methode, bijv. hoeken in graden);
+- `START`: de eerste groep waarin een onderdeel begint (bijv. breuken groep 6, procenten en schaal groep 7).
+
+Wat de app ermee doet: de uitlegkaart voor Max krijgt een regel LEERLIJN (groep, blok, route, voorkennis; bij vastlopen terug
+naar de basisstrategie en de voorkennis). Een soort som die in de methode later komt dan de groep van het kind én dan het
+niveau waarop het oefent, maakt `generate()` niet (tenzij er niets anders is). Onderdelen die in de groep van het kind nog niet
+begonnen zijn, komen niet in het dagplan (ook niet in de rijen voor Max). Nieuwe sjablonen voor de strategieën van groep 5–6:
+optellen.0c (tot 1000 met ronde getallen), 1d (splitsen), 1e (aanvullen), 1f (handig bij een lange som);
+vermenigvuldigen.1e (teveel), 1f (halveren en verdubbelen); delen.1d/1e (delen door splitsen, ook met rest); metriek.0a (lengte)
+en 0b (gewicht en inhoud) apart. vermenigvuldigen.3a is nu twee cijfers keer twee cijfers (zoals groep 8).
 
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).

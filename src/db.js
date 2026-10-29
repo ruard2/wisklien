@@ -30,7 +30,7 @@ export const currentKid = () => kidStore.getStore()?.kid ?? null;
 export const currentCur = () => kidStore.getStore()?.cur || 'nl';
 export const currentLang = () => kidStore.getStore()?.lang || 'nl';
 export const curOfKid = (k) => (k?.lang === 'af' ? 'za' : 'nl');
-export const kidContext = (k) => ({ kid: k.id, name: k.name, cur: curOfKid(k), lang: k.lang || 'nl', country: k.country || 'NL', demo: !!k.demo, methode: k.methode || null });
+export const kidContext = (k) => ({ kid: k.id, name: k.name, cur: curOfKid(k), lang: k.lang || 'nl', country: k.country || 'NL', demo: !!k.demo, methode: k.methode || null, groep: k.grade ?? null });
 const schemaOf = (kid) => `kid_${Number(kid)}`;
 
 // Verbinding met het schema van het huidige kind (en daarna netjes terugzetten)

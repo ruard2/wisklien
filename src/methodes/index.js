@@ -41,6 +41,22 @@ export const route = (sleutel, std) => methode()?.routes?.[sleutel] ?? std;
 // Maakt de methode deze soort som niet?
 export const nietInMethode = (tpl) => !!tpl && (methode()?.uit || []).includes(tpl);
 
+// Leerlijn van de methode (per soort som: groep, blok, strategie, voorkennis; zie ./wig-leerlijn.js)
+export const leerlijn = () => methode()?.leerlijn || null;
+const groepNu = () => { const g = Number(kidStore.getStore()?.groep); return Number.isInteger(g) && g > 0 ? g : null; };
+// Komt deze soort som in de methode later dan de groep van het kind én later dan het niveau waarop het oefent?
+// (niveau 0 = groep 5 … 3 = groep 8). Dan krijgt het kind hem (nog) niet; zie generate().
+export function nogNietAanDeBeurt(tpl, level) {
+  const k = leerlijn()?.KAART?.[tpl];
+  if (!k) return false;
+  return k.groep > Math.max(groepNu() || 0, Number(level) + 5);
+}
+// Onderdelen die in de methode in de groep van het kind nog niet begonnen zijn (bijv. procenten in groep 5–6).
+export function nogNietBegonnen(cat, groep = groepNu()) {
+  const s = leerlijn()?.START?.[cat];
+  return !!(s && groep && s > groep);
+}
+
 // Vervangingen van woorden (in alle teksten van sommen, kaarten en didactiek): [[van, naar], …]
 export function vervang(tekst, m = methode()) {
   if (typeof tekst !== 'string' || !m?.taal?.vervang?.length) return tekst;
