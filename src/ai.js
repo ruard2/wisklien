@@ -393,6 +393,8 @@ Tekening: ${q.visual.items.map((i) => `${i.label || 'klok'} ${i.time}`).join(' e
 Tekening: vertrekbord: ${q.visual.rows.map((r) => `${r.time} naar ${r.to}`).join('; ')}`;
   if (q.visual?.kind === 'pizza') s += `\nTekening: pizza in ${q.visual.parts} stukken, ${q.visual.eaten} opgegeten`;
   if (q.visual?.kind === 'grid') s += `\nTekening: rechthoek van ${q.visual.w} bij ${q.visual.h} hokjes`;
+  // zelf een route kiezen (src/generators.js, kiesRoute): de eerste tussenstap is een keuze van de rekenroute
+  if (q.routeKeuze && q.guide?.[0]?.type === 'choice') s += `\nROUTEKEUZE: de eerste tussenstap vraagt welke manier hier past (goed: "${q.guide[0].display}"${q.guide[0].ookGoed?.length ? `; "${q.guide[0].ookGoed.map((i) => q.guide[0].options[i]).join('", "')}" kan ook, maar is hier trager` : ''}). Laat het kind zeggen WAAROM die manier hier past: wat valt op aan de getallen? Een andere route die ook werkt is niet fout; zeg dan vriendelijk waarom de handige route hier sneller is.`;
   // voorkennis-terugstap (src/engine.js): waarom deze som er nu staat
   if (q.voorkennis?.voor) {
     const naam = kaartVoor('nl', q.voorkennis.voor.tpl)?.naam || q.voorkennis.voor.tpl;

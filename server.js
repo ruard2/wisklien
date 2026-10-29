@@ -10,6 +10,7 @@ import {
   allocate, buildPlan, nextQuestion, applyPlan, updateState, rewardFor, helpOffer, skillScore, skillLabel,
   awardBadge, getBadges,
 } from './src/engine.js';
+import { doelVoor } from './src/uitleg/index.js';
 import { ts, teacherName, dayNames, defaultRewards, isAF } from './src/i18n.js';
 import { aliasFor, aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
@@ -314,7 +315,7 @@ function currentPayload(s, skills) {
   const offer = helpOffer(qq, skill);
   return {
     index: i,
-    question: publicQuestion(qq),
+    question: { ...publicQuestion(qq), doel: isAF() ? null : doelVoor('nl', qq.tpl) }, // lesdoel van deze soort som (src/uitleg/doelen-nl.js)
     offer,
     // bij het "nu moet je het zelf kunnen"-moment: welke tussenstappen hij steeds deed (zonder antwoorden)
     plan: offer.mode === 'choose' ? qq.guide.map((g) => g.ask) : null,

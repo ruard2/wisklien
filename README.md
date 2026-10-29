@@ -155,6 +155,33 @@ optellen.0c (tot 1000 met ronde getallen), 1d (splitsen), 1e (aanvullen), 1f (ha
 vermenigvuldigen.1e (teveel), 1f (halveren en verdubbelen); delen.1d/1e (delen door splitsen, ook met rest); metriek.0a (lengte)
 en 0b (gewicht en inhoud) apart. vermenigvuldigen.3a is nu twee cijfers keer twee cijfers (zoals groep 8).
 
+**Basisroute bij een handige route.** Bij een variastrategie (rekenen met teveel, handig rekenen, halveren en verdubbelen)
+noemt de LEERLIJN-regel ook de basisroute van dat onderdeel (rijgen of splitsen): loopt het kind vast, dan rekent Max de stap
+waar het vastzit met de basisroute uit; het stappenplan van de app blijft hetzelfde (`basisVoor`, `BASIS_BIJ_VARIA`).
+
+**Voorkennis als echte som.** `VOORKENNIS` (in `wig-leerlijn.js`) zegt per soort som welke soort som het kind eerst moet
+kunnen (212 soorten; zonder: voorkennis van vóór groep 5). Verloop in een sessie (`src/engine.js`): som fout → herkansing van
+précies dezelfde soort (nieuwe getallen, samen stap voor stap) → gaat die ook mis (of met tussenstappen twee stappen fout) →
+één voorkennissom (🧱 "Eerst even de basis") → de som van net terug (💪 "En nu de som van net"); gaat die weer mis, dan een
+opsteker. Hooguit 2 per sessie en per soort som één keer. Max weet bij de voorkennissom waarvoor hij is en legt bij de
+terugkomer de brug. Gericht één soort som maken: `generateTpl(tpl)` met de index `src/sjablonen-nl.json`
+(`node scripts/maak-sjabloonindex.mjs` na een nieuw sjabloon; `npm test` controleert hem).
+
+**Lesdoel per soort som.** `src/uitleg/doelen-nl.js`: per soort som het doel in kindertaal ("Ik kan …", 🎯 boven de som),
+wanneer het kind het beheerst (voor Max: dan mag het de volgende keer zelf, zonder tussenstappen), en aanvullingen op de kaart
+(woorden, een tweede typische fout). Elke kaart heeft nu woorden en minstens twee typische fouten (`npm test` controleert het).
+
+**Zelf een route kiezen.** Bij sommen met een handige route (rekenen met teveel, aanvullen, handig bij een lange som, halveren
+en verdubbelen, en "kan splitsen hier?") begint de som soms (± 40%) met een keuzestap: welke manier past hier? De handige route
+is goed; een andere route die ook werkt (bijv. rijgen) telt ook als goed, met een zinnetje waarom de handige route hier
+sneller is. Max vraagt het kind waarom (wat valt op aan de getallen).
+
+**Nieuwe soorten sommen** (wat de methode in groep 5–8 doet en de app nog niet had): kalender (een week of maand eerder of
+later, dagen tussen twee datums, datum in cijfers), bovenaanzicht en vooraanzicht met getallen, kolomsgewijs aftrekken met
+tekort, een breuk aanvullen tot een geheel, delen door een breuk als 3/4.
+
+Test via de echte server: `scripts/e2e-voorkennis.mjs` (fout → herkansing → voorkennis → terug, lesdoel, keuzestap).
+
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).
 - **Na een fout** kijkt Max wat er misging en begint een gesprekje: één vraag tegelijk, het kind doet zoveel mogelijk zelf, na twee pogingen doet hij het voor.

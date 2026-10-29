@@ -551,3 +551,6 @@ body.demo .ptabs { top: calc(48px + var(--safe-t)); }
 .calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .calc-keys .key { padding: 10px 0; }
 .calc-keys .key.wide { grid-column: span 2; }
+
+/* lesdoel van de soort som (src/uitleg/doelen-nl.js) */
+.q-doel{font-size:.82rem;color:var(--muted,#667);margin:6px 0 2px;line-height:1.3}

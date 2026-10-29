@@ -4,11 +4,13 @@ import '../src/env.js';
 //  2. elke voorkennissom bestaat, is te maken en komt in de leerlijn niet later dan de som waarvoor hij is;
 //  3. het verloop in een dagtaak: fout → herkansing (zelfde soort) → nog fout → voorkennissom → de som van net terug.
 import { kidStore } from '../src/db.js';
-import { SJABLONEN, generateTpl } from '../src/generators.js';
+import { SJABLONEN, generateTpl, checkAnswer } from '../src/generators.js';
 import { maakIndex } from './maak-sjabloonindex.mjs';
 import { KAART, VOORKENNIS } from '../src/methodes/wig-leerlijn.js';
 import { nextQuestion, updateState, VK_MAX } from '../src/engine.js';
 import { CAT_IDS } from '../src/curriculum.js';
+import { DOELEN } from '../src/uitleg/doelen-nl.js';
+import { kaartVoor } from '../src/uitleg/index.js';
 
 let fout = 0;
 const bad = (m) => { if (fout++ < 40) console.log('✗', m); };
@@ -36,6 +38,34 @@ for (const [t, vks] of Object.entries(VOORKENNIS)) {
 }
 const zonder = Object.keys(KAART).filter((t) => !VOORKENNIS[t]);
 console.log(`${Object.keys(VOORKENNIS).length} soorten sommen met een voorkennissom; zonder (voorkennis vóór groep 5): ${zonder.join(', ')}`);
+
+// 2b. elke soort som heeft een doel, "beheerst als", woorden en minstens twee typische fouten
+for (const t of Object.keys(KAART)) {
+  const k = kaartVoor('nl', t);
+  if (!DOELEN[t]) bad(`${t}: geen doel in src/uitleg/doelen-nl.js`);
+  else if (!/^Ik (kan|weet)\b/.test(DOELEN[t].ik)) bad(`${t}: doel begint niet met "Ik kan"/"Ik weet"`);
+  if (!k) { bad(`${t}: geen kaart`); continue; }
+  if (!k.woorden) bad(`${t}: kaart zonder woorden`);
+  if ((k.valkuilen || []).length < 2) bad(`${t}: kaart met minder dan twee typische fouten`);
+}
+for (const t of Object.keys(DOELEN)) if (!KAART[t]) bad(`doel voor onbekende soort som ${t}`);
+
+// 2c. zelf een route kiezen: de keuzestap klopt (de handige route goed, een andere werkende route ook goed met uitleg)
+const KEUZE = ['optellen.1a', 'optellen.1b', 'optellen.1d', 'optellen.1e', 'optellen.1f', 'vermenigvuldigen.1e', 'vermenigvuldigen.1f'];
+for (const t of KEUZE) {
+  let n = 0, met = 0;
+  for (let i = 0; i < 120; i++) {
+    const q = generateTpl(t); if (!q) continue; n++;
+    if (!q.routeKeuze) continue; met++;
+    const g = q.guide[0];
+    if (g.type !== 'choice' || !checkAnswer(g, String(g.answer)).correct) bad(`${t}: keuzestap klopt niet`);
+    for (const k of g.ookGoed || []) { const c = checkAnswer(g, String(k)); if (!c.correct || !c.note) bad(`${t}: ook-goede route zonder uitleg`); }
+    const fout = g.options.map((_, k) => k).filter((k) => k !== g.answer && !(g.ookGoed || []).includes(k));
+    if (!fout.length || fout.some((k) => checkAnswer(g, String(k)).correct)) bad(`${t}: keuzestap zonder foute keuze`);
+    if (!/^Kies je manier/.test(q.steps[0])) bad(`${t}: stappenplan begint niet met de keuze`);
+  }
+  if (!met || met > n * 0.7) bad(`${t}: routekeuze ${met} van ${n} keer`);
+}
 
 // 3. verloop in een dagtaak (zonder database: de motor zelf)
 kidStore.run({ lang: 'nl', cur: 'nl', groep: 6 }, () => {

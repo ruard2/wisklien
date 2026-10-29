@@ -1420,6 +1420,7 @@ function renderQuestion() {
     </div>
     <div class="card q-card">
       <div class="row between">${label}${speakBtn(q.text + (q.options ? '. ' + t('Kies uit:') + ' ' + q.options.join(', ') : ''))}</div>
+      ${q.doel ? `<div class="q-doel" title="${t('Wat je hier leert')}">🎯 ${esc(q.doel)}</div>` : ''}
       <div class="q-text ${q.text.length > 90 ? 'long' : ''}">${esc(q.text)}</div>
       ${q.visual ? `<div class="visual">${renderVisual(q.visual)}</div>` : ''}
       <div id="guide"></div>

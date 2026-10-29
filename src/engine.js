@@ -288,8 +288,8 @@ export function nextQuestion(session, skills, recent = new Set()) {
     qq = (st.retry.tpl && generateTpl(st.retry.tpl)) || generate(st.retry.cat, st.retry.level);
     qq.retry = true;
     qq.suggestGuide = true;
-  } else if (st.wrongStreak === 2 || (i === session.total - 1 && rate < 0.6 && done > 3)) {
-    // twee keer fout op rij, of laatste som van een zware sessie: iets wat zeker lukt
+  } else if (st.wrongStreak === 2 || (session.questions.at(-1)?.terugNa && session.results.at(-1)?.correct === false) || (i === session.total - 1 && rate < 0.6 && done > 3)) {
+    // twee keer fout op rij, de som van na de voorkennis ging weer mis, of laatste som van een zware sessie: iets wat zeker lukt
     qq = generate(strongest.cat, Math.max(0, strongest.level - 1));
     qq.booster = true;
   } else {

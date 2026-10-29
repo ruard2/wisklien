@@ -8,6 +8,7 @@ import { KAARTEN as AF } from './af.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { methode, vervangDiep } from '../methodes/index.js';
 import { hulpVoor } from './hulp-nl.js';
+import { DOELEN as DOEL_NL } from './doelen-nl.js';
 
 // Verbeterde kaarten uit de Kaartcheck (/audit → Kaartcheck → scripts/neem-kaarten-over.mjs). Ze vervangen naam, aanpak,
 // model, valkuilen en concreter van de handgeschreven kaart; woorden en "niet doen" blijven van de handgeschreven kaart.
@@ -25,7 +26,17 @@ const basisKaart = (lang, tpl) => {
   const L = lang === 'af' ? 'af' : 'nl';
   return (methode(L)?.eigenKaarten || []).includes(tpl) ? (L === 'af' ? AF : NL)[tpl] || null : BY[L][tpl] || null;
 };
-export const kaartVoor = (lang, tpl) => (tpl ? metMethode(lang, tpl, basisKaart(lang, tpl)) : null);
+// Doel, "beheerst als", en aanvulling van woorden en typische fouten (src/uitleg/doelen-nl.js); de kaart zelf gaat voor.
+const metDoel = (lang, tpl, k) => {
+  const d = lang === 'af' ? null : DOEL_NL[tpl];
+  if (!k || !d) return k;
+  const al = new Set((k.valkuilen || []).map((v) => v.split('→')[0].trim().toLowerCase()));
+  return { ...k, doel: d.ik, klaar: d.klaar, woorden: k.woorden || d.woorden || undefined,
+    valkuilen: [...(k.valkuilen || []), ...d.valkuilen.filter((v) => !al.has(v.split('→')[0].trim().toLowerCase()))] };
+};
+export const kaartVoor = (lang, tpl) => (tpl ? metDoel(lang, tpl, metMethode(lang, tpl, basisKaart(lang, tpl))) : null);
+// Het lesdoel in kindertaal (🎯 boven de som)
+export const doelVoor = (lang, tpl) => (lang === 'af' ? null : DOEL_NL[tpl]?.ik || null);
 export const alleKaarten = (lang) => Object.fromEntries(Object.keys(BY[lang === 'af' ? 'af' : 'nl']).map((id) => [id, kaartVoor(lang, id)]));
 export const handKaarten = (lang) => (lang === 'af' ? AF : NL);
 
@@ -44,6 +55,7 @@ export function kaartTekst(lang, tpl) {
   if (k.valkuilen?.length) L.push(`${T.valkuilen}:\n${k.valkuilen.map((v) => `  - ${v}`).join('\n')}`);
   if (k.concreter) L.push(`${T.concreter}: ${k.concreter}`);
   if (k.niet?.length) L.push(`${T.niet}:\n${k.niet.map((v) => `  - ${v}`).join('\n')}`);
+  if (k.doel) L.push(`DOEL van deze soort som (zo staat het boven de som; gebruik het om af te ronden, bijv. "Nu kun je …"): ${k.doel}\nBEHEERST ALS: ${k.klaar}. Lukt dat, zeg dan dat het kind het de volgende keer zelf mag proberen, zonder tussenstappen.`);
   // Hulpplan bij vastlopen (src/uitleg/hulp-nl.js; meetlat #37): wat je eerst nagaat, welk materiaal, welk kleiner voorbeeld
   const h = lang === 'nl' ? hulpVoor(tpl) : null;
   if (h) L.push(`HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);

@@ -205,6 +205,20 @@ const withGuide = (q, g) => ({ ...q, guide: g.guide, guideFinal: g.final });
 // Vaste sjabloon-id per som-variant (soort som): daarmee hoort bij elke som een eigen uitlegkaart (src/uitleg/).
 // De binnenste id wint (een hulpfunctie als klokLezen is specifieker dan de tak die hem aanroept).
 const tpl = (id, q) => { if (q && typeof q === 'object' && q.text && !q.tpl) q.tpl = id; return q; };
+// Zelf een route kiezen (de methode: basis- en variastrategieën; het kind leert kiezen wat bij de getallen past).
+// Soms (kans) begint de som met een keuzestap: welke manier past hier? De handige route is goed; een andere route die ook
+// werkt (bijv. rijgen) telt ook als goed, met een zinnetje waarom de handige route hier sneller is. Daarna rekent de app
+// verder met de handige route.
+function kiesRoute(q, { ask, opties, goed = 0, ook = [], tip, ookNote = null, stap }, kans = 0.4) {
+  if (!q || Math.random() >= kans) return q;
+  const volg = shuffle(opties.map((o, i) => i));
+  const step = { ask, type: 'choice', options: volg.map((i) => opties[i]), answer: volg.indexOf(goed), display: opties[goed], tip,
+    ...(ook.length ? { ookGoed: ook.map((i) => volg.indexOf(i)), ookNote } : {}) };
+  q.guide = [step, ...(q.guide || [])];
+  q.steps = [stap, ...(q.steps || [])];
+  q.routeKeuze = true;
+  return q;
+}
 
 // =====================================================================
 // GETALLEN
@@ -326,9 +340,13 @@ function splitsTot1000() {
   else { A = [rnd(4, 9), rnd(3, 9), rnd(3, 9)]; B = [rnd(1, A[0] - 1), rnd(1, A[1]), rnd(1, A[2])]; }
   const a = A[0] * 100 + A[1] * 10 + A[2], b = B[0] * 100 + B[1] * 10 + B[2], op = plus ? '+' : '−';
   const H = plus ? (A[0] + B[0]) * 100 : (A[0] - B[0]) * 100, Tn = plus ? (A[1] + B[1]) * 10 : (A[1] - B[1]) * 10, E = plus ? A[2] + B[2] : A[2] - B[2];
-  return tpl('optellen.1d', { ...num(`${a} ${op} ${b} =`, H + Tn + E, [`Splitsen kan: er gaat niets over het honderdtal of het tiental.`, `Honderdtallen: ${A[0] * 100} ${op} ${B[0] * 100} = ${H}.`, `Tientallen: ${A[1] * 10} ${op} ${B[1] * 10} = ${Tn}.`, `Eenheden: ${A[2]} ${op} ${B[2]} = ${E}.`, `Samen: ${H} + ${Tn} + ${E} = ${H + Tn + E}.`]),
+  return kiesRoute(tpl('optellen.1d', { ...num(`${a} ${op} ${b} =`, H + Tn + E, [`Splitsen kan: er gaat niets over het honderdtal of het tiental.`, `Honderdtallen: ${A[0] * 100} ${op} ${B[0] * 100} = ${H}.`, `Tientallen: ${A[1] * 10} ${op} ${B[1] * 10} = ${Tn}.`, `Eenheden: ${A[2]} ${op} ${B[2]} = ${E}.`, `Samen: ${H} + ${Tn} + ${E} = ${H + Tn + E}.`]),
     guide: [st(`Honderdtallen: ${A[0] * 100} ${op} ${B[0] * 100} = ?`, H, `Kleine som: ${A[0]} ${op} ${B[0]}, het zijn honderden.`), st(`Tientallen: ${A[1] * 10} ${op} ${B[1] * 10} = ?`, Tn, `Kleine som: ${A[1]} ${op} ${B[1]}, het zijn tientallen.`), st(`Eenheden: ${A[2]} ${op} ${B[2]} = ?`, E, '')],
-    guideFinal: `Tel de stukken samen: ${H} + ${Tn} + ${E}` });
+    guideFinal: `Tel de stukken samen: ${H} + ${Tn} + ${E}` }), {
+    ask: `Kun je ${a} ${op} ${b} uitrekenen door te splitsen (honderdtallen, tientallen en eenheden apart)?`,
+    opties: ['ja: per plek gaat er niets over het tiental of het honderdtal', 'nee: er gaat iets over het tiental of het honderdtal'],
+    tip: `Kijk per plek: ${A[1]} ${op} ${B[1]} en ${A[2]} ${op} ${B[2]}. Kom je daarbij over de 10${plus ? '' : ' (of onder de 0)'}?`,
+    stap: 'Kies je manier: splitsen kan hier, want per plek gaat er niets over het tiental of het honderdtal.' });
 }
 // Groep 6 (de methode, blok 5): kolomsgewijs aftrekken: per plek, begin bij de honderdtallen; gaat een plek niet, dan
 // noteer je hoeveel je tekort komt en haal je dat aan het eind van de rest af (bijv. 300, dan 10 tekort en 6 tekort).
@@ -354,17 +372,27 @@ function aanvullenTot1000() {
   const R = rnd(2, 9) * 100, b = R - rnd(1, 9), a = R + rnd(1, 9), ctx = Math.random() < 0.4;
   const [wie, wat] = pick([['Lotte', 'stickers'], ['Daan', 'kaartjes'], ['Noor', 'knikkers'], ['Sem', 'stenen']]);
   const text = ctx ? `${wie} heeft ${b} ${wat}. Het album is vol met ${a} ${wat}. Hoeveel ${wat} mist ${wie} nog?` : `${a} − ${b} =`;
-  return tpl('optellen.1e', { ...num(text, a - b, [`${a} en ${b} liggen dicht bij elkaar: vul aan van ${b} tot ${a}.`, `Van ${b} tot ${R} is ${R - b}.`, `Van ${R} tot ${a} is ${a - R}.`, `Samen: ${R - b} + ${a - R} = ${a - b}.`]),
+  return kiesRoute(tpl('optellen.1e', { ...num(text, a - b, [`${a} en ${b} liggen dicht bij elkaar: vul aan van ${b} tot ${a}.`, `Van ${b} tot ${R} is ${R - b}.`, `Van ${R} tot ${a} is ${a - R}.`, `Samen: ${R - b} + ${a - R} = ${a - b}.`]),
     guide: [st(`Van ${b} tot het ronde getal ${R} = ?`, R - b, `Tel verder vanaf ${b}: hoeveel stapjes tot ${R}?`), st(`Van ${R} tot ${a} = ?`, a - R, `Tel verder vanaf ${R} tot ${a}.`)],
-    guideFinal: `Tel de sprongen op: ${R - b} + ${a - R}` });
+    guideFinal: `Tel de sprongen op: ${R - b} + ${a - R}` }), {
+    ask: `Het verschil tussen ${a} en ${b}: welke manier is hier handig?`,
+    opties: ['aanvullen: van het kleine naar het grote getal', 'rijgen: het kleine getal in stukjes eraf', 'rekenen met teveel'], ook: [1],
+    tip: `Kijk hoe ver ${b} en ${a} uit elkaar liggen. Liggen ze dicht bij elkaar?`,
+    ookNote: `Rijgen kan altijd! Maar ${a} en ${b} liggen zo dicht bij elkaar dat aanvullen sneller gaat. Zo doen we het nu.`,
+    stap: `Kies je manier: ${a} en ${b} liggen dicht bij elkaar, dus aanvullen is handig.` });
 }
 // Groep 5 (de methode): handig rekenen bij een lange som: zoek eerst twee getallen die samen een rond getal maken.
 function langeSomHandig() {
   const x = rnd(3, 17) * 5 + 100 * rnd(0, 2), z = Math.ceil((x + 1) / 100) * 100 - x, y = rnd(11, 299), sam = x + z;
   if (z <= 0 || [x, y, z].some((v) => v <= 0) || x === z) return langeSomHandig();
   const rij = [x, y, z];
-  return tpl('optellen.1f', { ...num(`${rij.join(' + ')} =`, x + y + z, [`Zoek twee getallen die samen een rond getal maken: ${x} + ${z} = ${sam}.`, `Dan de rest erbij: ${sam} + ${y} = ${x + y + z}.`]),
-    guide: [st(`Welke twee maken samen een rond getal? ${x} + ${z} = ?`, sam, `Zet een boogje onder ${x} en ${z}: samen maken ze een rond honderdtal.`)], guideFinal: `Tel de rest erbij: ${sam} + ${y}` });
+  return kiesRoute(tpl('optellen.1f', { ...num(`${rij.join(' + ')} =`, x + y + z, [`Zoek twee getallen die samen een rond getal maken: ${x} + ${z} = ${sam}.`, `Dan de rest erbij: ${sam} + ${y} = ${x + y + z}.`]),
+    guide: [st(`Welke twee maken samen een rond getal? ${x} + ${z} = ?`, sam, `Zet een boogje onder ${x} en ${z}: samen maken ze een rond honderdtal.`)], guideFinal: `Tel de rest erbij: ${sam} + ${y}` }), {
+    ask: 'Hoe tel je deze drie getallen het handigst op?',
+    opties: ['eerst de twee getallen die samen een rond getal maken', 'gewoon van links naar rechts', 'alles afronden en schatten'], ook: [1],
+    tip: 'Kijk naar de eenheden en tientallen: maken twee getallen samen precies een honderdtal?',
+    ookNote: `Van links naar rechts kan ook! Maar ${x} en ${z} maken samen ${sam}: dan wordt de rest heel makkelijk. Zo doen we het nu.`,
+    stap: `Kies je manier: ${x} en ${z} maken samen een rond getal, dus die eerst.` });
 }
 const optellen = {
   0() {
@@ -390,13 +418,22 @@ const optellen = {
     if (r1 < 0.7) return kolomsgewijsAftrekken();
     if (Math.random() < 0.55) {
       const a = rnd(120, 880), b = rnd(12, 98), t = b - (b % 10);
-      return tpl('optellen.1a', { ...num(`${a} + ${b} =`, a + b, [`Splits ${b} in ${t} + ${b % 10}.`, `${a} + ${t} = ${a + t}`, ...(((a + t) % 10) + (b % 10) > 10 ? [`${a + t} + ${b % 10} gaat over het tiental: ${a + t} + ${10 - ((a + t) % 10)} = ${a + t + 10 - ((a + t) % 10)}, dan nog ${(b % 10) - (10 - ((a + t) % 10))} erbij: ${a + b}`] : [`${a + t} + ${b % 10} = ${a + b}`])]),
+      const over = (a % 10) + (b % 10) >= 10;
+      const q1a = tpl('optellen.1a', { ...num(`${a} + ${b} =`, a + b, [`Splits ${b} in ${t} + ${b % 10}.`, `${a} + ${t} = ${a + t}`, ...(((a + t) % 10) + (b % 10) > 10 ? [`${a + t} + ${b % 10} gaat over het tiental: ${a + t} + ${10 - ((a + t) % 10)} = ${a + t + 10 - ((a + t) % 10)}, dan nog ${(b % 10) - (10 - ((a + t) % 10))} erbij: ${a + b}`] : [`${a + t} + ${b % 10} = ${a + b}`])]),
         guide: [st(`${a} + ${t} = ?`, a + t, 'Tel eerst de tientallen erbij.')], guideFinal: `${a + t} + ${b % 10}` });
+      return over ? kiesRoute(q1a, { ask: `Kun je ${a} + ${b} uitrekenen door te splitsen per plek (tientallen bij tientallen, eenheden bij eenheden)?`,
+        opties: ['nee: de eenheden gaan samen over het tiental, dus liever rijgen', 'ja, dat kan gewoon'],
+        tip: `Tel de eenheden: ${a % 10} + ${b % 10}. Is dat 10 of meer?`, stap: 'Kies je manier: de eenheden gaan over het tiental, dus rijgen (eerst de tientallen erbij, dan de eenheden).' }, 0.3) : q1a;
     }
     const a = rnd(300, 990), b = rnd(15, 99), r = Math.ceil(b / 10) * 10;
-    return tpl('optellen.1b', { ...num(`${a} − ${b} =`, a - b, [`Handig: ${b} is bijna ${r}.`, `${a} − ${r} = ${a - r}`, `Je hebt ${r - b} te veel afgehaald, dus tel dat er weer bij: ${a - b}`]),
+    return kiesRoute(tpl('optellen.1b', { ...num(`${a} − ${b} =`, a - b, [`Handig: ${b} is bijna ${r}.`, `${a} − ${r} = ${a - r}`, `Je hebt ${r - b} te veel afgehaald, dus tel dat er weer bij: ${a - b}`]),
       guide: [st(`Handig rekenen: ${a} − ${r} = ?`, a - r, `${b} is bijna ${r}. Haal eerst ${r} eraf.`), st(`Hoeveel heb je te veel afgehaald? ${r} − ${b} = ?`, r - b, `${r} is meer dan ${b}.`)],
-      guideFinal: `Tel dat er weer bij: ${a - r} + ${r - b}` });
+      guideFinal: `Tel dat er weer bij: ${a - r} + ${r - b}` }), {
+      ask: `${a} − ${b}: welke manier is hier handig?`,
+      opties: ['rekenen met teveel: eerst het ronde getal eraf', 'rijgen: in stukjes eraf', 'aanvullen: van het kleine naar het grote getal'], ook: [1],
+      tip: `Kijk naar ${b}: ligt dat vlak onder een rond getal?`,
+      ookNote: `Rijgen kan altijd! Maar ${b} is bijna ${r}: dan is rekenen met teveel sneller. Zo doen we het nu.`,
+      stap: `Kies je manier: ${b} is bijna ${r}, dus rekenen met teveel.` });
   },
   2() {
     const r = Math.random();
@@ -468,16 +505,26 @@ const vermenigvuldigen = {
     if (t === 'teveel') {
       // Groep 5-6 (de methode, variastrategie): rekenen met teveel: 4 × 69 = 4 × 70 en dan 4 × 1 eraf.
       const k = rnd(3, 8), R = rnd(2, 9) * 10, x = pick([1, 1, 2]), n = R - x;
-      return tpl('vermenigvuldigen.1e', { ...num(`${k} × ${n} =`, k * n, [`${n} is bijna ${R}: reken eerst met ${R}.`, `${k} × ${R} = ${k * R}.`, `Dat is ${k} × ${x} te veel: ${k} × ${x} = ${k * x}.`, `${k * R} − ${k * x} = ${k * n}.`]),
+      return kiesRoute(tpl('vermenigvuldigen.1e', { ...num(`${k} × ${n} =`, k * n, [`${n} is bijna ${R}: reken eerst met ${R}.`, `${k} × ${R} = ${k * R}.`, `Dat is ${k} × ${x} te veel: ${k} × ${x} = ${k * x}.`, `${k * R} − ${k * x} = ${k * n}.`]),
         guide: [st(`${n} is bijna ${R}. Reken eerst: ${k} × ${R} = ?`, k * R, `Kleine som: ${k} × ${R / 10}, en dan 10 × zo veel.`), st(`Hoeveel is dat te veel? ${k} × ${x} = ?`, k * x, `Je nam ${k} keer ${x} te veel.`)],
-        guideFinal: `Haal het teveel eraf: ${k * R} − ${k * x}` });
+        guideFinal: `Haal het teveel eraf: ${k * R} − ${k * x}` }), {
+        ask: `${k} × ${n}: welke manier is hier handig?`,
+        opties: [`rekenen met teveel: eerst ${k} × ${R}`, 'splitsen in tientallen en eenheden', 'halveren en verdubbelen'], ook: [1],
+        tip: `Kijk naar ${n}: ligt dat vlak onder een rond getal?`,
+        ookNote: `Splitsen kan altijd! Maar ${n} is bijna ${R}: met het ronde getal reken je sneller. Zo doen we het nu.`,
+        stap: `Kies je manier: ${n} is bijna ${R}, dus rekenen met teveel.` });
     }
     if (t === 'halveren') {
       // Groep 5 (de methode, variastrategie): halveren en verdubbelen: 4 × 35 = 2 × 70.
       const k = pick([2, 4]), n = pick([15, 25, 35, 45, 16, 18, 14]), dub = 2 * n;
-      return tpl('vermenigvuldigen.1f', { ...num(`${k} × ${n} =`, k * n, [`Halveren en verdubbelen: de helft van ${k} keer het dubbele van ${n}.`, `${k} × ${n} = ${k / 2} × ${dub}.`, `${k / 2} × ${dub} = ${k * n}.`]),
+      return kiesRoute(tpl('vermenigvuldigen.1f', { ...num(`${k} × ${n} =`, k * n, [`Halveren en verdubbelen: de helft van ${k} keer het dubbele van ${n}.`, `${k} × ${n} = ${k / 2} × ${dub}.`, `${k / 2} × ${dub} = ${k * n}.`]),
         guide: [st(`Verdubbel ${n}: ${n} + ${n} = ?`, dub, `In stukjes: eerst de tientallen dubbel (${n - n % 10} + ${n - n % 10}), dan de eenheden (${n % 10} + ${n % 10}).`), st(`Halveer ${k}: de helft van ${k} = ?`, k / 2, `De helft is ${k} eerlijk verdelen over 2.`)],
-        guideFinal: `Nu de makkelijke som: ${k / 2} × ${dub}` });
+        guideFinal: `Nu de makkelijke som: ${k / 2} × ${dub}` }), {
+        ask: `${k} × ${n}: welke manier is hier handig?`,
+        opties: ['halveren en verdubbelen', 'splitsen in tientallen en eenheden', 'rekenen met teveel'], ook: [1],
+        tip: `De helft van ${k} is makkelijk. Wordt ${n} dubbel een makkelijk getal?`,
+        ookNote: `Splitsen kan altijd! Maar ${k} kun je mooi halveren en ${n} dubbel is makkelijk. Zo doen we het nu.`,
+        stap: `Kies je manier: de helft van ${k} keer het dubbele van ${n} rekent makkelijk.` });
     }
     if (t === 'tafel') {
       const a = rnd(6, 9), b = rnd(4, 9);
@@ -2473,6 +2520,7 @@ export function checkAnswer(q, input) {
       return { correct: t != null && (q.twelve ? t % 720 === q.answer % 720 : t === q.answer) };
     }
     case 'choice':
+      if (Number(input) !== q.answer && (q.ookGoed || []).includes(Number(input))) return { correct: true, note: q.ookNote || null };
       return { correct: Number(input) === q.answer };
     default:
       return { correct: false };
