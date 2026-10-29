@@ -11,8 +11,9 @@ import {
   awardBadge, getBadges,
 } from './src/engine.js';
 import { doelVoor } from './src/uitleg/index.js';
+import { maakLes, lesStap, vasteTekst, kiesLesSoort } from './src/lesplan.js';
 import { ts, teacherName, dayNames, defaultRewards, isAF } from './src/i18n.js';
-import { aliasFor, aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
+import { aliasFor, aiGebruik, kidProgressNote, aiEnabled, aiProvider, aiModel, teacherTurn, analyzeScratch, splitForm, lessonTurn, lesBeurt, reflect, updateProfile, profileText, parentAdvice, teachBack, remember, planSession } from './src/ai.js';
 import { todayNL, weekdayNL, setTestClock, sumKey } from './src/util.js';
 import { logEvent, migrateLeerlog } from './src/leerlog.js';
 import { migrateLogboek, apiLogger, zetAlias, logboekExport, logboekTelling } from './src/logboek.js';
@@ -1056,7 +1057,9 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
   if (mode === 'start' && qq.chat.length) return res.json({ reply: null, chat: qq.chat }); // al gestart
   let phase = r ? (r.correct ? 'right' : 'wrong') : 'before';
   let step = null, given = r?.given;
-  if (!r && qq.guided && qq.guideStep < qq.guide.length && (mode === 'step' || qq.stepTries)) {
+  // werkt het kind met tussenstappen en staat er een stap open, dan gaat elke vraag naar het gespreksplan van die stap
+  // (de app rekent, Max verwoordt), ook als het kind zelf iets typt in plaats van op "ik loop vast" te drukken
+  if (!r && qq.guided && qq.guideStep < qq.guide.length) {
     phase = 'step'; step = qq.guide[qq.guideStep]; given = req.body.stepGiven || '';
   }
   if (message) qq.chat.push({ role: 'kid', text: message });
@@ -1080,11 +1083,38 @@ app.post('/api/session/:id/chat', child, wrap(async (req, res) => {
 app.post('/api/lesson', child, wrap(async (req, res) => {
   const cat = req.body.cat;
   if (!catById[cat]) return res.status(404).json({ error: ts('Onbekend onderdeel') });
-  if (!aiEnabled()) return res.json({ reply: null });
-  if (!aiAllowed()) return res.json({ reply: null, reason: ts('{m} heeft vandaag al heel veel uitgelegd. Morgen weer!', { m: teacherName() }) });
   const chat = (Array.isArray(req.body.chat) ? req.body.chat : []).slice(-14)
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
+  // Nederlands: de les wordt gestuurd door de app (src/lesplan.js); Max verwoordt alleen (of de app zegt het zelf)
+  if (!isAF()) {
+    const key = `les:${cat}`;
+    let les = chat.length ? await getSetting(key, null) : null;
+    if (!les || les.fase === 'klaar') {
+      // de soort som: waar het kind in dit onderdeel het laatst fout ging
+      const recent = (await q(`SELECT questions, results FROM sessions ORDER BY id DESC LIMIT 6`)).rows;
+      let fout = null;
+      for (const r of recent) { for (let k = r.results.length - 1; k >= 0 && !fout; k--) if (r.questions[k]?.cat === cat && r.results[k] && !r.results[k].correct) fout = r.questions[k].tpl; if (fout) break; }
+      const tpl = kiesLesSoort(cat, skill.level, fout);
+      les = tpl ? maakLes({ cat, level: skill.level, tpl }) : null;
+      if (!les) return res.json({ reply: null, reason: ts('{m} kon nu even geen les maken. Probeer het straks nog eens.', { m: teacherName() }) });
+    }
+    const kindTekst = chat.at(-1)?.role === 'kid' ? chat.at(-1).text : '';
+    const { les: nieuw, beurt } = lesStap(les, les.fase === 'start' ? '' : kindTekst);
+    await setSetting(key, nieuw);
+    const name = await getName(), vast = vasteTekst(beurt, name);
+    const reply = aiEnabled() && aiAllowed() ? await lesBeurt({ name, profile: await teacherProfile(), memory: await memoryText(), beurt, tpl: nieuw.tpl, chat, vast }).catch(() => vast) : vast;
+    const { text: lessonText, form: lessonForm } = splitForm(reply || vast);
+    if (lessonForm) await q(`INSERT INTO explanations(cat, form) VALUES ($1,$2)`, [cat, lessonForm]);
+    if (beurt.klaar && chat.length >= 2 && aiEnabled()) {
+      const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: lessonText }].map((m) => `${m.role === 'teacher' ? teacherName() : 'kind'}: ${m.text}`).join('\n');
+      remember({ name, transcript }).then(addMemory).catch(() => {});
+    }
+    logEvent('les', { kind: kindTekst || '(start les)', max: lessonText || null, vast: lessonText === vast, fase: nieuw.fase, soort: nieuw.tpl, vorm: lessonForm || null, klaar: !!beurt.klaar, beurt: chat.length + 1 }, { cat, level: skill.level });
+    return res.json({ reply: lessonText || vast, ready: !!beurt.klaar });
+  }
+  if (!aiEnabled()) return res.json({ reply: null });
+  if (!aiAllowed()) return res.json({ reply: null, reason: ts('{m} heeft vandaag al heel veel uitgelegd. Morgen weer!', { m: teacherName() }) });
   const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
   const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, level: skill.level, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
   if (out?.ready && chat.length >= 2) {

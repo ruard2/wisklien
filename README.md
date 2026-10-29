@@ -182,6 +182,21 @@ tekort, een breuk aanvullen tot een geheel, delen door een breuk als 3/4.
 
 Test via de echte server: `scripts/e2e-voorkennis.mjs` (fout → herkansing → voorkennis → terug, lesdoel, keuzestap).
 
+**De uitleg-les wordt gestuurd door de app** (`src/lesplan.js`, Nederlands). De app kiest de soort som (waar het kind het
+laatst fout ging), maakt alle sommen zelf en loopt de les af zoals een instructie op school: voorkennisvraag → voordoen (met
+de stappen van de app) → samen (de tussenstappen van de app, nagekeken door de app) → twee keer zelf (fout = die som samen)
+→ terugkijken. Max verwoordt elke beurt alleen (`lesBeurt`, met de volledige uitlegkaart); verklapt hij iets, stelt hij de
+vraag niet, rekent hij fout of is het te lang, dan één keer herschrijven, en anders zegt de app het zelf (`vasteTekst`).
+Zonder AI werkt de les ook, met de vaste tekst. Staat per kind en onderdeel: instelling `les:<onderdeel>`.
+
+**Rekencontrole op elk bericht van Max** (`rekenEnTaalFouten`, `zonderFouteSommen` in `src/ai.js`): elk sommetje in zijn tekst
+rekent de app na (vrij gesprek, gespreksplan, les, terugvertellen); fout → herschrijven, en een zin met een som die dan nog
+niet klopt gaat eruit. Zinnen van meer dan 22 woorden → herschrijven. Werkt het kind met tussenstappen, dan gaat elke vraag in
+de chat naar het gespreksplan van de open stap (de app rekent), ook als het kind zelf iets typt.
+
+Tests: `scripts/test-les.mjs` (224 lessen: alles goed, alles fout, "weet niet", wisselend; geen rekenfout en geen verklapt
+antwoord in de vaste tekst) en de leerlijn per blok naar de officiële doelenoverzichten van groep 5–8.
+
 ## Meester Max — de AI-leraar (OpenAI)
 - Zet `OPENAI_API_KEY` in `.env` (of in Railway). De app kiest zelf het beste beschikbare model (standaard `gpt-6-luna`, reserve `gpt-5.5`); overschrijven met `OPENAI_MODEL`. Zonder sleutel werkt alles met de ingebouwde uitleg. Reserve-optie: `ANTHROPIC_API_KEY` (Claude).
 - **Na een fout** kijkt Max wat er misging en begint een gesprekje: één vraag tegelijk, het kind doet zoveel mogelijk zelf, na twee pogingen doet hij het voor.

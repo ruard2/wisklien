@@ -369,6 +369,28 @@ const KIND = (name, profile = '', memory = '', today = '') => (isAF()
     profile ? `LEERLINGPROFIEL VAN ${name.toUpperCase()}\n${profile}` : '', memory ? `JOUW NOTITIES OVER ${name.toUpperCase()} (uit eerdere lessen)\n${memory}` : '', today ? `VANDAAG IN DEZE SESSIE\n${today}` : '']).filter(Boolean).join('\n');
 const metKind = (messages, kind) => { const m = messages.map((x) => ({ ...x })); const i = m.findIndex((x) => x.role === 'user'); if (i >= 0) m[i].content = `${kind}\n\n${m[i].content}`; return m; };
 const completeLeraar = (kind, messages, opts) => complete(LERAAR_VAST(), metKind(messages, kind), opts);
+// Controles op elk bericht van Max (vrij gesprek, gespreksplan, les, terugvertellen): elk sommetje in zijn tekst rekent de app
+// na, en zinnen mogen niet te lang zijn voor een kind. Geeft opmerkingen voor een herschrijving (leeg = in orde).
+// Laatste vangnet: een zin met een sommetje dat niet klopt, gaat er helemaal uit (liever een zin minder dan een rekenfout).
+export function zonderFouteSommen(tekst) {
+  if (typeof tekst !== 'string') return tekst;
+  return tekst.split('\n').map((regel) => {
+    if (/^\s*\[(VB|\[)/.test(regel)) return regel;
+    const zinnen = regel.split(/(?<=[.!?])\s+/);
+    const goed = zinnen.filter((z) => !checkArithmetic(z.replace(/\[\[[^\]]*\]\]/g, ' ')).length);
+    if (goed.length < zinnen.length) console.log(`[max-reken] ${zinnen.length - goed.length} zin(nen) met een rekenfout weggelaten`);
+    return goed.join(' ');
+  }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+export function rekenEnTaalFouten(tekst, { maxZin = 22 } = {}) {
+  const f = [];
+  const zicht = String(tekst || '').replace(/\[\[[^\]]*\]\]/g, ' ').replace(/\[VB:[^\]]*\]/gi, ' ');
+  const rf = checkArithmetic(zicht);
+  if (rf.length) f.push(`Reken na: ${rf.slice(0, 3).map((x) => `"${x.expr}" klopt niet (het is ${x.verwacht})`).join('; ')}. Verbeter die som of laat hem weg.`);
+  const lang = zicht.split(/(?<=[.!?])\s+/).filter((z) => z.split(/\s+/).filter(Boolean).length > maxZin);
+  if (lang.length) f.push(`Een zin is te lang voor een kind (hooguit ${maxZin} woorden per zin): "${lang[0].slice(0, 60)}…". Maak er kortere zinnen van.`);
+  return f;
+}
 
 export function describeQuestion(q) {
   let s = `Som: ${q.text}`;
@@ -540,6 +562,7 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
     if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}).`);
     const tr = telrijFouten(zicht);
     if (tr.length) f.push(`Reken je rijtje na: ${tr.join('; ')}.`);
+    f.push(...rekenEnTaalFouten(zicht));
     const nl = isAF() ? nederlandsInAfrikaans(zicht) : [];
     if (nl.length) f.push(`Schrijf in zuiver, eenvoudig Afrikaans (niet: ${nl.join(', ')}).`);
     return f;
@@ -553,6 +576,7 @@ Zet op de allerlaatste regel, onzichtbaar voor het kind, de vraag die je stelt m
     // een voorbeeld dat nog steeds niet klopt, gebruikt het plan niet (dan kan het het antwoord van het kind niet nakijken)
     if (f2.some((x) => /kloppen niet|voorbeeld heeft/i.test(x))) out = out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim();
   }
+  out = zonderFouteSommen(out);
   // de vraag van de app (deelstap of volgende stap): dat label zet de app er zelf onder, zodat het nakijken altijd klopt
   if (vraag && typeof out === 'string') out = `${out.replace(/\s*\[VB:[^\]]*\]\s*/gi, ' ').trim()}\n[VB: ${kaal(vraag.ask).replace(/^[^:?\d]*[:?]\s*(?=\d)/, '')} = ${vraag.type === 'choice' ? vraag.options?.[vraag.answer] : vraag.display}]`;
   // het voorbeeld van de app: dat kent de app al, ook als Max het label vergat
@@ -669,6 +693,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       }
       const tr = telrijFouten(splitForm(t).text || '');
       if (tr.length) f.push(`Reken je rijtje na: ${tr.join('; ')}.`);
+      f.push(...rekenEnTaalFouten(splitForm(t).text || ''));
       const pf = plaatjeFouten(t);
       if (pf.length) f.push(`Je plaatje klopt niet (${pf.join('; ')}). Maak het plaatje opnieuw: [[getallenlijn: begin | eind | stip]] met begin < eind en de stip ertussen, of laat het plaatje weg.`);
       const nl = isAF() ? nederlandsInAfrikaans(t) : [];
@@ -681,6 +706,7 @@ export async function teacherTurn({ name, profile, memory, today, question, leve
       if (typeof opnieuw === 'string' && opnieuw.trim()) out = opnieuw; // ook als er nog iets mis is: de herschreven versie is beter
       console.log(`[max-bewaking] ${f1.map((x) => x.slice(0, 40)).join(' | ')} → herschreven${fouten(out).length ? ' (nog niet helemaal)' : ''}`);
     }
+    out = zonderFouteSommen(out);
   }
   return out;
 }
@@ -730,6 +756,56 @@ Sla stappen over als ${name} het duidelijk al kan (snel en goed). Houd elk beric
     if (more) text = `${text}\n\n${more}`;
   }
   return { text: text.replace(/\s*\[KLAAR\]\s*/g, '').trim(), ready: /\[KLAAR\]/.test(text) };
+}
+
+// De uitleg-les, gestuurd door de app (src/lesplan.js): de app kiest de sommen, kijkt na en bepaalt de beurt; Max verwoordt
+// die beurt alleen. Klopt zijn bericht niet (verklapt het antwoord, stelt de vraag van de app niet, rekent fout, te lang),
+// dan één keer herschrijven; lukt dat niet, dan zegt de app het zelf (vasteTekst). Zonder AI: altijd de vaste tekst.
+export async function lesBeurt({ name, profile, memory, beurt, tpl, chat = [], vast }) {
+  if (!aiEnabled()) return vast;
+  const r = beurt.reactie || {};
+  const reactie = { start: `Begin de les: een warme, korte opening en zeg in gewone woorden wat ${name} gaat leren (${beurt.doel || ''}).`, goed: `${name} had het goed: zeg dat kort en echt (benoem wat goed was).`, tip: `${name} had het nog niet goed of wist het niet. Geef deze tip in je eigen woorden: "${r.tip || ''}". Zeg het antwoord NIET.`, zeg: `${name} had het twee keer niet goed. Zeg vriendelijk dat het antwoord ${r.antwoord} is en leg in één zin uit waarom (met de stap van de app).`, samen_na_fout: `${name} had deze som niet goed. Zeg vriendelijk dat jullie hem samen gaan doen, stap voor stap.`, door: '' }[r.soort] || '';
+  const v = beurt.vraag;
+  const taak = beurt.soort === 'voordoen'
+    ? `Doe dit voorbeeld hardop voor, met PRECIES deze stappen en getallen van de app (niets anders uitrekenen): ${beurt.voorbeeld.som} — ${beurt.voorbeeld.stappen.join(' / ')} (uitkomst ${beurt.voorbeeld.uitkomst}). Eindig met de vraag: "${v.ask}"`
+    : beurt.soort === 'afsluiten'
+      ? `Sluit de les af: vat in één of twee zinnen samen hoe je dit soort som aanpakt (zoals de kaart: ${beurt.aanpak.slice(0, 3).join(' ')}), zeg dat ${name} klaar is om te oefenen. Geen vraag.`
+      : beurt.soort === 'terugkijken'
+        ? `Stel daarna precies deze vraag: "${v.ask}"`
+        : `Stel daarna precies deze vraag${v?.nieuw && v?.som ? ` bij de som "${v.som}"` : ''}: "${v?.zelf ? `Nu helemaal zelf: ${v.ask}` : v?.ask}". Reken niets voor: ${name} geeft het antwoord.`;
+  const ctx = [`LES (alleen voor jou): de app bepaalt WAT er in dit bericht gebeurt en heeft alle sommen zelf uitgerekend; jij zegt HOE, kort en warm, op het niveau van ${name}.`, kaartTekst('nl', tpl)].filter(Boolean).join('\n');
+  const opdracht = `[app, onzichtbaar voor het kind] OPDRACHT: ${reactie} ${taak}
+STIJL: hooguit 3 korte zinnen (± 45 woorden${beurt.soort === 'voordoen' ? ', voor het voordoen mag het iets langer: ± 80' : ''}), korte zinnen (hooguit 20 woorden per zin), gewone woorden. Noem geen getallen die niet van de app komen. Hooguit één vraag, aan het eind.`;
+  const hist = chat.slice(-8);
+  const messages = [{ role: 'user', content: ctx }, { role: 'assistant', content: 'Begrepen.' }];
+  hist.forEach((m) => messages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.text }));
+  if (messages.at(-1).role === 'assistant') messages.push({ role: 'user', content: opdracht }); else messages[messages.length - 1] = { ...messages.at(-1), content: `${messages.at(-1).content}\n\n${opdracht}` };
+  const opts = { maxTokens: 400, keepForm: true, doel: `max-les:${beurt.soort}` };
+  const kind = chat.filter((m) => m.role !== 'teacher').map((m) => m.text).join(' ');
+  const fouten = (t) => {
+    const f = [], zicht = splitForm(t).text || '';
+    for (const x of beurt.verboden || []) if (x != null && beurt.soort !== 'voordoen' && r.soort !== 'zeg' && verklaptAntwoord(zicht, x, { som: v?.som || '', kind })) f.push(`In je bericht staat het antwoord (${x}) dat ${name} zelf moet vinden. Laat het weg.`);
+    if (v && beurt.soort !== 'afsluiten') {
+      const nodig = getallenIn(String(v.ask).replace(/^[^:?\d]*[:?]\s*(?=\d)/, '')).filter((x) => !(beurt.verboden || []).some((y) => getallenIn(y).includes(x)));
+      if (nodig.length && !nodig.every((x) => getallenIn(zicht).some((g) => Math.abs(g - x) < 1e-9))) f.push(`Stel precies deze vraag, met deze getallen: "${v.ask}".`);
+      if (!/\?/.test(zicht)) f.push('Eindig met de vraag van de app.');
+    }
+    if ((zicht.match(/\?/g) || []).length > 1) f.push('Hooguit één vraag in je bericht.');
+    if (zicht.split(/\s+/).length > (beurt.soort === 'voordoen' ? 110 : 70)) f.push('Je bericht is te lang.');
+    f.push(...rekenEnTaalFouten(zicht));
+    return f;
+  };
+  let out = await completeLeraar(KIND(name, profile, memory), messages, opts);
+  if (typeof out !== 'string' || !out.trim()) return vast;
+  let f = fouten(out);
+  if (f.length) {
+    const opnieuw = await completeLeraar(KIND(name, profile, memory), [...messages, { role: 'assistant', content: out }, { role: 'user', content: `[controle] ${f.join(' ')} Schrijf je bericht opnieuw en geef alleen het nieuwe bericht.` }], opts).catch(() => null);
+    if (typeof opnieuw === 'string' && opnieuw.trim()) out = opnieuw;
+    f = fouten(out);
+    console.log(`[max-les] ${beurt.soort}: herschreven${f.length ? ' — nog niet goed, de app zegt het zelf' : ''}`);
+    if (f.length) return vast;
+  }
+  return zonderFouteSommen(out);
 }
 
 // Lesplan voor vandaag: Max bepaalt per onderdeel het niveau, het aantal sommen en een woordje.
@@ -843,10 +919,10 @@ export function profileText(p) {
 
 // Teach-back: het kind legt uit hoe het een som oploste.
 export async function teachBack({ name, profile, memory, question, explanation }) {
-  return completeLeraar(KIND(name, profile, memory), [{
+  return zonderFouteSommen(await completeLeraar(KIND(name, profile, memory), [{
     role: 'user',
     content: `${describeQuestion(question)}\nJuiste antwoord: ${question.display}\nStappenplan: ${question.steps.join(' / ')}\n\n${name} had deze som goed en legt nu zelf uit hoe het ging:\n"""${explanation}"""\n\nGeef korte feedback (max 60 woorden): wat goed is aan de uitleg (noem de eigen woorden van ${name}), klopt de manier, mist er een stap? Eindig met een aanmoediging. Geen vragen terug.`,
-  }], { maxTokens: 300 });
+  }], { maxTokens: 300 }));
 }
 
 // Advies voor de ouder.

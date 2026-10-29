@@ -12,7 +12,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db": "node scripts/dev-db.mjs",
-    "test": "node scripts/test-generators.mjs && node scripts/test-voorkennis.mjs && node scripts/test-plannen.mjs && node scripts/lint-uitleg.mjs 100",
+    "test": "node scripts/test-generators.mjs && node scripts/test-voorkennis.mjs && node scripts/test-les.mjs && node scripts/test-plannen.mjs && node scripts/lint-uitleg.mjs 100",
     "icons": "node scripts/gen-icons.mjs",
     "lint-uitleg": "node scripts/lint-uitleg.mjs 300 --rauw",
     "meetlat": "node scripts/maak-meetlat.mjs",
