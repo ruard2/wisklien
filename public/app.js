@@ -525,7 +525,7 @@ async function renderWho() {
   let avatar = avatars[kids.length % avatars.length];
   // nog geen taal bekend: dit scherm is tweetalig (Nederlands · Afrikaans)
   const prof = { country: 'NL', lang: 'nl', grade: '', age: '' };
-  const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7] : [3, 4, 5, 6, 7, 8]);
+  const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7] : [5, 6, 7, 8]); // groep 3-4: nog niet
   const af = () => prof.lang === 'af';
   // Nieuw kind in stappen: 1 taal · 2 naam, groep en plaatje · 3 uitleg (geef aan je ouder) · 4 ouder vult in
   let step = 1;
@@ -602,7 +602,7 @@ async function renderWho() {
         <div class="card stack">
           <label class="field"><span style="font-weight:800">${tr('Hoe heet je?', 'Wat is jou naam?')}</span><input name="name" maxlength="30" placeholder="${tr('bijv. Christo', 'bv. Christo')}" autocomplete="off" required value="${esc(prof.name || '')}"></label>
           <div><div style="font-weight:800;margin-bottom:6px">${tr(`In welke groep zit je?`, `In watter graad is jy?`)}</div>
-            <div class="seg grade-pick">${gradeOpts().map((g) => `<button type="button" class="${String(prof.grade) === String(g) ? 'sel' : ''}" data-grade="${g}">${g}</button>`).join('')}</div></div>
+            <div class="seg grade-pick">${gradeOpts().map((g) => `<button type="button" class="${String(prof.grade) === String(g) ? 'sel' : ''}" data-grade="${g}">${g}</button>`).join('')}</div>${prof.country === 'ZA' ? '' : `<div class="small muted" style="margin-top:6px">${t('Voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.')}</div>`}</div>
           <label class="field"><span style="font-weight:800">${tr('Hoe oud ben je?', 'Hoe oud is jy?')}</span>
             <select name="age" required><option value="">${tr('Kies…', 'Kies…')}</option>${[7, 8, 9, 10, 11, 12, 13, 14, 15].map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} jaar</option>`).join('')}</select></label>
           <div><div style="font-weight:800;margin-bottom:6px">${tr('Kies een plaatje', 'Kies ’n prentjie')}</div>
@@ -1027,7 +1027,7 @@ function askGroep() {
     const za = STATE?.gradeWord === 'graad';
     sheet(`<div style="text-align:center"><div class="big-emoji">🎒</div><h2 style="margin:8px 0">${za ? t('In welke graad zit je?') : t('In welke groep zit je?')}</h2>
       <p class="muted">${t('We beginnen lekker rustig. Gaat het goed? Dan worden de sommen vanzelf moeilijker. 🚀')}</p></div>
-      <div class="groep-pick">${(za ? [3, 4, 5, 6, 7] : [4, 5, 6, 7, 8]).map((g) => `<button class="choice" data-g="${g}">${g}</button>`).join('')}</div>
+      <div class="groep-pick">${(za ? [3, 4, 5, 6, 7] : [5, 6, 7, 8]).map((g) => `<button class="choice" data-g="${g}">${g}</button>`).join('')}</div>
       <button class="btn ghost block" data-close>${t('Toch niet')}</button>`, (bg, close) => {
       bg.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { close(); resolve(Number(b.dataset.g)); }));
       bg.querySelector('[data-close]').addEventListener('click', () => resolve(null));

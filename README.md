@@ -263,6 +263,12 @@ Ouders kunnen het uitzetten, bij het aanmaken of in het ouderscherm ("Help de ap
 ## Profielen
 Bij het openen: **"Wie ben jij?"** — kies je naam of maak een profiel (naam + plaatje, geen wachtwoord). Elk kind heeft een eigen afgeschermd deel van de database (PostgreSQL-schema `kid_<id>`): niveaus, sessies, spaarpot, badges, spaardoel, geheugen en profiel van Max. Wisselen via 👤 op het startscherm; profiel verwijderen in het ouderscherm.
 
+**Groep 3 en 4 zijn (nog) afgeschermd** (Nederlands): kiezen kan alleen groep 5 t/m 8, zowel bij een nieuw profiel, in het
+ouderscherm als bij de starttoets. Reden: de app had alleen sommen vanaf groep 5, dus een kind uit groep 3–4 kreeg groep-5-stof.
+Voor groep 3–4 zijn eerst nodig: twee niveaus erbij, plaatjes (rekenrek, kralenketting, splitshuis, dobbelsteenbeelden, geld),
+bijna-niet-lezen (voorlezen, knoppen), "vlot" meten met tijd, en de leerlijn per blok van De wereld in getallen groep 3 en 4.
+Afrikaans (graad 3–7) is ongewijzigd.
+
 ## Demo (voor wie de app wil bekijken)
 Op het startscherm (en op het pincodescherm): **👀 Bekijk de demo**. Of stuur de link **`https://<jouw-app>/#/demo`** (Afrikaans: `#/demo/af`).
 - De bezoeker krijgt een eigen voorbeeldkind **Maxime** (groep 8 / graad 6) met ± drie weken geschiedenis: starttoets, 16 dagtaken op rij, niveaus die omhoog en omlaag gingen, denkfouten, foutenschrift, spaarpot met spaardoel, verrassingen, level-cadeaus, een gehaald oefendoel, badges en het dossier van Max.

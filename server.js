@@ -408,7 +408,8 @@ function cleanProfile(b, partial = false) {
   const age = b.age == null || b.age === '' ? null : Number(b.age);
   const af = (lang || (country === 'ZA' ? 'af' : 'nl')) === 'af';
   if (!partial && (!lang || !country)) return { error: af ? 'Kies jou land en taal.' : 'Kies je land en taal.' };
-  const [lo, hi] = af ? [3, 7] : [3, 8];
+  const [lo, hi] = af ? [3, 7] : [5, 8]; // NL: groep 3-4 nog niet (de sommen, plaatjes en leerlijn daarvoor bestaan nog niet)
+  if (!af && Number.isInteger(grade) && grade >= 3 && grade < lo) return { error: 'Wisklien is voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.' };
   if ((!partial || grade != null) && !(Number.isInteger(grade) && grade >= lo && grade <= hi)) return { error: af ? `In watter graad is jy? (${lo} tot ${hi})` : `In welke groep zit je? (${lo} tot ${hi})` };
   if ((!partial || age != null) && !(Number.isInteger(age) && age >= 6 && age <= 16)) return { error: af ? 'Hoe oud is jy?' : 'Hoe oud ben je?' };
   // rekenmethode van de school (src/methodes/): moet bij de taal horen; '' = de standaard
@@ -636,6 +637,7 @@ app.post('/api/session/start', child, wrap(async (req, res) => {
     if (intake) return res.json(sessionPayload(await loadSession(intake.id), skills));
     const groep = Number(req.body.groep) || req.kid.grade || Number(await getSetting('groep', 0));
     const [lo, hi] = pack().gradeRange;
+    if (pack().gradeWord === 'groep' && groep >= 3 && groep < lo) return res.status(400).json({ error: 'Wisklien is voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.' });
     if (!(groep >= lo && groep <= hi)) return res.status(400).json({ error: pack().gradeWord === 'graad' ? 'In watter graad is jy?' : 'In welke groep zit je?' });
     if (!req.kid.grade) await updateKidProfile(req.kid.id, { grade: groep });
     await setSetting('groep', groep);

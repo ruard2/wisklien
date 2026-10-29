@@ -347,6 +347,7 @@ const AF = {
   "Opwarmer": "Opwarming",
   "Herkansing": "Nog ’n kans",
   "Eerst even de basis": "Eers die basis",
+  "Voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.": "Voorlopig vir graad 3 tot 7.",
   "Wat je hier leert": "Wat jy hier leer",
   "En nu de som van net": "En nou die som van netnou",
   "Even een makkie": "Sommer ’n maklike een",
