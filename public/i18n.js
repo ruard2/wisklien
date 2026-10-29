@@ -346,6 +346,8 @@ const AF = {
   "Laat de eerste stap zien ▸": "Wys die eerste stap ▸",
   "Opwarmer": "Opwarming",
   "Herkansing": "Nog ’n kans",
+  "Eerst even de basis": "Eers die basis",
+  "En nu de som van net": "En nou die som van netnou",
   "Even een makkie": "Sommer ’n maklike een",
   "Herhaling": "Herhaling",
   "oefenen": "oefen",

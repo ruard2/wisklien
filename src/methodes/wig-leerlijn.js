@@ -174,6 +174,7 @@ export const DOELEN = {
     [3, 'verhoudingen', '"… op de …" en procenten handig koppelen', ['verhoudingstabel']],
     [3, 'procenten', 'meer dan 100%; stijging', ['strook']],
     [3, 'schaal', 'kaart en werkelijkheid omrekenen', ['verhoudingstabel']],
+    [4, 'breuken', 'delen door een breuk: hoe vaak past het stuk in het geheel', ['strook']],
     [4, 'delen', 'kolomsgewijs delen in drie stappen (herhaling); delen door een breuk; kommagetal delen door splitsen', ['kolomsgewijs', 'splitsen']],
     [4, 'metriek', 'gewichtsmaten omrekenen', ['omrekentabel']],
     [5, 'delen', 'deelbaarheid', []],
@@ -206,6 +207,7 @@ export const KAART = {
   'optellen.1d': K(6, 1, 'splitsen', 'getallen splitsen in H, T en E; plus en min tot 10'),
   'optellen.1e': K(5, 7, 'aanvullen', 'rijgen; tellen tot 1000'),
   'optellen.1f': K(5, 9, 'handig', 'vrienden van 100; rijgen'),
+  'optellen.1g': K(6, 5, 'kolomsgewijs', 'getallen splitsen in H, T en E; aftrekken tot 100'),
   'optellen.2a': K(6, 2, 'kolomsgewijs', 'getallen splitsen per plek; plus tot 1000'),
   'optellen.2b': K(6, 2, 'kolomsgewijs', 'getallen splitsen per plek; plus tot 1000'),
   'optellen.2c': K(7, 1, 'rijgen', 'aftrekken tot 1000 met rijgen'),
@@ -290,6 +292,7 @@ export const KAART = {
   'breuken.0c': K(6, 6, 'strook', 'eerlijk verdelen over 3; de tafel van 3'),
   'breuken.0d': K(6, 6, 'strook', 'de helft van de helft'),
   'breuken.1a': K(6, 9, 'strook', 'een deel van een getal (1/4 van …)'),
+  'breuken.1d': K(6, 4, 'strook', 'een breuk als deel van een strook'),
   'breuken.1b': K(7, 3, 'strook', 'gelijkwaardige breuken'),
   'breuken.1c': K(7, 3, 'strook', 'breuken lezen; gelijke stukken'),
   'breuken.2b': K(7, 3, 'strook', 'gelijknamige breuken optellen; de tafels'),
@@ -299,6 +302,7 @@ export const KAART = {
   'breuken.2f': K(6, 9, 'strook', 'een deel van een getal'),
   'breuken.3a': K(8, 2, 'strook', 'een deel van een getal'),
   'breuken.3b': K(8, 4, 'getallenlijn', 'hoe vaak past een breuk in een geheel'),
+  'breuken.3g': K(8, 4, 'strook', 'hoe vaak past een stambreuk (1/4) in een geheel; delen'),
   'breuken.3c': K(7, 3, 'strook', 'gelijknamig maken; helen uit een breuk'),
   'breuken.3d': K(7, 6, 'getallenlijn', 'heel getal keer een breuk'),
   'breuken.3f': K(8, 0, 'getallenlijn', 'breuken en kommagetallen omzetten'),
@@ -371,6 +375,10 @@ export const KAART = {
   'klokWoorden.a': K(5, 5, 'tijdlijn', 'de wijzerklok: kwartier en vijf minuten'),
   'digiWoorden.a': K(6, 1, 'tijdlijn', 'de digitale klok; tijd in woorden'),
   'ovenSom.a': K(6, 3, 'tijdlijn', 'minuten optellen via het hele uur'),
+  'kalender.0a': K(5, 9, 'tijdlijn', 'de maanden en hoeveel dagen ze hebben; plus en min tot 50'),
+  'kalender.0b': K(5, 9, 'tijdlijn', 'de maanden op volgorde'),
+  'kalender.1a': K(6, 7, 'tijdlijn', 'hoeveel dagen een maand heeft; aftrekken tot 31'),
+  'kalender.1b': K(6, 7, 'tijdlijn', 'de maanden met hun nummer'),
   'tijdBasis.0a': K(5, 1, 'tijdlijn', 'kwartier en half uur'),
   'tijdBasis.0b': K(5, 1, 'tafel', '1 uur = 60 minuten'),
   'tijdBasis.0c': K(5, 1, 'tijdlijn', 'kwartier en half uur'),
@@ -393,6 +401,8 @@ export const KAART = {
   'meetkunde.0c': K(5, 9, 'ruimte', 'figuren herkennen'),
   'meetkunde.0d': K(6, 2, 'ruimte', 'links en rechts'),
   'meetkunde.0e': K(5, 9, 'ruimte', 'figuren en hun namen'),
+  'meetkunde.0f': K(5, 2, 'ruimte', 'blokjes tellen; optellen tot 20'),
+  'meetkunde.0g': K(5, 2, 'ruimte', 'bovenaanzicht met getallen lezen'),
   'meetkunde.1a': K(7, 0, 'ruimte', 'de rechte hoek', true),
   'meetkunde.1b': K(7, 0, 'ruimte', 'spiegelen', true),
   'meetkunde.1c': K(7, 0, 'ruimte', 'kubus en balk; keersommen', true),
@@ -432,6 +442,60 @@ export const KAART = {
   'combinaties.b': K(8, 9, 'systematisch', 'combinaties van twee dingen'),
 };
 
+// Voorkennis als echte som: per soort som de soort(en) som die het kind eerst moet kunnen. Loopt een kind vast (ook de
+// herkansing mislukt, of met tussenstappen twee stappen fout), dan geeft de app één voorkennissom en daarna de som van
+// net opnieuw (src/engine.js). Leeg = de voorkennis zit vóór groep 5 (of in een ander onderdeel zonder losse som).
+export const VOORKENNIS = {
+  'optellen.0c': ['optellen.0a', 'optellen.0b'], 'optellen.1a': ['optellen.0a'], 'optellen.1b': ['optellen.0b'], 'optellen.1c': ['optellen.0c'],
+  'optellen.1d': ['getalbegrip.0b'], 'optellen.1e': ['optellen.0b'], 'optellen.1f': ['optellen.0a'], 'optellen.1g': ['optellen.1d'], 'optellen.2a': ['optellen.1d'],
+  'optellen.2b': ['optellen.1d'], 'optellen.2c': ['optellen.0c'], 'optellen.2d': ['optellen.1c'], 'optellen.2e': ['optellen.1d'],
+  'optellen.3a': ['optellen.1a'], 'optellen.3b': ['optellen.2b'], 'optellen.3c': ['optellen.0c'], 'optellen.3e': ['optellen.2e'], 'optellen.3f': ['optellen.3e'],
+  'vermenigvuldigen.0b': ['vermenigvuldigen.0a'], 'vermenigvuldigen.0c': ['vermenigvuldigen.0a'], 'vermenigvuldigen.0d': ['vermenigvuldigen.0b'],
+  'vermenigvuldigen.1a': ['vermenigvuldigen.0a'], 'vermenigvuldigen.1b': ['vermenigvuldigen.0a'], 'vermenigvuldigen.1c': ['vermenigvuldigen.1b'],
+  'vermenigvuldigen.1d': ['vermenigvuldigen.1c'], 'vermenigvuldigen.1e': ['vermenigvuldigen.1c'], 'vermenigvuldigen.1f': ['vermenigvuldigen.1c'],
+  'vermenigvuldigen.2a': ['vermenigvuldigen.1d'], 'vermenigvuldigen.2b': ['vermenigvuldigen.1d', 'vermenigvuldigen.1c'], 'vermenigvuldigen.2c': ['vermenigvuldigen.1d'],
+  'vermenigvuldigen.2d': ['vermenigvuldigen.1c'], 'vermenigvuldigen.3a': ['vermenigvuldigen.2b', 'vermenigvuldigen.2c'], 'vermenigvuldigen.3b': ['vermenigvuldigen.2c'],
+  'delen.0a': ['vermenigvuldigen.0a'], 'delen.1a': ['vermenigvuldigen.1b'], 'delen.1b': ['delen.1a'], 'delen.1c': ['delen.1b'], 'delen.1d': ['delen.1a', 'vermenigvuldigen.1c'],
+  'delen.1e': ['delen.1d'], 'delen.2a': ['vermenigvuldigen.1b'], 'delen.2b': ['delen.1d'], 'delen.2c': ['delen.1e'], 'delen.2d': ['delen.1e'], 'delen.2e': ['delen.1c'],
+  'delen.3a': ['delen.2b'], 'delen.3b': ['delen.2b'], 'delen.3c': ['delen.2d'], 'delen.3d': ['delen.3b'],
+  'kommagetallen.0b': ['kommagetallen.0a'], 'kommagetallen.1a': ['optellen.1e'], 'kommagetallen.1b': ['kommagetallen.0b'], 'kommagetallen.1c': ['kommagetallen.1a'],
+  'kommagetallen.1d': ['kommagetallen.1b'], 'kommagetallen.2a': ['getalbegrip.1c'], 'kommagetallen.2b': ['kommagetallen.2a'], 'kommagetallen.2c': ['vermenigvuldigen.1d'],
+  'kommagetallen.2d': ['delen.1d'], 'kommagetallen.2e': ['metriek.0b', 'optellen.2e'], 'kommagetallen.2f': ['breuken.2c'], 'kommagetallen.2k': ['kommagetallen.1b'],
+  'kommagetallen.3a': ['kommagetallen.2c', 'vermenigvuldigen.2c'], 'kommagetallen.3b': ['kommagetallen.3a'], 'kommagetallen.3k': ['kommagetallen.2c'],
+  'getalbegrip.0a': ['getalbegrip.0b'], 'getalbegrip.1a': ['getalbegrip.0a'], 'getalbegrip.1c': ['getalbegrip.0b'], 'getalbegrip.2a': ['getalbegrip.1a', 'vermenigvuldigen.1c'],
+  'getalbegrip.2b': ['getalbegrip.1c'], 'getalbegrip.2c': ['breuken.0b'], 'getalbegrip.2d': ['getalbegrip.1a'], 'getalbegrip.2e': ['getalbegrip.2b'], 'getalbegrip.2f': ['getalbegrip.2b'],
+  'getalbegrip.2g': ['getalbegrip.2e'], 'getalbegrip.3a': ['getalbegrip.2a', 'delen.1c'], 'getalbegrip.3c': ['kommagetallen.0b'], 'getalbegrip.3d': ['getalbegrip.1a'],
+  'getalbegrip.3e': ['getalbegrip.2d'], 'getalbegrip.3f': ['getalbegrip.2a'],
+  'breuken.0b': ['delen.0a'], 'breuken.0c': ['delen.0a'], 'breuken.0d': ['breuken.0b'], 'breuken.1a': ['breuken.0d', 'breuken.0c'], 'breuken.1b': ['delen.1a'],
+  'breuken.1c': ['breuken.0a'], 'breuken.1d': ['breuken.0a'], 'breuken.3g': ['breuken.3b'], 'breuken.2b': ['breuken.1c', 'breuken.1b'], 'breuken.2c': ['breuken.0d'], 'breuken.2d': ['breuken.1c'], 'breuken.2e': ['breuken.1b'],
+  'breuken.2f': ['breuken.1a'], 'breuken.3a': ['breuken.1a'], 'breuken.3b': ['breuken.2d'], 'breuken.3c': ['breuken.2b'], 'breuken.3d': ['breuken.2d'], 'breuken.3f': ['breuken.2c', 'breuken.2e'],
+  'procenten.0a': ['breuken.0b'], 'procenten.0b': ['delen.1b'], 'procenten.1a': ['breuken.1a'], 'procenten.1b': ['breuken.1b'], 'procenten.1c': ['kommagetallen.0a'],
+  'procenten.1d': ['verhoudingen.1b'], 'procenten.1e': ['procenten.1c'], 'procenten.2a': ['procenten.0b'], 'procenten.2b': ['procenten.2a'], 'procenten.2d': ['procenten.1b'],
+  'procenten.2e': ['procenten.1b'], 'procenten.3a': ['procenten.2a'], 'procenten.3c': ['procenten.1b'], 'procenten.3e': ['procenten.1a'], 'procenten.3f': ['verhoudingen.2a', 'procenten.2a'],
+  'procenten.3g': ['procenten.2b'], 'procenten.3h': ['procenten.3a'], 'procenten.3i': ['kommagetallen.2b'],
+  'verhoudingen.0a': ['vermenigvuldigen.0d'], 'verhoudingen.1a': ['verhoudingen.0a'], 'verhoudingen.1b': ['delen.0a'], 'verhoudingen.2a': ['verhoudingen.1a'],
+  'verhoudingen.2b': ['metriek.0b'], 'verhoudingen.2c': ['verhoudingen.1a'], 'verhoudingen.2d': ['metriek.0b'], 'verhoudingen.2e': ['breuken.1a'], 'verhoudingen.3a': ['verhoudingen.2a'],
+  'verhoudingen.3b': ['verhoudingen.1a'], 'verhoudingen.3c': ['verhoudingen.2c'], 'verhoudingen.3d': ['kommagetallen.2a'],
+  'schaal.0a': ['verhoudingen.0a'], 'schaal.1a': ['vermenigvuldigen.1c'], 'schaal.2a': ['metriek.1a'], 'schaal.2b': ['schaal.1a'], 'schaal.2c': ['schaal.2b'], 'schaal.3b': ['schaal.2a'], 'schaal.3c': ['schaal.3b'],
+  'metriek.0b': ['metriek.0a'], 'metriek.1a': ['metriek.0b'], 'metriek.1b': ['metriek.0b'], 'metriek.2a': ['metriek.1a'], 'metriek.2b': ['metriek.1a'], 'metriek.3a': ['oppervlakte.1a', 'metriek.2a'],
+  'oppervlakte.0a': ['vermenigvuldigen.0a'], 'oppervlakte.0b': ['optellen.0a'], 'oppervlakte.1a': ['oppervlakte.0a'], 'oppervlakte.1b': ['oppervlakte.0b'], 'oppervlakte.2a': ['oppervlakte.2c'],
+  'oppervlakte.2b': ['oppervlakte.1a', 'breuken.0b'], 'oppervlakte.2c': ['oppervlakte.1a'], 'oppervlakte.3a': ['oppervlakte.1a'], 'oppervlakte.3b': ['oppervlakte.1b'], 'oppervlakte.3c': ['metriek.0a'],
+  'oppervlakte.3d': ['oppervlakte.1a'], 'oppervlakte.3e': ['oppervlakte.2c'], 'oppervlakte.3f': ['oppervlakte.1a'], 'oppervlakte.3g': ['oppervlakte.1b'],
+  'kalender.0a': ['kalender.0b'], 'kalender.1a': ['kalender.0a'], 'kalender.1b': ['kalender.0b'], 'klokWoorden.a': ['klokLezen.a'], 'digiWoorden.a': ['klokWoorden.a'], 'ovenSom.a': ['tijdBasis.0a'], 'tijdBasis.0a': ['klokLezen.a'], 'tijdBasis.0b': ['vermenigvuldigen.1c'],
+  'tijdBasis.0c': ['tijdBasis.0b'], 'tijdBasis.1a': ['digiWoorden.a'], 'tijdBasis.1b': ['digiWoorden.a'], 'tijdBasis.1c': ['ovenSom.a'], 'tijdBasis.1d': ['tijdBasis.0c'],
+  'tijdBasis.1e': ['klokLezen.a'], 'tijdBasis.2a': ['tijdBasis.1c'], 'tijdBasis.2b': ['vermenigvuldigen.1c'], 'tijdBasis.2c': ['tijdBasis.1c'], 'tijdBasis.2d': ['tijdBasis.2a'],
+  'tijdBasis.3a': ['verhoudingen.1a'], 'tijdBasis.3c': ['verhoudingen.1a'], 'tijdBasis.3d': ['tijdBasis.2a'], 'tijdBasis.3e': ['tijdBasis.0b'],
+  'meetkunde.0a': ['meetkunde.0e'], 'meetkunde.0g': ['meetkunde.0f'], 'meetkunde.0b': ['meetkunde.0d'], 'meetkunde.0c': ['meetkunde.0e'], 'meetkunde.1a': ['meetkunde.0c'], 'meetkunde.1c': ['meetkunde.1d', 'vermenigvuldigen.0a'],
+  'meetkunde.1d': ['meetkunde.0e'], 'meetkunde.1e': ['meetkunde.0b'], 'meetkunde.1f': ['meetkunde.0b'], 'meetkunde.2a': ['meetkunde.1a'], 'meetkunde.2b': ['meetkunde.2e'],
+  'meetkunde.2d': ['meetkunde.2a'], 'meetkunde.2e': ['meetkunde.0d'], 'meetkunde.2f': ['meetkunde.0b'], 'meetkunde.2g': ['schaal.0a'], 'meetkunde.2h': ['meetkunde.2f'],
+  'meetkunde.3a': ['kommagetallen.2c'], 'meetkunde.3b': ['oppervlakte.2c'], 'meetkunde.3c': ['meetkunde.2a'], 'meetkunde.3d': ['meetkunde.2e'],
+  'grafieken.0d': ['grafieken.0b'], 'grafieken.1b': ['grafieken.0b'], 'grafieken.1c': ['grafieken.1b'], 'grafieken.2c': ['delen.0a'], 'grafieken.2d': ['optellen.1a'],
+  'grafieken.2f': ['grafieken.1b'], 'grafieken.2g': ['grafieken.2f'], 'grafieken.3c': ['grafieken.1c'], 'grafieken.3d': ['procenten.1a'], 'grafieken.3e': ['grafieken.2c'],
+  'grafieken.3f': ['grafieken.3c'], 'grafieken.3g': ['grafieken.3c'], 'grafieken.3h': ['grafieken.3c'],
+  'rij.b': ['vermenigvuldigen.0a'], 'rij.c': ['rij.a'], 'combinaties.a': ['vermenigvuldigen.0a'], 'combinaties.b': ['combinaties.a'],
+};
+export const voorkennisVan = (tpl) => VOORKENNIS[tpl] || [];
+
 // De eerste groep waarin een onderdeel in de methode als doel voorkomt.
 export const START = Object.fromEntries(
   [...new Set(Object.values(DOELEN).flat().map((d) => d[1]))].map((cat) => [cat, Math.min(...Object.entries(DOELEN).filter(([, ds]) => ds.some((d) => d[1] === cat)).map(([g]) => Number(g)))]),
@@ -444,16 +508,37 @@ export const nogNietInGroep = (tpl, groep) => { const k = KAART[tpl]; return !!(
 export function doelVan(tpl) {
   const k = KAART[tpl];
   if (!k) return null;
-  const cat = { tijdBasis: 'tijd', klokLezen: 'tijd', klokWoorden: 'tijd', digiWoorden: 'tijd', ovenSom: 'tijd', rij: 'grafieken', combinaties: 'grafieken' }[tpl.split('.')[0]] || tpl.split('.')[0];
+  const cat = { kalender: 'tijd', tijdBasis: 'tijd', klokLezen: 'tijd', klokWoorden: 'tijd', digiWoorden: 'tijd', ovenSom: 'tijd', rij: 'grafieken', combinaties: 'grafieken' }[tpl.split('.')[0]] || tpl.split('.')[0];
   const d = (DOELEN[k.groep] || []).find((x) => x[1] === cat && (!k.blok || x[0] === k.blok)) || (DOELEN[k.groep] || []).find((x) => x[1] === cat);
   return d ? d[2] : null;
 }
+// Bij een variastrategie: naar welke basisstrategie Max (en de hulpladder) teruggaat als het kind vastloopt, per onderdeel.
+export const BASIS_BIJ_VARIA = {
+  teveel: { optellen: 'rijgen', kommagetallen: 'rijgen', vermenigvuldigen: 'splitsen', delen: 'splitsen', _: 'rijgen' },
+  handig: { _: 'rijgen' },
+  halveren: { _: 'splitsen' },
+};
+export function basisVoor(tpl) {
+  const k = KAART[tpl];
+  if (!k || STRATEGIE[k.strategie]?.soort !== 'varia') return null;
+  const m = BASIS_BIJ_VARIA[k.strategie] || {};
+  return k.basis || m[tpl.split('.')[0]] || m._ || null;
+}
+const KEER_CATS = ['vermenigvuldigen', 'delen', 'kommagetallen', 'oppervlakte', 'verhoudingen'];
+const uitlegVan = (id, cat) => { const s = STRATEGIE[id]; return s ? (s.keer && KEER_CATS.includes(cat) ? s.keer : s.uitleg) : ''; };
 export function leerlijnTekst(tpl) {
   const k = KAART[tpl];
   if (!k) return '';
   const s = STRATEGIE[k.strategie];
   const cat = tpl.split('.')[0];
-  const uitleg = s?.keer && ['vermenigvuldigen', 'delen', 'kommagetallen', 'oppervlakte', 'verhoudingen'].includes(cat) ? s.keer : s?.uitleg;
   const doel = doelVan(tpl);
-  return `LEERLIJN (De wereld in getallen): groep ${k.groep}${k.blok ? `, blok ${k.blok}` : ''}${doel ? ` — ${doel}` : ''}${k.extra ? ' (geen apart doel in de methode: verdieping)' : ''}. Route: ${s ? `${s.naam} (${s.soort === 'varia' ? 'variastrategie; lukt het niet, ga terug naar de basisstrategie' : s.soort === 'model' ? 'model' : 'basisstrategie'}: ${uitleg})` : k.strategie}. Voorkennis: ${k.voorkennis}; snapt het kind het niet, ga eerst na of die voorkennis er is.`;
+  const regels = [`LEERLIJN (De wereld in getallen): groep ${k.groep}${k.blok ? `, blok ${k.blok}` : ''}${doel ? ` — ${doel}` : ''}${k.extra ? ' (geen apart doel in de methode: verdieping)' : ''}.`];
+  if (!s) regels.push(`Route: ${k.strategie}.`);
+  else if (s.soort === 'varia') {
+    const b = basisVoor(tpl), bs = STRATEGIE[b];
+    regels.push(`Route: ${s.naam} (variastrategie: ${uitlegVan(k.strategie, cat)}).`);
+    if (bs) regels.push(`Lukt de variastrategie niet (ziet het kind het ronde getal of de handige combinatie niet), gebruik dan de basisstrategie ${bs.naam} (${uitlegVan(b, cat)}) om de stap waar het kind vastzit uit te rekenen; het stappenplan van de app blijft hetzelfde. Laat daarna zien waarom de handige route hier sneller is.`);
+  } else regels.push(`Route: ${s.naam} (${s.soort === 'model' ? 'model' : 'basisstrategie'}: ${uitlegVan(k.strategie, cat)}).`);
+  regels.push(`Voorkennis: ${k.voorkennis}. Snapt het kind het niet, ga eerst na of die voorkennis er is.`);
+  return regels.join(' ');
 }

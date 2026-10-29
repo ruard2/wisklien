@@ -15,7 +15,7 @@ import { isAF, teacherName } from './i18n.js';
 import { taalgidsText } from './didactiek.js';
 import { taalgidsAF } from './za/didactiek.js';
 import { LERAAR_AF } from './za/leraar.js';
-import { kaartTekst } from './uitleg/index.js';
+import { kaartTekst, kaartVoor } from './uitleg/index.js';
 import { methode, methodeId } from './methodes/index.js';
 import { verklaptAntwoord, nederlandsInAfrikaans, snaptNiet, zelfdeVraag, noemtGetal, plaatjeFouten, checkArithmetic, telrijFouten } from './kwaliteit.js';
 import { stapPlan, getallenRegel, getallen as getallenIn, rekenVraag, ZETTEN, ZETTEN_AF } from './stapgesprek.js';
@@ -393,6 +393,15 @@ Tekening: ${q.visual.items.map((i) => `${i.label || 'klok'} ${i.time}`).join(' e
 Tekening: vertrekbord: ${q.visual.rows.map((r) => `${r.time} naar ${r.to}`).join('; ')}`;
   if (q.visual?.kind === 'pizza') s += `\nTekening: pizza in ${q.visual.parts} stukken, ${q.visual.eaten} opgegeten`;
   if (q.visual?.kind === 'grid') s += `\nTekening: rechthoek van ${q.visual.w} bij ${q.visual.h} hokjes`;
+  // voorkennis-terugstap (src/engine.js): waarom deze som er nu staat
+  if (q.voorkennis?.voor) {
+    const naam = kaartVoor('nl', q.voorkennis.voor.tpl)?.naam || q.voorkennis.voor.tpl;
+    s += `\nVOORKENNISSOM: het kind liep net vast bij een som van de soort "${naam}" (ook de herkansing of de tussenstappen gingen mis). Deze som oefent wat daarvoor nodig is. Help bij déze som; noem het niet "makkelijk". Na deze som komt die andere som terug.`;
+  }
+  if (q.terugNa) {
+    const naam = q.terugNa.vk ? kaartVoor('nl', q.terugNa.vk)?.naam || q.terugNa.vk : null;
+    s += `\nTERUG NA VOORKENNIS: dit is de som waar het kind eerder vastliep, met nieuwe getallen.${naam ? ` Net ervoor oefende het kind "${naam}"${q.terugNa.vkGoed ? ' (dat ging goed)' : ' (dat ging nog niet goed)'}. Leg de brug: laat zien welke stap van deze som precies dat is.` : ''}`;
+  }
   return s;
 }
 

@@ -49,6 +49,10 @@ export function kaartTekst(lang, tpl) {
   if (h) L.push(`HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);
   // Leerlijn van de methode (src/methodes/wig-leerlijn.js): groep, blok, basisstrategie en voorkennis van deze soort som
   const ll = lang === 'nl' ? methode('nl')?.leerlijn : null;
-  if (ll?.leerlijnTekst) { const t = ll.leerlijnTekst(tpl); if (t) L.push(`${t} (Alleen voor jou: noem groep of blok niet tegen het kind.)`); }
+  if (ll?.leerlijnTekst) {
+    const t = ll.leerlijnTekst(tpl);
+    const vk = (ll.voorkennisVan?.(tpl) || []).map((x) => kaartVoor('nl', x)?.naam).filter(Boolean);
+    if (t) L.push(`${t}${vk.length ? ` Loopt het kind echt vast, dan geeft de app eerst een voorkennissom: ${vk.map((n) => `"${n}"`).join(' of ')}.` : ''} (Alleen voor jou: noem groep of blok niet tegen het kind.)`);
+  }
   return L.join('\n');
 }

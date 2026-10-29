@@ -15,7 +15,7 @@ const PACKS = {
     id: 'nl', lang: 'nl',
     LEVEL_NAMES: NLgen.LEVEL_NAMES, CATEGORIES: NLgen.CATEGORIES, CAT_IDS: NLgen.CAT_IDS, catById: NLgen.catById,
     startLevel: NLgen.startLevelForGroep, gradeLabel: (g) => `groep ${g}`, gradeRange: [3, 8], gradeWord: 'groep',
-    generate: NLgen.generate, generateRaw: NLgen.generateRaw, generateLike: NLgen.generateLike, hintsFor: NLgen.hintsFor,
+    generate: NLgen.generate, generateRaw: NLgen.generateRaw, generateLike: NLgen.generateLike, generateTpl: NLgen.generateTpl, hintsFor: NLgen.hintsFor,
     detectMisconception: NLmis.detectMisconception,
     MNEMONICS: NLmne.MNEMONICS, mnemonicsFor: NLmne.mnemonicsFor, mnemonicText: NLmne.mnemonicText,
     DIDACTIEK: NLdid.DIDACTIEK, didactiekText: NLdid.didactiekText, hintAanpak: NLdid.hintAanpak, ALGEMEEN: NLdid.ALGEMEEN,
@@ -56,6 +56,8 @@ export const startLevelForGroep = (g) => pack().startLevel(g);
 export const generate = (...a) => pack().generate(...a);
 export const generateRaw = (...a) => pack().generateRaw(...a);
 export const generateLike = (...a) => pack().generateLike(...a);
+// Eén bepaalde soort som (sjabloon); null als dit pakket dat niet kan of het niet lukt
+export const generateTpl = (...a) => pack().generateTpl?.(...a) ?? null;
 export const hintsFor = (...a) => pack().hintsFor(...a);
 export const detectMisconception = (...a) => pack().detectMisconception(...a);
 export const mnemonicsFor = (...a) => pack().mnemonicsFor(...a);

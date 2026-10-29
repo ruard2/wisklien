@@ -2,7 +2,8 @@
 // een sessie, beloningsregels en badges.
 import { q } from './db.js';
 import { ts } from './i18n.js';
-import { CAT_IDS, generate as genRaw, generateLike as genLikeRaw, catById, warmupCats } from './curriculum.js';
+import { CAT_IDS, generate as genRaw, generateLike as genLikeRaw, generateTpl as genTplRaw, catById, warmupCats } from './curriculum.js';
+import { voorkennisSjablonen } from './methodes/index.js';
 import { shuffle, pick, todayNL, sumKey } from './util.js';
 
 export const INTAKE_POINTS = 100; // centen, alleen voor goede antwoorden
@@ -237,6 +238,8 @@ export function nextQuestion(session, skills, recent = new Set()) {
   const avoid = new Set([...recent, ...session.questions.map(sumKey)]);
   const generate = (cat, level) => fresh(() => genRaw(cat, level), avoid);
   const generateLike = (...a) => fresh(() => genLikeRaw(...a), avoid);
+  // precies deze soort som, met nieuwe getallen (null als het niet lukt)
+  const generateTpl = (tpl) => { let q = null; for (let k = 0; k < 6; k++) { q = genTplRaw(tpl); if (!q) return null; if (!avoid.has(sumKey(q))) break; } if (q) avoid.add(sumKey(q)); return q; }; // weinig varianten: dan maar een som die al eens kwam
   const byCat = Object.fromEntries(skills.map((s) => [s.cat, s]));
   const st = session.state || {};
 
@@ -262,9 +265,27 @@ export function nextQuestion(session, skills, recent = new Set()) {
     return rq;
   }
 
+  // voorkennis (src/methodes/wig-leerlijn.js, VOORKENNIS): het kind liep vast; eerst één som met wat daarvoor nodig is,
+  // samen stap voor stap; daarna de som van net (zelfde soort, nieuwe getallen) opnieuw
+  if (st.voorkennis) {
+    for (const t of shuffle([...st.voorkennis.tpls])) {
+      const vq = generateTpl(t);
+      if (!vq) continue;
+      vq.voorkennis = { voor: st.voorkennis.voor };
+      vq.suggestGuide = vq.guide.length > 0;
+      return vq;
+    }
+  }
+  if (st.terug) {
+    const tq = generateTpl(st.terug.tpl) || generate(st.terug.cat, st.terug.level);
+    tq.terugNa = { tpl: st.terug.tpl, vk: st.terug.vk || null, vkGoed: !!st.terug.vkGoed };
+    tq.retry = true;
+    tq.suggestGuide = tq.guide.length > 0;
+    return tq;
+  }
   if (st.retry) {
-    // herkansing: zelfde soort som, nieuwe getallen, samen stap voor stap
-    qq = generate(st.retry.cat, st.retry.level);
+    // herkansing: zelfde soort som (zelfde sjabloon als dat lukt), nieuwe getallen, samen stap voor stap
+    qq = (st.retry.tpl && generateTpl(st.retry.tpl)) || generate(st.retry.cat, st.retry.level);
     qq.retry = true;
     qq.suggestGuide = true;
   } else if (st.wrongStreak === 2 || (i === session.total - 1 && rate < 0.6 && done > 3)) {
@@ -314,13 +335,31 @@ export function nextQuestion(session, skills, recent = new Set()) {
 }
 
 // Werk de sessie-toestand bij na een antwoord.
+// Vastgelopen = ook de herkansing ging fout, of met tussenstappen gingen twee verschillende stappen fout.
+export const vastgelopen = (qq) => !!qq.retry || (!!qq.guided && (qq.stepErrors || []).length >= 2);
+export const VK_MAX = 2; // hooguit zoveel voorkennis-terugstappen per sessie (en per soort som één)
 export function updateState(session, qq, correct) {
   const st = { streak: 0, wrongStreak: 0, easy: false, retry: null, ...(session.state || {}) };
   st.streak = correct ? st.streak + 1 : 0;
   st.wrongStreak = correct ? 0 : st.wrongStreak + 1;
   st.best = Math.max(st.best || 0, st.streak);
   // herkansing alleen na een fout, niet na een mislukte herkansing en niet in de starttoets
-  st.retry = !correct && !qq.retry && !qq.booster && session.kind !== 'intake' && qq.guide.length ? { cat: qq.cat, level: qq.level } : null;
+  st.retry = !correct && !qq.retry && !qq.booster && session.kind !== 'intake' && qq.guide.length ? { cat: qq.cat, level: qq.level, tpl: qq.tpl || null } : null;
+  // voorkennis-terugstap: alleen voor de eerstvolgende som (nextQuestion leest het direct hierna)
+  st.voorkennis = null;
+  st.terug = null;
+  if (qq.voorkennis) {
+    st.retry = null;
+    st.terug = { ...qq.voorkennis.voor, vk: qq.tpl || null, vkGoed: !!correct };
+  } else if (!correct && !qq.terugNa && vastgelopen(qq) && session.kind !== 'intake' && !qq.booster && !qq.warmup && (st.vkTeller || 0) < VK_MAX && !(st.vkGehad || []).includes(qq.tpl)) {
+    const tpls = voorkennisSjablonen(qq.tpl);
+    if (tpls.length) {
+      st.voorkennis = { tpls, voor: { cat: qq.cat, level: qq.level, tpl: qq.tpl } };
+      st.retry = null;
+      st.vkTeller = (st.vkTeller || 0) + 1;
+      st.vkGehad = [...(st.vkGehad || []), qq.tpl];
+    }
+  }
   if (qq.fromPlan) st.planIdx = (st.planIdx || 0) + 1;
   // "rustig aan"-modus: laatste 4 antwoorden minder dan de helft goed
   const last = [...session.results.slice(-3).map((r) => r.correct), correct];

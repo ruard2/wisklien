@@ -1409,7 +1409,7 @@ function renderQuestion() {
   if (S.klad?.index !== cur.index) kladReset(cur.index);
   const meta = (STATE?.skills || []).find((x) => x.cat === q.cat);
   const pct = (cur.index / data.total) * 100;
-  const label = q.redo ? `<span class="chip">🔁 ${t('Nog een keer, rustig')}</span>` : q.warmup ? `<span class="chip">⚡ ${t('Opwarmer')}</span>` : q.retry ? `<span class="chip good">💪 ${t('Herkansing')}</span>` : q.booster ? `<span class="chip good">😎 ${t('Even een makkie')}</span>` : q.review ? `<span class="chip">🔁 ${t('Herhaling')} · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)}</span>`;
+  const label = q.voorkennis ? `<span class="chip">🧱 ${t('Eerst even de basis')}</span>` : q.terugNa ? `<span class="chip good">💪 ${t('En nu de som van net')}</span>` : q.redo ? `<span class="chip">🔁 ${t('Nog een keer, rustig')}</span>` : q.warmup ? `<span class="chip">⚡ ${t('Opwarmer')}</span>` : q.retry ? `<span class="chip good">💪 ${t('Herkansing')}</span>` : q.booster ? `<span class="chip good">😎 ${t('Even een makkie')}</span>` : q.review ? `<span class="chip">🔁 ${t('Herhaling')} · ${esc(meta?.label || q.cat)}</span>` : `<span class="chip">${meta?.icon || ''} ${esc(meta?.label || q.cat)}</span>`;
   $app.innerHTML = `
     <div class="s-top"><button class="x" data-quit aria-label="${t('Stoppen')}">✕</button>
       <div class="progress"><i style="width:${pct}%"></i></div>

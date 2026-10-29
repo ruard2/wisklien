@@ -51,6 +51,8 @@ export function nogNietAanDeBeurt(tpl, level) {
   if (!k) return false;
   return k.groep > Math.max(groepNu() || 0, Number(level) + 5);
 }
+// Voorkennis als som: welke soort(en) som het kind eerst moet kunnen (leeg als de methode het niet vastlegt)
+export const voorkennisSjablonen = (tpl) => leerlijn()?.voorkennisVan?.(tpl) || [];
 // Onderdelen die in de methode in de groep van het kind nog niet begonnen zijn (bijv. procenten in groep 5–6).
 export function nogNietBegonnen(cat, groep = groepNu()) {
   const s = leerlijn()?.START?.[cat];

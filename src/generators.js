@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Sommengeneratoren voor groep 8, gebaseerd op de referentieniveaus 1F/1S
 // (domeinen Getallen, Verhoudingen, Meten & meetkunde, Verbanden) en de
 // leerlijn groep 8 van de gangbare methodes (o.a. Pluspunt 4, Wereld in getallen 5).
@@ -329,6 +330,25 @@ function splitsTot1000() {
     guide: [st(`Honderdtallen: ${A[0] * 100} ${op} ${B[0] * 100} = ?`, H, `Kleine som: ${A[0]} ${op} ${B[0]}, het zijn honderden.`), st(`Tientallen: ${A[1] * 10} ${op} ${B[1] * 10} = ?`, Tn, `Kleine som: ${A[1]} ${op} ${B[1]}, het zijn tientallen.`), st(`Eenheden: ${A[2]} ${op} ${B[2]} = ?`, E, '')],
     guideFinal: `Tel de stukken samen: ${H} + ${Tn} + ${E}` });
 }
+// Groep 6 (de methode, blok 5): kolomsgewijs aftrekken: per plek, begin bij de honderdtallen; gaat een plek niet, dan
+// noteer je hoeveel je tekort komt en haal je dat aan het eind van de rest af (bijv. 300, dan 10 tekort en 6 tekort).
+function kolomsgewijsAftrekken() {
+  const A = [rnd(3, 9), rnd(0, 9), rnd(0, 9)], B = [rnd(1, A[0] - 1), rnd(0, 9), rnd(0, 9)];
+  const a = A[0] * 100 + A[1] * 10 + A[2], b = B[0] * 100 + B[1] * 10 + B[2];
+  const H = (A[0] - B[0]) * 100, T = (A[1] - B[1]) * 10, E = A[2] - B[2];
+  if (T >= 0 && E >= 0) return kolomsgewijsAftrekken(); // minstens één plek met tekort, anders is het gewoon splitsen
+  if (H + T + E <= 0 || T === 0 && E === 0) return kolomsgewijsAftrekken();
+  const plek = (x, naam, ga, gb, mul) => x >= 0
+    ? st(`${naam}: ${ga * mul} − ${gb * mul} = ?`, x, `Kleine som: ${ga} − ${gb}${mul > 1 ? `, het zijn ${naam.toLowerCase()}` : ''}.`)
+    : st(`${naam}: ${ga * mul} − ${gb * mul} gaat niet. Hoeveel kom je tekort? ${gb * mul} − ${ga * mul} = ?`, -x, `Je haalt er ${gb * mul} af, maar je hebt er maar ${ga * mul}: het verschil kom je tekort.`);
+  const deel = (x) => (x >= 0 ? `+ ${x}` : `− ${-x} (tekort)`);
+  return tpl('optellen.1g', { ...num(`${a} − ${b} =`, a - b, [`Kolomsgewijs: per plek, begin bij de honderdtallen.`, `Honderdtallen: ${A[0] * 100} − ${B[0] * 100} = ${H}.`,
+    ...(T === 0 ? [`Tientallen: ${A[1] * 10} − ${B[1] * 10}: daar blijft niets over.`] : [T > 0 ? `Tientallen: ${A[1] * 10} − ${B[1] * 10} = ${T}.` : `Tientallen: ${A[1] * 10} − ${B[1] * 10} gaat niet: ${-T} tekort.`]),
+    ...(E === 0 ? [`Eenheden: ${A[2]} − ${B[2]}: daar blijft niets over.`] : [E > 0 ? `Eenheden: ${A[2]} − ${B[2]} = ${E}.` : `Eenheden: ${A[2]} − ${B[2]} gaat niet: ${-E} tekort.`]),
+    `Samen: ${H}${T ? ` ${deel(T)}` : ''}${E ? ` ${deel(E)}` : ''} = ${a - b}.`]),
+    guide: [plek(H, 'Honderdtallen', A[0], B[0], 100), plek(T, 'Tientallen', A[1], B[1], 10), plek(E, 'Eenheden', A[2], B[2], 1)].filter((g, i) => i === 0 || [T, E][i - 1] !== 0),
+    guideFinal: `Reken het samen uit: ${H}${T ? ` ${T > 0 ? `+ ${T}` : `− ${-T}`}` : ''}${E ? ` ${E > 0 ? `+ ${E}` : `− ${-E}`}` : ''} (een tekort haal je eraf)` });
+}
 // Groep 5-6 (de methode): aftrekken door aanvullen als de getallen dicht bij elkaar liggen (van het kleine naar het grote getal).
 function aanvullenTot1000() {
   const R = rnd(2, 9) * 100, b = R - rnd(1, 9), a = R + rnd(1, 9), ctx = Math.random() < 0.4;
@@ -367,6 +387,7 @@ const optellen = {
     if (r1 < 0.36) return splitsTot1000();
     if (r1 < 0.5) return aanvullenTot1000();
     if (r1 < 0.6) return langeSomHandig();
+    if (r1 < 0.7) return kolomsgewijsAftrekken();
     if (Math.random() < 0.55) {
       const a = rnd(120, 880), b = rnd(12, 98), t = b - (b % 10);
       return tpl('optellen.1a', { ...num(`${a} + ${b} =`, a + b, [`Splits ${b} in ${t} + ${b % 10}.`, `${a} + ${t} = ${a + t}`, ...(((a + t) % 10) + (b % 10) > 10 ? [`${a + t} + ${b % 10} gaat over het tiental: ${a + t} + ${10 - ((a + t) % 10)} = ${a + t + 10 - ((a + t) % 10)}, dan nog ${(b % 10) - (10 - ((a + t) % 10))} erbij: ${a + b}`] : [`${a + t} + ${b % 10} = ${a + b}`])]),
@@ -929,6 +950,26 @@ function breukOrdenen() {
     guideFinal: `Maak alle getallen even lang (twee cijfers achter de komma) of zet ze op de getallenlijn van ${w} tot ${w + 1}: welke is het ${groot ? 'grootst' : 'kleinst'}?` });
 }
 
+// Groep 6 (de methode, blok 4): een breuk aanvullen tot een geheel: hoeveel stukjes ontbreken er nog aan de hele strook?
+function breukAanvullen() {
+  const d = pick([3, 4, 5, 6, 8, 10]), n = rnd(1, d - 1), w = Math.random() < 0.35 ? rnd(1, 4) : 0;
+  const naam = { 3: 'derden', 4: 'vierden', 5: 'vijfden', 6: 'zesden', 8: 'achtsten', 10: 'tienden' }[d];
+  const vraag = w ? `Hoeveel moet er bij ${w} ${n}/${d} om ${w + 1} te krijgen?` : pick([`Hoeveel moet er bij ${n}/${d} om 1 hele te krijgen?`, `${n}/${d} + ? = 1`]);
+  return tpl('breuken.1d', { ...frac(vraag, [d - n, d], [w ? `${w === 1 ? 'De hele blijft' : `De ${w} helen blijven`}; het gaat om ${n}/${d} aanvullen tot 1 hele.` : `Teken een strook van 1 hele in ${d} gelijke stukken.`, `1 hele = ${d}/${d} (${d} ${naam}).`, `Je hebt er ${n}; er ${d - n === 1 ? 'ontbreekt' : 'ontbreken'} ${d} − ${n} = ${d - n} ${d - n === 1 ? 'stukje' : 'stukjes'}.`, `Dus ${d - n}/${d}.`]),
+    guide: [st(`Hoeveel stukjes van 1/${d} zijn samen 1 hele?`, d, `Een hele strook in ${d} gelijke stukken: tel ze.`), st(`Je hebt ${n} stukjes. Hoeveel ontbreken er nog? ${d} − ${n} = ?`, d - n, 'Tel de lege stukjes van de strook.')],
+    guideFinal: `Schrijf het als breuk: ?/${d}` });
+}
+// Groep 8 (de methode, blok 4): delen door een breuk: hoe vaak past het stuk (bijv. 3/4 liter) in het geheel?
+function delenDoorBreuk() {
+  const [n, d] = pick([[3, 4], [2, 3], [3, 5], [2, 5], [3, 8], [5, 8], [3, 10]]);
+  let w = rnd(2, 9); for (let k = 0; k < 20 && (w * d) % n; k++) w = rnd(2, 12);
+  if ((w * d) % n) return delenDoorBreuk();
+  const [unit, ding] = pick([['liter', 'flesjes'], ['meter', 'stukken lint'], ['kilo', 'zakjes'], ['uur', 'lessen']]);
+  const ans = (w * d) / n;
+  return tpl('breuken.3g', { ...num(`Je hebt ${w} ${unit}. Hoeveel ${ding} van ${n}/${d} ${unit} kun je daarvan maken?`, ans, [`Dat is de deelsom ${w} : ${n}/${d}: hoe vaak past ${n}/${d} in ${w}?`, `Eerst 1/${d}: dat past ${d} keer in 1 ${unit}, dus ${w} × ${d} = ${w * d} keer in ${w} ${unit}.`, `${n}/${d} is ${n} van die stukjes: ${w * d} : ${n} = ${ans}.`]),
+    guide: [st(`Hoe vaak past 1/${d} ${unit} in ${w} ${unit}? ${w} × ${d} = ?`, w * d, `1/${d} past ${d} keer in 1 ${unit}; in ${w} ${unit} dus ${w} keer zo vaak.`)],
+    guideFinal: `Eén stuk is ${n} van die stukjes van 1/${d}: ${w * d} : ${n}` });
+}
 const breuken = {
   0() {
     const t = pick(['pizza', 'helft', 'kwart', 'derde']);
@@ -964,7 +1005,8 @@ const breuken = {
       guide: [st(`De helft van ${total} = ?`, total / 2, '1/4 is de helft van de helft.')], guideFinal: `En nog eens de helft: de helft van ${total / 2}` });
   },
   1() {
-    const t = pick(['deel', 'vereenvoudig', 'gelijk']);
+    const t = pick(['deel', 'deel', 'vereenvoudig', 'vereenvoudig', 'gelijk', 'gelijk', 'aanvul']);
+    if (t === 'aanvul') return breukAanvullen();
     if (t === 'deel') {
       const d = pick([3, 4, 5, 6, 8]), n = rnd(1, d - 1), k = rnd(3, 12), total = d * k;
       return tpl('breuken.1a', { ...num(`Hoeveel is ${n}/${d} deel van ${total}?`, n * k, [`Eerst 1/${d} deel: ${total} : ${d} = ${k}.`, `Dan ${n}/${d} deel: ${n} × ${k} = ${n * k}.`]),
@@ -1052,7 +1094,8 @@ const breuken = {
       guideFinal: 'Welke breuk geeft het meeste? Die is het grootst' });
   },
   3() {
-    const t = pick(['maal', 'deeldoor', 'gemengd', 'keergemengd', 'orden']);
+    const t = pick(['maal', 'deeldoor', 'deeldoorN', 'gemengd', 'keergemengd', 'orden']);
+    if (t === 'deeldoorN') return delenDoorBreuk();
     if (t === 'keergemengd') return breukKeerGemengd();
     if (t === 'orden') return breukOrdenen();
     if (t === 'maal') {
@@ -2019,9 +2062,38 @@ function routeWind() {
   guide: [stC(`Naar welke twee windrichtingen gaat ${n}?`, [`${ns} en ${ow}`, `${tegen(ns)} en ${tegen(ow)}`], 0, 'Lees de route nog eens.')], guideFinal: 'Welke windrichting op de windroos ligt tussen die twee in?' });
 }
 
+// Groep 5 (de methode, blok 2): bovenaanzicht met getallen (hoeveel blokjes staan er op elk vakje) en wat je van boven of
+// van voren ziet. Het plaatje is een tabel: elk vakje is een plek op de grond, het getal is de hoogte van de stapel.
+function bouwwerk() {
+  const R = rnd(2, 3), C = rnd(2, 3);
+  const g = Array.from({ length: R }, () => Array.from({ length: C }, () => (Math.random() < 0.2 ? 0 : rnd(1, 4))));
+  if (g.flat().filter(Boolean).length < 3) return bouwwerk();
+  const visual = { kind: 'table', headers: null, rows: g.map((r) => r.map((x) => (x ? String(x) : ''))) };
+  const t = pick(['totaal', 'totaal', 'boven', 'voor']);
+  const intro = 'Dit is het bovenaanzicht van een bouwwerk van blokjes. Het getal in een vakje zegt hoeveel blokjes daar op elkaar staan (een leeg vakje: geen blokjes).';
+  if (t === 'totaal') {
+    const rij = g.map((r) => r.reduce((a, b) => a + b, 0));
+    return tpl('meetkunde.0f', { ...num(`${intro} Hoeveel blokjes zijn het samen?`, rij.reduce((a, b) => a + b, 0), [`Tel per rij de getallen op: ${g.map((r, i) => `rij ${i + 1}: ${r.filter(Boolean).join(' + ')} = ${rij[i]}`).join('; ')}.`, `Samen: ${rij.join(' + ')} = ${rij.reduce((a, b) => a + b, 0)}.`], { visual }),
+      guide: g.slice(0, R - 1).map((r, i) => st(`Rij ${i + 1} (van boven): ${r.filter(Boolean).join(' + ')} = ?`, rij[i], 'Elk getal is een stapel; tel de stapels van deze rij op.')),
+      guideFinal: `Tel ook rij ${R} op en dan alle rijen samen` });
+  }
+  if (t === 'boven') {
+    const vol = g.flat().filter(Boolean).length, leeg = R * C - vol;
+    return tpl('meetkunde.0f', { ...num(`${intro} Je kijkt er recht van boven op. Hoeveel blokjes zie je dan?`, vol, ['Van boven zie je van elke stapel alleen het bovenste blokje: één blokje per vakje met een getal.', leeg ? `Er zijn ${R * C} vakjes, waarvan ${leeg} leeg.` : `Er zijn ${R * C} vakjes en geen enkel vakje is leeg.`, leeg ? `Dus ${R * C} − ${leeg} = ${vol}.` : `Dus ${vol}.`], { visual }),
+      guide: [st(`Hoeveel vakjes heeft het bovenaanzicht? ${R} × ${C} = ?`, R * C, `${R} rijen van ${C} vakjes.`), st('Hoeveel vakjes zijn leeg?', leeg, 'Tel de vakjes zonder getal.')],
+      guideFinal: 'Van elke stapel zie je van boven maar één blokje: alle vakjes min de lege' });
+  }
+  // vooraanzicht: van voren (van de onderkant van het plaatje) zie je per kolom de hoogste stapel
+  const kol = Array.from({ length: C }, (_, j) => Math.max(...g.map((r) => r[j])));
+  if (kol.some((x) => x === 0)) return bouwwerk();
+  return tpl('meetkunde.0g', { ...num(`${intro} Je kijkt er recht van voren op (vanaf de onderkant van het plaatje). Hoeveel blokjes zie je dan?`, kol.reduce((a, b) => a + b, 0), ['Van voren zie je per kolom alleen de hoogste stapel; de lagere stapels staan erachter en die zie je niet.', `De hoogste per kolom: ${kol.join(', ')}.`, `Samen: ${kol.join(' + ')} = ${kol.reduce((a, b) => a + b, 0)}.`], { visual }),
+    guide: kol.slice(0, C - 1).map((x, j) => st(`Kolom ${j + 1} (van links): wat is de hoogste stapel? (${g.map((r) => r[j]).filter(Boolean).join(', ')})`, x, 'Van voren zie je alleen de hoogste; de lagere staan erachter.')),
+    guideFinal: `Zoek ook in kolom ${C} de hoogste en tel de hoogtes van alle kolommen op` });
+}
 const meetkunde = {
   0() {
-    const t = pick(['hoeken', 'richting', 'figuur', 'samen', 'samen', 'route']);
+    const t = pick(['hoeken', 'richting', 'figuur', 'samen', 'samen', 'route', 'bouw', 'bouw']);
+    if (t === 'bouw') return bouwwerk();
     if (t === 'samen') {
       const V = [['driehoek', 'driehoeken', 3], ['vierkant', 'vierkanten', 4], ['vijfhoek', 'vijfhoeken', 5], ['zeshoek', 'zeshoeken', 6], ['achthoek', 'achthoeken', 8]];
       const [x, y] = shuffle(V).slice(0, 2), a = rnd(1, 6), b = rnd(1, 6), n = pick(NAMES);
@@ -2124,9 +2196,70 @@ const meetkunde = {
 };
 
 // Tijd: klokkijken en de tijd in woorden horen er vanaf groep 5 gewoon bij, met echte klokken
+// Kalender en datums (de methode: groep 5 blok 9 de jaarkalender, een week of maand eerder of later; groep 6 blok 7 datums
+// schrijven en uitrekenen). Geen februari (schrikkeljaar) in de sommen met dagen.
+const MAAND = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+const MAANDDAGEN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const knokkel = (m) => `Tel op je knokkels vanaf januari: valt ${MAAND[m]} op een knokkel (een lange maand) of in een kuiltje (een korte maand)?`;
+function kalenderWeek() {
+  const m = pick([0, 2, 3, 4, 5, 6, 7, 8, 9, 10]), D = MAANDDAGEN[m], k = pick([7, 7, 14]), later = Math.random() < 0.6;
+  const wk = k === 7 ? 'een week' : 'twee weken';
+  if (later) {
+    const d = Math.random() < 0.75 ? rnd(D - k + 1, D) : rnd(1, D - k), n = d + k, over = n > D, mv = (m + 1) % 12;
+    const goed = over ? `${n - D} ${MAAND[mv]}` : `${n} ${MAAND[m]}`;
+    const opts = [...new Set([goed, over ? `${n - D + 1} ${MAAND[mv]}` : `${n < D ? n + 1 : n - 2} ${MAAND[m]}`, over ? `${n - D - 1 || n - D + 2} ${MAAND[mv]}` : `${n - 1} ${MAAND[m]}`, over ? `${n - D} ${MAAND[m]}` : `${n} ${MAAND[mv]}`])];
+    return tpl('kalender.0a', { ...choice(`Het is ${d} ${MAAND[m]}. Welke datum is het ${wk} later?`, opts, opts.indexOf(goed), [`${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen: ${d} + ${k} = ${n}.`, ...(over ? [`${MAAND[m][0].toUpperCase()}${MAAND[m].slice(1)} heeft ${D} dagen, dus je gaat de volgende maand in: ${n} − ${D} = ${n - D}.`] : []), `Dus ${goed}.`]),
+      guide: over ? [st(`Hoeveel dagen heeft ${MAAND[m]}?`, D, knokkel(m)), st(`${d} + ${k} = ?`, n, `${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen.`), st(`Hoeveel dagen ga je over het eind van ${MAAND[m]} heen? ${n} − ${D} = ?`, n - D, 'Zoveel dagen tel je verder in de volgende maand.')]
+        : [st(`${d} + ${k} = ?`, n, `${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen.`)],
+      guideFinal: over ? `Welke maand komt na ${MAAND[m]}? Dat is de datum` : `Blijf je in ${MAAND[m]}? (${MAAND[m]} heeft ${D} dagen)` });
+  }
+  const d = Math.random() < 0.75 ? rnd(1, k) : rnd(k + 1, D), mp = (m + 11) % 12, Dp = MAANDDAGEN[mp], terug = d <= k;
+  if (terug && mp === 1) return kalenderWeek(); // niet terug in februari
+  const goed = terug ? `${Dp + d - k} ${MAAND[mp]}` : `${d - k} ${MAAND[m]}`;
+  const opts = [...new Set([goed, terug ? `${Dp + d - k + 1} ${MAAND[mp]}` : `${d - k + 1} ${MAAND[m]}`, terug ? `${Dp + d - k - 1} ${MAAND[mp]}` : `${d - k - 1 || d - k + 2} ${MAAND[m]}`, terug ? `${Dp + d - k} ${MAAND[m]}` : `${d - k} ${MAAND[mp]}`])];
+  return tpl('kalender.0a', { ...choice(`Het is ${d} ${MAAND[m]}. Welke datum was het ${wk} eerder?`, opts, opts.indexOf(goed), terug
+    ? [`${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen terug; dat gaat over de 1e van ${MAAND[m]} heen, terug naar ${MAAND[mp]}.`, `${MAAND[mp][0].toUpperCase()}${MAAND[mp].slice(1)} heeft ${Dp} dagen: tel de ${d} dagen van ${MAAND[m]} erbij: ${Dp} + ${d} = ${Dp + d}.`, `${Dp + d} − ${k} = ${Dp + d - k}, dus ${goed}.`]
+    : [`${d} − ${k} = ${d - k}.`, `Dus ${goed}.`]),
+    guide: terug ? [st(`Hoeveel dagen heeft ${MAAND[mp]}?`, Dp, knokkel(mp)), st(`Tel de ${d} dagen van ${MAAND[m]} erbij: ${Dp} + ${d} = ?`, Dp + d, `Zo kun je terugtellen alsof het nog ${MAAND[mp]} is.`), st(`${Dp + d} − ${k} = ?`, Dp + d - k, `${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen.`)]
+      : [st(`${d} − ${k} = ?`, d - k, `${wk[0].toUpperCase()}${wk.slice(1)} is ${k} dagen.`)],
+    guideFinal: terug ? `In welke maand ben je dan?` : `Blijf je in ${MAAND[m]}?` });
+}
+function kalenderMaand() {
+  const m = rnd(0, 11), k = rnd(2, 8), later = Math.random() < 0.6, n = later ? m + k : m - k, w = ((n % 12) + 12) % 12;
+  const opts = [...new Set([MAAND[w], MAAND[(w + 1) % 12], MAAND[(w + 11) % 12], MAAND[(later ? m - k + 24 : m + k) % 12]])];
+  const nr = m + 1, uit = later ? nr + k : nr - k;
+  return tpl('kalender.0b', { ...choice(later ? `Het is nu ${MAAND[m]}. Welke maand is het over ${k} maanden?` : `Het is nu ${MAAND[m]}. Welke maand was het ${k} maanden geleden?`, opts, opts.indexOf(MAAND[w]),
+    [`Geef de maanden een nummer: januari = 1, …, december = 12. ${MAAND[m][0].toUpperCase()}${MAAND[m].slice(1)} = ${nr}.`, `${nr} ${later ? '+' : '−'} ${k} = ${uit}.`, ...(uit > 12 ? [`Groter dan 12: het volgende jaar. ${uit} − 12 = ${uit - 12}.`] : uit < 1 ? [`Kleiner dan 1: het vorige jaar. ${uit} + 12 = ${uit + 12}.`] : []), `Maand ${w + 1} is ${MAAND[w]}.`]),
+    guide: [st(`Welk nummer heeft ${MAAND[m]}? (januari = 1)`, nr, 'Tel de maanden vanaf januari.'), st(`${nr} ${later ? '+' : '−'} ${k} = ?`, uit, later ? 'Tel de maanden erbij.' : 'Tel de maanden terug.'), ...(uit > 12 ? [st(`Over december heen: ${uit} − 12 = ?`, uit - 12, 'Na december begint het jaar opnieuw bij januari = 1.')] : uit < 1 ? [st(`Terug over januari heen: ${uit} + 12 = ?`, uit + 12, 'Vóór januari komt december van het vorige jaar: tel er een heel jaar (12 maanden) bij.')] : [])],
+    guideFinal: 'Welke maand heeft dat nummer?' });
+}
+function kalenderDuur() {
+  const m1 = pick([0, 2, 3, 4, 5, 6, 7, 8, 9, 10]), D = MAANDDAGEN[m1], m2 = m1 + 1, d1 = rnd(D - 12, D - 1), d2 = rnd(2, 20);
+  const n = pick(NAMES), [wat] = pick([['op vakantie'], ['bij oma'], ['op kamp'], ['op de camping']]);
+  const ans = D - d1 + d2;
+  return tpl('kalender.1a', { ...num(`${n} gaat op ${d1} ${MAAND[m1]} ${wat} en komt op ${d2} ${MAAND[m2]} terug. Hoeveel dagen is dat van ${d1} ${MAAND[m1]} tot ${d2} ${MAAND[m2]}?`, ans,
+    [`Spring op de tijdlijn eerst naar het eind van ${MAAND[m1]}: ${MAAND[m1]} heeft ${D} dagen, dus ${D} − ${d1} = ${D - d1} dagen.`, `Dan nog ${d2} dagen in ${MAAND[m2]}.`, `Samen: ${D - d1} + ${d2} = ${ans}.`]),
+    guide: [st(`Hoeveel dagen heeft ${MAAND[m1]}?`, D, knokkel(m1)), st(`Van ${d1} ${MAAND[m1]} tot het eind van ${MAAND[m1]}: ${D} − ${d1} = ?`, D - d1, `Spring naar ${D} ${MAAND[m1]}: hoeveel dagen is dat?`)],
+    guideFinal: `Tel de dagen in ${MAAND[m2]} erbij: ${D - d1} + ${d2}` });
+}
+function kalenderNotatie() {
+  const d = rnd(1, 28), m = rnd(1, 12), j = pick([2026, 2027, 2028]), dd = String(d).padStart(2, '0'), mm = String(m).padStart(2, '0');
+  if (d === m || d > 12 && Math.random() < 0.5) return kalenderNotatie(); // dag en maand moeten te verwarren zijn
+  if (Math.random() < 0.5) {
+    const goed = `${d} ${MAAND[m - 1]} ${j}`;
+    const opts = [...new Set([goed, d <= 12 ? `${m} ${MAAND[d - 1]} ${j}` : `${d} ${MAAND[(m % 12)]} ${j}`, `${d} ${MAAND[(m + 10) % 12]} ${j}`, `${m} ${MAAND[(m + 1) % 12]} ${j}`])];
+    return tpl('kalender.1b', { ...choice(`Op een kaartje staat de datum ${dd}-${mm}-${j}. Welke datum is dat?`, opts, opts.indexOf(goed), ['In Nederland schrijf je de datum als dag – maand – jaar.', `${dd} is de dag, ${mm} de maand, ${j} het jaar.`, `Maand ${m} is ${MAAND[m - 1]}: ${goed}.`]),
+      guide: [stC(`Wat staat er in het midden van ${dd}-${mm}-${j}?`, ['de maand', 'de dag', 'het jaar'], 0, 'Nederlands: dag – maand – jaar.'), st(`Welk nummer heeft de maand? (${mm})`, m, 'Het middelste getal; een 0 ervoor telt niet.')],
+      guideFinal: `Welke maand heeft nummer ${m}?` });
+  }
+  const goed = `${dd}-${mm}-${j}`;
+  const opts = [...new Set([goed, `${mm}-${dd}-${j}`, `${dd}-${String(m === 12 ? 11 : m + 1).padStart(2, '0')}-${j}`, `${j}-${dd}-${mm}`])];
+  return tpl('kalender.1b', { ...choice(`Hoe schrijf je ${d} ${MAAND[m - 1]} ${j} kort in cijfers (dag-maand-jaar)?`, opts, opts.indexOf(goed), ['Dag – maand – jaar, met een streepje ertussen.', `De dag: ${dd}. ${MAAND[m - 1][0].toUpperCase()}${MAAND[m - 1].slice(1)} is maand ${m}: ${mm}.`, `Dus ${goed}.`]),
+    guide: [st(`Welk nummer heeft ${MAAND[m - 1]}? (januari = 1)`, m, 'Tel de maanden vanaf januari.')], guideFinal: 'Zet het in de volgorde dag – maand – jaar' });
+}
 const tijd = {
-  0() { const r = Math.random(); if (r < 0.3) return tpl('tijd.0a', klokLezen(0)); if (r < 0.5) return tpl('tijd.0b', klokWoorden(0)); return tpl('tijd.0c', metKlok(tijdBasis[0]())); },
-  1() { const r = Math.random(); if (r < 0.15) return tpl('tijd.1a', klokLezen(1)); if (r < 0.3) return tpl('tijd.1b', klokWoorden(1)); if (r < 0.42) return tpl('tijd.1c', digiWoorden()); if (r < 0.55) return tpl('tijd.1d', ovenSom(false)); return tpl('tijd.1e', metKlok(tijdBasis[1]())); },
+  0() { const r = Math.random(); if (r < 0.08) return kalenderWeek(); if (r < 0.14) return kalenderMaand(); if (r < 0.3) return tpl('tijd.0a', klokLezen(0)); if (r < 0.5) return tpl('tijd.0b', klokWoorden(0)); return tpl('tijd.0c', metKlok(tijdBasis[0]())); },
+  1() { const r = Math.random(); if (r < 0.07) return kalenderDuur(); if (r < 0.12) return kalenderNotatie(); if (r < 0.15) return tpl('tijd.1a', klokLezen(1)); if (r < 0.3) return tpl('tijd.1b', klokWoorden(1)); if (r < 0.42) return tpl('tijd.1c', digiWoorden()); if (r < 0.55) return tpl('tijd.1d', ovenSom(false)); return tpl('tijd.1e', metKlok(tijdBasis[1]())); },
   2() { return tpl('tijd.2a', Math.random() < 0.25 ? ovenSom(true) : metKlok(tijdBasis[2]())); },
   3() { return tpl('tijd.3a', metKlok(tijdBasis[3]())); },
 };
@@ -2229,12 +2362,12 @@ function addVisual(q) {
 
 // Kwaliteitspoort: een som met een fout in de vaste uitleg (rekenfout, "+ 0"-stap, tip die het antwoord verklapt, …)
 // wordt opnieuw gemaakt; zo ziet een kind hem nooit. De lint (scripts/lint-uitleg.mjs) laat per sjabloon zien hoe vaak dat gebeurt.
-export function generate(cat, level) {
+export function generate(cat, level, { leerlijn = true } = {}) {
   let q;
   for (let i = 0; i < 30; i++) {
     q = generateRaw(cat, level);
     if (nietInMethode(q.tpl) && i < 29) continue; // deze soort som hoort niet bij de methode van de school
-    if (i < 20 && nogNietAanDeBeurt(q.tpl, q.level)) continue; // komt in de methode pas in een latere groep (src/methodes/wig-leerlijn.js)
+    if (leerlijn && i < 20 && nogNietAanDeBeurt(q.tpl, q.level)) continue; // komt in de methode pas in een latere groep (src/methodes/wig-leerlijn.js)
     if (!problemen(q, { hints: hintsFor }).length) return q;
   }
   return q;
@@ -2259,6 +2392,19 @@ export function generateRaw(cat, level) {
   r.guide = (r.guide || []).map((g) => ({ ...g, ask: vervangDiep(g.ask), tip: vervangDiep(g.tip) }));
   r.wrong = (r.wrong || []).map((w) => ({ ...w, label: vervangDiep(w.label), fix: vervangDiep(w.fix) }));
   return r;
+}
+// Eén bepaalde soort som (sjabloon) maken, bijv. een voorkennissom of een herkansing van precies dezelfde soort.
+// Waar het sjabloon zit (onderdeel, niveau, kans) staat in src/sjablonen-nl.json (scripts/maak-sjabloonindex.mjs).
+// Lukt het niet binnen de pogingen (zeldzaam sjabloon), dan null.
+export const SJABLONEN = JSON.parse(readFileSync(new URL('./sjablonen-nl.json', import.meta.url), 'utf8'));
+export function generateTpl(tplId, { pogingen = 600 } = {}) { // ± 0,2 ms per poging
+  const w = SJABLONEN[tplId];
+  if (!w) return null;
+  for (let i = 0; i < pogingen; i++) {
+    const q = generate(w[0], w[1], { leerlijn: false }); // bewust gekozen soort: de leerlijn-filter niet toepassen
+    if (q.tpl === tplId) return q;
+  }
+  return null;
 }
 // Een som van dezelfde soort (voor herhaling en voorbeelden). Valt terug op een gewone som.
 export function generateLike(cat, level, shape, notText) {
