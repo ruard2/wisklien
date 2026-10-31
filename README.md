@@ -232,9 +232,59 @@ Het kind ziet geen signalen of labels; ze staan alleen in het ouderscherm en het
 `#/overzicht` (link onderaan "Wie ben jij?", pincode `PARENT_PIN`): alle kinderen op één pagina — laatst geoefend, sommen en % goed deze week, reeks, spaarpot, samenvatting, zwakke punten met status, sterke kanten, niveau per onderdeel (g5–g8 + trend), denkfouten, kladblok en wat Max onthoudt. "Details" opent het ouderscherm van dat kind.
 
 ## Suid-Afrika (Afrikaans, KABV)
+
+### Hoërskool-leerpad Graad 8–12
+
+`src/za/leerpad-data.js` bevat die brongekoppelde CAPS/ATP-leerpad vir suiwer Wiskunde in Graad 8–12. Elke leerknop bevat die kwartaal, inhoudslyn, benoemde voorkennis, sigbare mikrostappe, bemeesteringsbewys, metodeprotokol en bronkodes. `src/za/leerpad.js` bied die veilige lees-API en herstelroete; `scripts/za-leerpad-check.mjs` verifieer al 90 knope.
+
+Die data onderskei normgewende DBO-inhoud van die app se gedokumenteerde implementeringsintese. Graad 8–12 is nou ’n
+afsonderlike hoërskoolmotor: al 90 leerknoppe het ’n eksplisiete opwekker-id, ’n eie geparameteriseerde
+toepassingsfabriek, drie diagnostiese vraagvorme (toepassing, metodevolgorde en bewys van begrip), bediener-kant
+antwoordkontrole, foutdiagnose, uitgewerkte metode en plaaslike oefenhek. Getalle, tekens, koördinate, rye,
+rentekoerse, grafiekparameters en afmetings word binne die betrokke leerknop se begrensde KABV-familie gewissel;
+begrips- en stellingitems gebruik voorafgeskrewe onderskeidingsitems. Geen KI skep die som of bereken die antwoord nie.
+Dit gebruik doelbewus nie die laerskool se vier vlakke of laerskoolsomme nie. Die app bied die drie vorme doelbewus aan
+totdat elkeen minstens een keer korrek voltooi is. Hierdie plaaslike hek is nie ’n
+DBO-bevorderingsreël of op sy eie volledige bewys van bemeestering nie; die vyf bewyse in die leerpad bly voorstelling,
+verduideliking, berekening, verifikasie en oordrag.
+
+Meneer Max se hoërskoolherstel is ’n geslote app-spoor (`src/za/hoerskool-max.js`). Die app kies die brongekoppelde
+metode en stuur diagnose → presiese metodestappe → kontrole een stap op ’n slag. Max mag slegs die goedgekeurde
+Afrikaanse teks verwoord: hy mag nie ’n alternatiewe metode, nuwe getalle, formules of voorbeelde byvoeg, stappe
+omruil of bemeestering self verklaar nie. ’n Verkeerde antwoord stuur nie die regte antwoord of stappe vooraf na die
+blaaier nie; dit word eers deur die geslote herstelpad ontsluit.
+
+Ná die graadkeuse kry Graad 8–12 ’n afsonderlike, volwasse koppelvlak met **Vandag · My plan · Onderwerpe ·
+Vordering · Max**. `src/za/hoerskool-plan.js` hou die leerder se eie doel, oefendae, doeldatum, tema en
+afrigtermodus. Die verstek bou van 15 na 30 betekenisvolle vrae per oefendag; die paneel bereken week-, vierweek-
+en tienweekvolume, maar beloof nooit ’n skoolpunt nie. Die dagvolgorde wissel tussen herroep, huidige werk,
+foutherstel en gemengde oordrag. Hoërskoolbelonings is standaard af en is ’n afsonderlike, deursigtige instelling
+in die ouerskerm.
+
+Max se hoërskoolgesprek is tweerigting maar steeds gesluit: hy vra waar die leerder vashaak, laat die leerder die
+metode en elke volgende stap kies, en vereis die finale kontrole. Slegs vooraf nagegaanbare opsies kan as korrek
+geld. Onbekende vryteks word nie wiskundig beoordeel of gebruik om ’n nuwe metode te skep nie; Max stuur die leerder
+terug na die vaste protokol. Die blaaier kan elke Max-beurt met die Afrikaanse spraakstem voorlees.
+
+Die Afrikaanse laerskool-Max het ook standaard ’n geslote terugval (`src/za/geslote-max.js`). Lesse word deur
+`src/lesplan.js` bestuur; tussenstappe en fout-herstel deur die app se stap- en foutplanne. Kan ’n vrygetikte boodskap
+nie geklassifiseer word nie, gaan Afrikaans nie meer na die algemene vrye KI-roete nie: die app herhaal die aktiewe
+KABV-metode en vra net die presiese oop stap. Die plaaslike hek kontroleer rekenwerk, antwoordlek, Afrikaanse taal en
+die verpligte vraag/metodestappe; ná ’n mislukte herskryf gebruik die app sy vaste teks. `AF_MAX_GESLOTEN=0` is slegs
+’n eksplisiete ontwikkelaar-ontsnapping; standaard is die geslote modus aan. Hierdie verandering raak nie die NL-roete nie.
+
+- Bekyk ’n graad in die terminal: `npm run za-leerpad -- 8`
+- API-opsomming: `GET /api/curriculum/za/high-school`
+- Volledige graadplan: `GET /api/curriculum/za/high-school/8` (ook 9–12)
+- Leerdertoestand: `GET /api/high-school/state`; nuwe vraag: `POST /api/high-school/question`; kontrole: `POST /api/high-school/answer`
+- Opwekkers: `src/za/hoerskool-generators.js` en `src/za/hoerskool-toepassings.js` (90 geparameteriseerde toepassingsfabrieke; drie diagnostiese vraagvorme)
+- Persoonlike plan: `src/za/hoerskool-plan.js`; lees via `GET /api/high-school/state`; verander via `POST /api/high-school/plan`
+- Geslote Max-spoor: `src/za/hoerskool-max.js`; begin: `POST /api/high-school/max/hint`; antwoord: `POST /api/high-school/max/respond`; die ou opeenvolgende herstelroete bly by `POST /api/high-school/max/step`
+- Opsionele ouerbeloning: `POST /api/parent/high-school/rewards` (standaard af)
+- Kontrole: `node scripts/za-leerpad-check.mjs`
 Bij het maken van een profiel kies je **land, taal, groep/graad en leeftijd**. Kies je Suid-Afrika/Afrikaans, dan
-krijgt het kind een eigen curriculum (`src/za/`). De motor is dezelfde: beloning, niveaus, starttoets, foutenschrift,
-signalen. Wat anders is, is de methode en de inhoud:
+krijgt het kind een eigen curriculum (`src/za/`). Voor Graad 3–7 blijft de laerskoolmotor met niveaus, starttoets,
+foutenschrift en signalen actief; Graad 8–12 gebruikt de aparte motor hierboven. Wat anders is, is de methode en de inhoud:
 - **14 KABV-onderdelen** (Getalle 50%, Patrone 10%, Ruimte en vorm 15%, Meting 15%, Data 10%): optel, vermenigvuldig,
   deling, getalbegrip, breuke, desimale, persentasie, finansies, patrone, meetkunde, meting, omtrek, tyd, data.
 - **Niveaus graad 4–7**; de begintoets start één graad lager.
@@ -252,10 +302,16 @@ signalen. Wat anders is, is de methode en de inhoud:
   - beraam (afronden) bij grote vermenigvuldigingen, altijd uitgelegd.
 - **Notatie en contexten**: ÷, R12,50, `;` tussen getallen, Thabo, Pick n Pay, Olimpiese Spele, skaapboer.
 - **Handboek** `src/za/didactiek.js`: Max (hier **Meneer Max**) krijgt per onderwerp de Suid-Afrikaanse aanpak en antwoordt in het Afrikaans.
+- **Dieselfde beheerde Max-ketting as Nederlands, maar met eie KABV-inhoud**: elke Afrikaanse kaart voer nou die lesdoel,
+  aanpak in vaste volgorde, tipiese fout, model, kleiner terugstap en bemeesteringshek aan Max. Die app kies en kontroleer
+  elke som, laat eers saam en dan self werk, en val terug op vaste Afrikaanse teks as die KI af is of sy antwoord nie deur
+  die kontroles kom nie. `src/za/max-opdragte.js` hou ook sessiebeplanning, vorderingsboodskappe, geheuenotas,
+  leerderprofiele en oueradvies in die Afrikaanse lyn.
 - **Ouderschermen** volgen de taal van het kind.
 - **Tests**:
   - `node --env-file=.env scripts/za-check.mjs`: 22 400 sommen;
   - `node scripts/e2e-za.mjs`: end-to-end met een Afrikaans kind;
+  - `node scripts/test-za-max.mjs`: 148 KABV-kaarte en die beheerde les-/fout-/bemeesteringsketting;
   - `LES_LANG=af node scripts/lessen-check.mjs breuke:2`: lessen van Max.
 
 ## Leerlog: leren van echt gebruik
@@ -363,8 +419,8 @@ zeggen hoe het moet. Daarom:
   mini-voorbeeld voordoen (door de app gemaakt, mét uitkomst en aanpak) → samen doen.
 - **Gespreksstaat door de app** (`src/foutgesprek.js`, `src/stapgesprek.js`): na een tussenantwoord opent de app met
   "dat klopt, maar de som gaat verder" en vraagt meteen de volgende stap; stappen die klaar zijn vraagt Max nooit opnieuw;
-  "snap ik niet" = één trede hoger; "wat ging er anders?" alleen als de oorzaak nog onbekend is. Standaard aan voor NL
-  (`MAX_FOUTPLAN=bewaking` = de oude vrije Max met getallenbewaking).
+  "snap ik niet" = één trede hoger; "wat ging er anders?" alleen als de oorzaak nog onbekend is. Standaard staat de
+  app-gestuurde hulpladder aan voor NL en AF; `MAX_FOUTPLAN=bewaking` kiest desgewenst de oude vrije Max met getallenbewaking.
 - **Strakke opdracht per zet + harde controles** (`planBeurt` in `src/ai.js`): Max krijgt de deelstap als VRAAG, de app zet
   het label `[VB: …]` er zelf onder, en herschrijft als Max een andere vraag stelt, een klare stap opnieuw vraagt, "precies zo"
   zegt zonder te zeggen wát, het voorbeeld van de app niet gebruikt, of meer dan één vraag stelt.
@@ -383,8 +439,8 @@ zeggen hoe het moet. Daarom:
   van de sjablonen. Een fout die bij twee verklaringen past, krijgt er geen.
 - **Gespreksplan na een fout** (`src/foutgesprek.js`): na de vaste opening loopt de app met het kind de tussenstappen af
   (fout zoeken in de uitleg van het kind, samen beginnen, volgende stap, tip, makkelijker voorbeeld, brug, "nu klopt het —
-  wat ging er anders?"). Elk antwoord wordt nagekeken tegen de vraag die Max stelde (`[VB: …]`). Aan met `MAX_FOUTPLAN=1`
-  (nog uit); testen met /audit → "Na een fout".
+  wat ging er anders?"). Elk antwoord wordt nagekeken tegen de vraag die Max stelde (`[VB: …]`). Standaard aan;
+  `MAX_FOUTPLAN=uit` schakelt het uit. Testen met /audit → "Na een fout".
 - **Makkelijker voorbeelden van de app**: nu ook tafelsommen (opstapsom van de tip: 9 × 6 → 10 × 6), maten omrekenen,
   "3/4 van 20", "25% van 80", centen, kolomstappen, gelijkwaardige breuken. Dekking tussenstappen: ± 35% → 50%.
 - **Afrikaanse Max in het Afrikaans**: eigen systeeminstructies (`src/za/leraar.js`), taalgids, zetten en opdrachten.
@@ -394,8 +450,8 @@ zeggen hoe het moet. Daarom:
   zet, maar krijgt wat de app zeker weet (antwoord van het kind nagekeken tegen zijn vraag, waar jullie in de route zijn,
   het advies van het plan) en de verboden getallen worden hard bewaakt. Het strakke plan blijft beschikbaar (`strak`).
   Na een fout #23–#26: strak voorzegt ⅓ zo vaak maar verloor op didactiek en luisteren. De Max-test vergelijkt nu oud ↔ advies.
-- **Na een fout: bewaking staat aan** (NL en AF; Na een fout #29/#30): de vrije Max met alleen de harde getallenbewaking.
-  Didactiek gelijk aan de vrije Max, objectief voorzeggen 22–24 → 2 van de ± 150 gesprekken, ± 7% duurder.
+- **Na een fout: bewaking blijft beschikbaar** (NL en AF; Na een fout #29/#30): de vrije Max met alleen de harde
+  getallenbewaking. Didactiek gelijk aan de vrije Max, objectief voorzeggen 22–24 → 2 van de ± 150 gesprekken, ± 7% duurder.
   `MAX_FOUTPLAN=uit|strak|advies|bewaking`. Plus: "komma weggelaten" (445 bij R44,50) als eigen denkfout in plaats van "10 keer te groot".
 - **Goedkoper testen en draaien**: per Max-test het denkniveau van Max (`none`/laag/middel; denktokens worden als uitvoer
   betaald), tests via flex (± half geld, valt terug op gewoon), het gespeelde kind denkt nooit na. In de app: `MAX_EFFORT=none`

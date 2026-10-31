@@ -8,7 +8,9 @@ import { KAARTEN as AF } from './af.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { methode, vervangDiep } from '../methodes/index.js';
 import { hulpVoor } from './hulp-nl.js';
+import { hulpUitKaart } from './hulp-af.js';
 import { DOELEN as DOEL_NL } from './doelen-nl.js';
+import { doelUitKaart } from './doelen-af.js';
 
 // Verbeterde kaarten uit de Kaartcheck (/audit → Kaartcheck → scripts/neem-kaarten-over.mjs). Ze vervangen naam, aanpak,
 // model, valkuilen en concreter van de handgeschreven kaart; woorden en "niet doen" blijven van de handgeschreven kaart.
@@ -28,15 +30,15 @@ const basisKaart = (lang, tpl) => {
 };
 // Doel, "beheerst als", en aanvulling van woorden en typische fouten (src/uitleg/doelen-nl.js); de kaart zelf gaat voor.
 const metDoel = (lang, tpl, k) => {
-  const d = lang === 'af' ? null : DOEL_NL[tpl];
+  const d = lang === 'af' ? doelUitKaart(k) : DOEL_NL[tpl];
   if (!k || !d) return k;
   const al = new Set((k.valkuilen || []).map((v) => v.split('→')[0].trim().toLowerCase()));
   return { ...k, doel: d.ik, klaar: d.klaar, woorden: k.woorden || d.woorden || undefined,
-    valkuilen: [...(k.valkuilen || []), ...d.valkuilen.filter((v) => !al.has(v.split('→')[0].trim().toLowerCase()))] };
+    valkuilen: [...(k.valkuilen || []), ...(d.valkuilen || []).filter((v) => !al.has(v.split('→')[0].trim().toLowerCase()))] };
 };
 export const kaartVoor = (lang, tpl) => (tpl ? metDoel(lang, tpl, metMethode(lang, tpl, basisKaart(lang, tpl))) : null);
 // Het lesdoel in kindertaal (🎯 boven de som)
-export const doelVoor = (lang, tpl) => (lang === 'af' ? null : DOEL_NL[tpl]?.ik || null);
+export const doelVoor = (lang, tpl) => (lang === 'af' ? doelUitKaart(kaartVoor('af', tpl))?.ik || null : DOEL_NL[tpl]?.ik || null);
 export const alleKaarten = (lang) => Object.fromEntries(Object.keys(BY[lang === 'af' ? 'af' : 'nl']).map((id) => [id, kaartVoor(lang, id)]));
 export const handKaarten = (lang) => (lang === 'af' ? AF : NL);
 
@@ -55,10 +57,14 @@ export function kaartTekst(lang, tpl) {
   if (k.valkuilen?.length) L.push(`${T.valkuilen}:\n${k.valkuilen.map((v) => `  - ${v}`).join('\n')}`);
   if (k.concreter) L.push(`${T.concreter}: ${k.concreter}`);
   if (k.niet?.length) L.push(`${T.niet}:\n${k.niet.map((v) => `  - ${v}`).join('\n')}`);
-  if (k.doel) L.push(`DOEL van deze soort som (zo staat het boven de som; gebruik het om af te ronden, bijv. "Nu kun je …"): ${k.doel}\nBEHEERST ALS: ${k.klaar}. Lukt dat, zeg dan dat het kind het de volgende keer zelf mag proberen, zonder tussenstappen.`);
+  if (k.doel) L.push(lang === 'af'
+    ? `DOEL VAN HIERDIE SOORT SOM (so staan dit bo die som; gebruik dit wanneer jy afsluit, bv. "Nou kan jy …"): ${k.doel}\nBEMEESTER AS: ${k.klaar}. As dit regkom, sê dat die kind dit volgende keer self sonder tussenstappe mag probeer.`
+    : `DOEL van deze soort som (zo staat het boven de som; gebruik het om af te ronden, bijv. "Nu kun je …"): ${k.doel}\nBEHEERST ALS: ${k.klaar}. Lukt dat, zeg dan dat het kind het de volgende keer zelf mag proberen, zonder tussenstappen.`);
   // Hulpplan bij vastlopen (src/uitleg/hulp-nl.js; meetlat #37): wat je eerst nagaat, welk materiaal, welk kleiner voorbeeld
-  const h = lang === 'nl' ? hulpVoor(tpl) : null;
-  if (h) L.push(`HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);
+  const h = lang === 'af' ? hulpUitKaart(k) : hulpVoor(tpl);
+  if (h) L.push(lang === 'af'
+    ? `HULPPLAN WANNEER DIE KIND VASHAK (KABV; hou by dieselfde metode):\n  - Gaan eers na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (dieselfde metode, kleiner getalle): ${h.klein}`
+    : `HULPPLAN BIJ VASTLOPEN (methode; gebruik dit als het kind het niet snapt, en houd dezelfde route):\n  - Ga eerst na: ${h.eerst}\n  - Materiaal/model: ${h.materiaal}\n  - Kleiner voorbeeld (zelfde route, kleinere getallen): ${h.klein}`);
   // Leerlijn van de methode (src/methodes/wig-leerlijn.js): groep, blok, basisstrategie en voorkennis van deze soort som
   const ll = lang === 'nl' ? methode('nl')?.leerlijn : null;
   if (ll?.leerlijnTekst) {

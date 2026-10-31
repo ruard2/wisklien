@@ -25,8 +25,8 @@ const PACKS = {
   za: {
     id: 'za', lang: 'af',
     LEVEL_NAMES: ZAgen.LEVEL_NAMES, CATEGORIES: ZAgen.CATEGORIES, CAT_IDS: ZAgen.CAT_IDS, catById: ZAgen.catById,
-    startLevel: ZAgen.startLevelForGraad, gradeLabel: (g) => `graad ${g}`, gradeRange: [3, 7], gradeWord: 'graad',
-    generate: ZAgen.generate, generateRaw: ZAgen.generateRaw, generateLike: ZAgen.generateLike, hintsFor: ZAgen.hintsFor,
+    startLevel: ZAgen.startLevelForGraad, gradeLabel: (g) => `graad ${g}`, gradeRange: [3, 12], gradeWord: 'graad',
+    generate: ZAgen.generate, generateRaw: ZAgen.generateRaw, generateLike: ZAgen.generateLike, generateTpl: ZAgen.generateTpl, hintsFor: ZAgen.hintsFor,
     detectMisconception: NLmis.detectMisconception, // werk op q.wrong, taalonafhanklik
     MNEMONICS: ZAmne.MNEMONICS, mnemonicsFor: ZAmne.mnemonicsFor, mnemonicText: ZAmne.mnemonicText,
     DIDACTIEK: ZAdid.DIDACTIEK, didactiekText: ZAdid.didactiekText, hintAanpak: ZAdid.hintAanpak, ALGEMEEN: ZAdid.ALGEMEEN,

@@ -22,6 +22,10 @@ import { migrateAudit, resumeAudits, startAudit, stopAudit, resumeAudit, deleteA
 import { loginPage, listPage, reportPage, comparePage } from './src/audit-page.js';
 import { rewardCfg, cleanRewards, isTaskDay, taskWeek, nextTaskDay, DAILY_COUNTS, LEVEL_EVERY } from './src/rewards.js';
 import { computeSignals, adaptFlags, signalsForMax, needWorkCats, whatHelps, isWordProblem, kindFeiten } from './src/signals.js';
+import { volledigeLeerpadVirGraad, isHoerskoolLeerpadGraad, leerpadOpsomming, knoopVirId, metodeVirKnoop, herstelroeteVirKnoop } from './src/za/leerpad.js';
+import { generateHoerskoolVraag, checkHoerskoolAntwoord, publicHoerskoolVraag, hoerskoolGeneratorOorsig, HOERSKOOL_GENERATOR_IDS, HOERSKOOL_VARIANTE } from './src/za/hoerskool-generators.js';
+import { maakHoerskoolMaxPlan, volgendeHoerskoolMaxStap, publicHoerskoolMaxPlan, beginHoerskoolMaxGesprek, antwoordHoerskoolMaxGesprek } from './src/za/hoerskool-max.js';
+import { skoonHoerskoolPlan, maakHoerskoolPaneel, kiesVandagKnoop, skoonHoerskoolBeloning } from './src/za/hoerskool-plan.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -34,6 +38,21 @@ else if (PARENT_PIN.length < 6 || PARENT_PIN === '1234') console.warn('[let op] 
 
 const app = express();
 app.use(express.json({ limit: '600kb' })); // ruim genoeg voor een kladblok-plaatje
+
+// Openbare, nie-persoonlike KABV/CAPS-leerpad en opwekkerdekking vir Graad 8–12.
+app.get('/api/curriculum/za/high-school', (req, res) => res.json({
+  grades: leerpadOpsomming(),
+  practiceEnabled: true,
+  generatorCount: HOERSKOOL_GENERATOR_IDS.length,
+}));
+app.get('/api/curriculum/za/high-school/generators/all', (req, res) => res.json({ generators: hoerskoolGeneratorOorsig() }));
+app.get('/api/curriculum/za/high-school/:grade', (req, res) => {
+  const grade = Number(req.params.grade);
+  if (!isHoerskoolLeerpadGraad(grade)) {
+    return res.status(400).json({ error: 'grade', supportedGrades: [8, 9, 10, 11, 12] });
+  }
+  return res.json({ ...volledigeLeerpadVirGraad(grade), practiceEnabled: true });
+});
 
 // ---------- apparaat: elk toestel (telefoon, tablet, pc) krijgt een eigen, willekeurige kenmerk-cookie ----------
 // Bij "Wie ben jij?" ziet een toestel alleen de kinderen die al eens op dít toestel speelden (niet alle gebruikers).
@@ -316,7 +335,7 @@ function currentPayload(s, skills) {
   const offer = helpOffer(qq, skill);
   return {
     index: i,
-    question: { ...publicQuestion(qq), doel: isAF() ? null : doelVoor('nl', qq.tpl) }, // lesdoel van deze soort som (src/uitleg/doelen-nl.js)
+    question: { ...publicQuestion(qq), doel: doelVoor(isAF() ? 'af' : 'nl', qq.tpl) }, // lesdoel van deze soort som, per curriculum
     offer,
     // bij het "nu moet je het zelf kunnen"-moment: welke tussenstappen hij steeds deed (zonder antwoorden)
     plan: offer.mode === 'choose' ? qq.guide.map((g) => g.ask) : null,
@@ -409,10 +428,10 @@ function cleanProfile(b, partial = false) {
   const age = b.age == null || b.age === '' ? null : Number(b.age);
   const af = (lang || (country === 'ZA' ? 'af' : 'nl')) === 'af';
   if (!partial && (!lang || !country)) return { error: af ? 'Kies jou land en taal.' : 'Kies je land en taal.' };
-  const [lo, hi] = af ? [3, 7] : [5, 8]; // NL: groep 3-4 nog niet (de sommen, plaatjes en leerlijn daarvoor bestaan nog niet)
+  const [lo, hi] = af ? [3, 12] : [5, 8]; // NL: groep 3-4 nog niet (de sommen, plaatjes en leerlijn daarvoor bestaan nog niet)
   if (!af && Number.isInteger(grade) && grade >= 3 && grade < lo) return { error: 'Wisklien is voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.' };
   if ((!partial || grade != null) && !(Number.isInteger(grade) && grade >= lo && grade <= hi)) return { error: af ? `In watter graad is jy? (${lo} tot ${hi})` : `In welke groep zit je? (${lo} tot ${hi})` };
-  if ((!partial || age != null) && !(Number.isInteger(age) && age >= 6 && age <= 16)) return { error: af ? 'Hoe oud is jy?' : 'Hoe oud ben je?' };
+  if ((!partial || age != null) && !(Number.isInteger(age) && age >= 6 && age <= (af ? 19 : 16))) return { error: af ? 'Hoe oud is jy?' : 'Hoe oud ben je?' };
   // rekenmethode van de school (src/methodes/): moet bij de taal horen; '' = de standaard
   const methode = b.methode === undefined || !methodeKeuze() ? undefined : (b.methode === '' ? '' : (METHODES[b.methode] ? b.methode : undefined));
   return { lang: lang ?? undefined, country: country ?? undefined, grade: grade ?? undefined, age: age ?? undefined, methode };
@@ -442,10 +461,14 @@ app.post('/api/kids', wrap(async (req, res) => {
   const kid = await createKid(name, AVATARS.includes(req.body.avatar) ? req.body.avatar : AVATARS[kids.length % AVATARS.length], p);
   await linkDevice(req, kid.id);
   if (pw) await setKidPassword(kid.id, hashPw(pw));
-  if (rcfg || surprise || setup?.research === false) await kidStore.run(kidContext(kid), async () => {
+  if (rcfg || surprise || setup?.research === false || setup?.highSchoolPlan) await kidStore.run(kidContext(kid), async () => {
     if (rcfg) await setSetting('reward_cfg', rcfg);
     if (setup && setup.research === false) await setSetting('research', false);
     if (surprise) await setSetting('surprise_cfg', surprise);
+    if (p.lang === 'af' && isHoerskoolLeerpadGraad(p.grade) && setup?.highSchoolPlan) {
+      await setSetting('hoerskool:plan', skoonHoerskoolPlan({ ...setup.highSchoolPlan, createdAt: todayZA() }));
+      await setSetting('hoerskool:rewards', skoonHoerskoolBeloning({ enabled: false }));
+    }
   });
   setKidCookie(res, kid.id);
   res.json({ kid });
@@ -503,6 +526,7 @@ app.get('/api/state', child, wrap(async (req, res) => {
   res.json({
     name: await getName(),
     groep: req.kid.grade ?? await getSetting('groep', null),
+    highSchool: isAF() && isHoerskoolLeerpadGraad(req.kid.grade),
     kid: { id: req.kid.id, name: req.kid.name, avatar: req.kid.avatar, lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null, demo: !!req.kid.demo },
     curriculum: pack().id, gradeWord: pack().gradeWord, levelNames: [...LEVEL_NAMES],
     currency: req.kid.country === 'ZA' ? 'ZAR' : 'EUR',
@@ -540,6 +564,144 @@ app.get('/api/state', child, wrap(async (req, res) => {
     inzet: levelView(await effortCount(), rc),
     points: { intake: rc.intakeCents, intakeCount: INTAKE_MAX, daily: rc.dailyCents, dailyCount: rc.dailyCount, daysPerWeek: rc.days.length, freeGuided: FREE_GUIDED, soloBonus: SOLO_BONUS },
   });
+}));
+
+// ---------- Graad 8–12: afsonderlike KABV-leerpadmotor ----------
+// Dit gebruik nie die laerskool se vier vlakke of kategorie-aanpassing nie. Elke
+// leerknop het sy eie bediener-opwekker en deterministiese antwoordkontrole.
+const hoerskoolProfiel = (req) => isAF() && isHoerskoolLeerpadGraad(req.kid?.grade);
+const todayZA = (date = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg' }).format(date);
+const korrekteVariante = (p = {}) => new Set((p.history || []).filter((item) => item.correct && HOERSKOOL_VARIANTE.includes(item.variant)).map((item) => item.variant));
+const plaaslikeHek = (p = {}) => {
+  const klaar = korrekteVariante(p);
+  const variants = Object.fromEntries(HOERSKOOL_VARIANTE.map((variant) => [variant, klaar.has(variant)]));
+  return {
+    attempts: Number(p.attempts || 0),
+    correct: Number(p.correct || 0),
+    variants,
+    variantsDone: klaar.size,
+    missingVariants: HOERSKOOL_VARIANTE.filter((variant) => !klaar.has(variant)),
+    checkpointPassed: HOERSKOOL_VARIANTE.every((variant) => klaar.has(variant)),
+    note: 'Dit is ’n plaaslike oefenhek: een korrekte toepassing-, metode- en bewysitem. Dit is nie ’n DBO-bevorderingsreël of volledige bewys van bemeestering nie.',
+  };
+};
+
+app.get('/api/high-school/state', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const plan = volledigeLeerpadVirGraad(req.kid.grade);
+  const progress = await getSetting('hoerskool:progress', {});
+  const nodes = plan.grade.nodes.map((node) => ({
+    ...node,
+    progress: plaaslikeHek(progress[node.id]),
+    method: metodeVirKnoop(node.id),
+  }));
+  const storedPlan = await getSetting('hoerskool:plan', null);
+  const personalPlan = skoonHoerskoolPlan(storedPlan || { createdAt: todayZA() });
+  if (!storedPlan) await setSetting('hoerskool:plan', personalPlan);
+  const dashboard = maakHoerskoolPaneel({ plan: personalPlan, progress, nodes, today: todayZA() });
+  const inGrade = new Set(nodes.map((n) => n.id));
+  const recommended = nodes.find((node) => !node.progress.checkpointPassed
+    && node.pathPrerequisiteIds.filter((id) => inGrade.has(id)).every((id) => plaaslikeHek(progress[id]).checkpointPassed)) || nodes.find((node) => !node.progress.checkpointPassed) || nodes[0];
+  const todayNode = kiesVandagKnoop(nodes, progress, dashboard) || recommended;
+  const current = await getSetting('hoerskool:current', null);
+  res.json({
+    grade: req.kid.grade,
+    authorityNote: plan.authorityNote,
+    teachingCycle: plan.teachingCycle,
+    nodes,
+    recommendedNodeId: recommended?.id || null,
+    todayNodeId: todayNode?.id || recommended?.id || null,
+    personalPlan,
+    dashboard,
+    rewards: skoonHoerskoolBeloning(await getSetting('hoerskool:rewards', {})),
+    current: publicHoerskoolVraag(current),
+  });
+}));
+
+app.post('/api/high-school/plan', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const old = await getSetting('hoerskool:plan', {});
+  const personalPlan = skoonHoerskoolPlan({ ...(req.body || {}), createdAt: old?.createdAt || todayZA() }, old);
+  await setSetting('hoerskool:plan', personalPlan);
+  res.json({ ok: true, personalPlan });
+}));
+
+app.post('/api/high-school/question', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const node = knoopVirId(req.body.nodeId);
+  if (!node || node.grade !== Number(req.kid.grade)) return res.status(400).json({ error: `Kies ’n leerknop uit Graad ${req.kid.grade}.` });
+  const all = await getSetting('hoerskool:progress', {});
+  const missing = plaaslikeHek(all[node.id]).missingVariants;
+  const recentTexts = (all[node.id]?.history || []).filter((item) => item.variant === 'toepassing').map((item) => item.text).filter(Boolean);
+  const question = generateHoerskoolVraag(node.id, { variant: missing[0] || null, avoidTexts: recentTexts });
+  if (!question) return res.status(500).json({ error: 'Geen nagegaanbare opwekker vir hierdie leerknop nie.' });
+  await setSetting('hoerskool:current', question);
+  await setSetting('hoerskool:coach', null);
+  res.json({ question: publicHoerskoolVraag(question), node, method: metodeVirKnoop(node.id), recovery: herstelroeteVirKnoop(node.id) });
+}));
+
+app.post('/api/high-school/max/hint', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const question = await getSetting('hoerskool:current', null);
+  if (!question || question.id !== String(req.body.questionId || '')) return res.status(400).json({ error: 'Hierdie vraag is nie meer oop nie.' });
+  const node = knoopVirId(question.nodeId), method = metodeVirKnoop(question.nodeId);
+  const plan = maakHoerskoolMaxPlan({ node, method, question, recovery: herstelroeteVirKnoop(question.nodeId), mode: 'wenk' });
+  await setSetting('hoerskool:coach', plan);
+  const turn = beginHoerskoolMaxGesprek(plan);
+  res.json({ message: turn.message, done: turn.done, step: turn.step, total: turn.total, coach: publicHoerskoolMaxPlan(turn.plan) });
+}));
+
+app.post('/api/high-school/answer', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const question = await getSetting('hoerskool:current', null);
+  if (!question || question.id !== String(req.body.questionId || '')) return res.status(400).json({ error: 'Hierdie vraag is nie meer oop nie. Maak ’n nuwe vraag oop.' });
+  const result = checkHoerskoolAntwoord(question, req.body.answer);
+  const all = await getSetting('hoerskool:progress', {}), old = all[question.nodeId] || { attempts: 0, correct: 0, history: [] };
+  const now = {
+    attempts: Number(old.attempts || 0) + 1,
+    correct: Number(old.correct || 0) + (result.correct ? 1 : 0),
+    history: [...(old.history || []), { at: new Date().toISOString(), questionId: question.id, variant: question.variant, family: question.family, text: question.text, chosen: result.chosen, correct: result.correct }].slice(-20),
+  };
+  all[question.nodeId] = now;
+  await setSetting('hoerskool:progress', all);
+  await setSetting('hoerskool:current', null);
+  const node = knoopVirId(question.nodeId), method = metodeVirKnoop(question.nodeId), recovery = herstelroeteVirKnoop(question.nodeId);
+  const coach = result.correct ? null : maakHoerskoolMaxPlan({ node, method, question, result, recovery, mode: 'herstel' });
+  await setSetting('hoerskool:coach', coach);
+  const maxStart = coach ? beginHoerskoolMaxGesprek(coach) : null;
+  logEvent('hoerskool-antwoord', { node: question.nodeId, vraag: question.text, gegee: req.body.answer, korrek: result.correct, reg: question.display }, { cat: question.cat, level: question.grade });
+  res.json({
+    correct: result.correct,
+    chosen: result.chosen,
+    misconception: result.misconception,
+    questionId: question.id,
+    nodeId: question.nodeId,
+    display: result.correct ? question.display : null,
+    steps: result.correct ? question.steps : [],
+    progress: plaaslikeHek(now),
+    masteryGate: node?.masteryGate || null,
+    recovery: result.correct ? null : recovery,
+    coach: publicHoerskoolMaxPlan(coach),
+    maxMessage: maxStart?.message || null,
+  });
+}));
+
+app.post('/api/high-school/max/step', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const plan = await getSetting('hoerskool:coach', null);
+  if (!plan || plan.mode !== 'herstel' || plan.questionId !== String(req.body.questionId || '')) return res.status(400).json({ error: 'Daar is nie ’n oop Meneer-Max-herstelpad vir hierdie vraag nie.' });
+  const turn = volgendeHoerskoolMaxStap(plan);
+  await setSetting('hoerskool:coach', turn.done ? null : turn.plan);
+  res.json({ message: turn.message, done: turn.done, step: turn.step, total: turn.total, coach: publicHoerskoolMaxPlan(turn.done ? null : turn.plan) });
+}));
+
+app.post('/api/high-school/max/respond', child, wrap(async (req, res) => {
+  if (!hoerskoolProfiel(req)) return res.status(400).json({ error: 'Hierdie roete is slegs vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const plan = await getSetting('hoerskool:coach', null);
+  if (!plan || plan.questionId !== String(req.body.questionId || '')) return res.status(400).json({ error: 'Daar is nie ’n oop Meneer-Max-gesprek vir hierdie vraag nie.' });
+  const turn = antwoordHoerskoolMaxGesprek(plan, req.body.input);
+  await setSetting('hoerskool:coach', turn.done ? null : turn.plan);
+  res.json({ message: turn.message, correct: turn.correct, done: turn.done, step: turn.step, total: turn.total, coach: publicHoerskoolMaxPlan(turn.done ? null : turn.plan) });
 }));
 
 // Max maakt het lesplan: niveau en aantal sommen per onderdeel + een woordje. Terugval: vaste regels.
@@ -628,6 +790,7 @@ async function createSession(kind, plan, total, maxPoints, skills, state = {}, d
 }
 
 app.post('/api/session/start', child, wrap(async (req, res) => {
+  if (hoerskoolProfiel(req)) return res.status(400).json({ error: 'Gebruik die Graad 8–12-leerpad; die laerskool-sessiemotor is nie vir hierdie profiel nie.' });
   const kind = req.body.kind;
   const today = todayNL();
   const intake = await one(`SELECT id, status FROM sessions WHERE kind='intake' ORDER BY id DESC LIMIT 1`);
@@ -1086,8 +1249,10 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
   const chat = (Array.isArray(req.body.chat) ? req.body.chat : []).slice(-14)
     .map((m) => ({ role: m.role === 'teacher' ? 'teacher' : 'kid', text: String(m.text || '').slice(0, 600) }));
   const skill = (await getSkills()).find((x) => x.cat === cat);
-  // Nederlands: de les wordt gestuurd door de app (src/lesplan.js); Max verwoordt alleen (of de app zegt het zelf)
-  if (!isAF()) {
+  // Beide curricula: de les wordt gestuurd door de app (src/lesplan.js); Max verwoordt alleen
+  // (of de app zegt het zelf). De Afrikaanse route gebruikt uitsluitend KABV-sommen en -kaarten.
+  {
+    const lang = isAF() ? 'af' : 'nl';
     const key = `les:${cat}`;
     let les = chat.length ? await getSetting(key, null) : null;
     if (!les || les.fase === 'klaar') {
@@ -1095,15 +1260,15 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
       const recent = (await q(`SELECT questions, results FROM sessions ORDER BY id DESC LIMIT 6`)).rows;
       let fout = null;
       for (const r of recent) { for (let k = r.results.length - 1; k >= 0 && !fout; k--) if (r.questions[k]?.cat === cat && r.results[k] && !r.results[k].correct) fout = r.questions[k].tpl; if (fout) break; }
-      const tpl = kiesLesSoort(cat, skill.level, fout);
-      les = tpl ? maakLes({ cat, level: skill.level, tpl }) : null;
+      const tpl = kiesLesSoort(cat, skill.level, fout, lang);
+      les = tpl ? maakLes({ cat, level: skill.level, tpl, lang }) : null;
       if (!les) return res.json({ reply: null, reason: ts('{m} kon nu even geen les maken. Probeer het straks nog eens.', { m: teacherName() }) });
     }
     const kindTekst = chat.at(-1)?.role === 'kid' ? chat.at(-1).text : '';
     const { les: nieuw, beurt } = lesStap(les, les.fase === 'start' ? '' : kindTekst);
     await setSetting(key, nieuw);
-    const name = await getName(), vast = vasteTekst(beurt, name);
-    const reply = aiEnabled() && aiAllowed() ? await lesBeurt({ name, profile: await teacherProfile(), memory: await memoryText(), beurt, tpl: nieuw.tpl, chat, vast }).catch(() => vast) : vast;
+    const name = await getName(), vast = vasteTekst(beurt, name, lang);
+    const reply = aiEnabled() && aiAllowed() ? await lesBeurt({ name, profile: await teacherProfile(), memory: await memoryText(), beurt, tpl: nieuw.tpl, chat, vast, lang }).catch(() => vast) : vast;
     const { text: lessonText, form: lessonForm } = splitForm(reply || vast);
     if (lessonForm) await q(`INSERT INTO explanations(cat, form) VALUES ($1,$2)`, [cat, lessonForm]);
     if (beurt.klaar && chat.length >= 2 && aiEnabled()) {
@@ -1113,19 +1278,6 @@ app.post('/api/lesson', child, wrap(async (req, res) => {
     logEvent('les', { kind: kindTekst || '(start les)', max: lessonText || null, vast: lessonText === vast, fase: nieuw.fase, soort: nieuw.tpl, vorm: lessonForm || null, klaar: !!beurt.klaar, beurt: chat.length + 1 }, { cat, level: skill.level });
     return res.json({ reply: lessonText || vast, ready: !!beurt.klaar });
   }
-  if (!aiEnabled()) return res.json({ reply: null });
-  if (!aiAllowed()) return res.json({ reply: null, reason: ts('{m} heeft vandaag al heel veel uitgelegd. Morgen weer!', { m: teacherName() }) });
-  const mistakes = (await q(`SELECT text, given, display FROM attempts WHERE cat=$1 AND NOT correct ORDER BY id DESC LIMIT 4`, [cat])).rows;
-  const out = await lessonTurn({ name: await getName(), profile: await teacherProfile(), memory: await memoryText(), cat, catLabel: catById[cat].label, level: skill.level, levelName: LEVEL_NAMES[skill.level], mistakes, chat });
-  if (out?.ready && chat.length >= 2) {
-    const transcript = `Les over ${catById[cat].label}:\n` + [...chat, { role: 'teacher', text: out.text }].map((m) => `${m.role === 'teacher' ? teacherName() : 'kind'}: ${m.text}`).join('\n');
-    remember({ name: await getName(), transcript }).then(addMemory).catch(() => {});
-  }
-  const { text: lessonText, form: lessonForm } = splitForm(out?.text || '');
-  if (lessonForm) await q(`INSERT INTO explanations(cat, form) VALUES ($1,$2)`, [cat, lessonForm]);
-  logEvent('les', { kind: [...chat].reverse().find((m) => m.role === 'kid')?.text || '(start les)', max: lessonText || null, vorm: lessonForm || null, klaar: !!out?.ready, beurt: chat.length + 1 },
-    { cat, level: skill.level });
-  res.json({ reply: lessonText || null, ready: !!out?.ready });
 }));
 
 // Persoonlijk berichtje van de leraar na een sessie (één keer per sessie, daarna bewaard)
@@ -1369,6 +1521,15 @@ app.post('/api/parent/rewards', parent, wrap(async (req, res) => {
   await setSetting('reward_cfg', r.cfg);
   res.json({ ok: true, rewards: r.cfg });
 }));
+// Hoërskoolbelonings is doelbewus apart en standaard af. Die gewone
+// laerskool-spaarpot of verrassingstelsel word nie outomaties aangeskakel nie.
+app.post('/api/parent/high-school/rewards', parent, wrap(async (req, res) => {
+  if (!(req.kid.lang === 'af' && isHoerskoolLeerpadGraad(req.kid.grade))) return res.status(400).json({ error: 'Hierdie instelling is net vir ’n Afrikaanse Graad 8–12-profiel.' });
+  const old = await getSetting('hoerskool:rewards', {});
+  const rewards = skoonHoerskoolBeloning(req.body || {}, old);
+  await setSetting('hoerskool:rewards', rewards);
+  res.json({ ok: true, rewards });
+}));
 // Ouderwachtwoord instellen, wijzigen of weghalen (leeg = weghalen)
 app.post('/api/parent/password', parent, wrap(async (req, res) => {
   const pw = String(req.body.password || '');
@@ -1399,6 +1560,20 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
   const acc = (await q(`SELECT cat, COUNT(*)::int n, SUM(CASE WHEN correct THEN 1 ELSE 0 END)::int ok,
       AVG(time_ms)::int avg_ms, SUM(hints)::int hints, SUM(CASE WHEN guided THEN 1 ELSE 0 END)::int guided
       FROM attempts WHERE created_at > now() - interval '14 days' GROUP BY cat`)).rows;
+  const highSchoolEnabled = req.kid.lang === 'af' && isHoerskoolLeerpadGraad(req.kid.grade);
+  let highSchool = { enabled: false };
+  if (highSchoolEnabled) {
+    const source = volledigeLeerpadVirGraad(req.kid.grade);
+    const progress = await getSetting('hoerskool:progress', {});
+    const nodes = source.grade.nodes.map((node) => ({ ...node, progress: plaaslikeHek(progress[node.id]) }));
+    const personalPlan = skoonHoerskoolPlan(await getSetting('hoerskool:plan', {}));
+    highSchool = {
+      enabled: true,
+      personalPlan,
+      dashboard: maakHoerskoolPaneel({ plan: personalPlan, progress, nodes, today: todayZA() }),
+      rewards: skoonHoerskoolBeloning(await getSetting('hoerskool:rewards', {})),
+    };
+  }
   res.json({
     name: await getName(), lang: req.kid.lang || 'nl', country: req.kid.country || 'NL', grade: req.kid.grade ?? null, age: req.kid.age ?? null, demo: !!req.kid.demo,
     methode: req.kid.methode || '', methodeNu: methodeId(req.kid.lang || 'nl'), methodes: methodeKeuze() ? methodesVoor(req.kid.lang || 'nl') : [], methodeStandaard: standaardMethode(req.kid.lang || 'nl'),
@@ -1412,7 +1587,7 @@ app.get('/api/parent/overview', parent, wrap(async (req, res) => {
     reviews: (await one(`SELECT COUNT(*) FILTER (WHERE NOT done)::int open, COUNT(*) FILTER (WHERE done)::int done FROM reviews`)),
     misconceptions: (await q(`SELECT misconception, COUNT(*)::int n FROM attempts WHERE misconception IS NOT NULL AND created_at > now() - interval '30 days' GROUP BY misconception ORDER BY n DESC LIMIT 8`)).rows,
     scratchNotes: (await q(`SELECT cat, text, given, correct, scratch_note, created_at FROM attempts WHERE scratch_note IS NOT NULL ORDER BY id DESC LIMIT 8`)).rows,
-    signals: await refreshSignals(),
+    signals: await refreshSignals(), highSchool,
   });
 }));
 

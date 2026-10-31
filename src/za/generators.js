@@ -1178,6 +1178,22 @@ export function generateRaw(cat, level) {
   q.wrong = [...q.wrong, ...algemeneDenkfouten(q, 'af')]; // kale sommen: onthouden vergeten, ernaast in de tafel, … (src/denkfouten.js)
   return enkelvoudSom(vereenvoudigStap(stappenVolgenTussenstappen(zonderEenKeer(kidify(q)), 'af'), 'af'), 'af');
 }
+// Maak doelbewus een bepaalde soort som vir ’n voorkennis- of verduidelikingsles.
+// Die KABV-sjabloon-id bevat reeds die onderwerp en vlak (bv. breuke.2d), dus
+// hoef die Afrikaanse lyn nie die Nederlandse sjabloonindeks te gebruik nie.
+export function generateTpl(tplId, { pogingen = 600 } = {}) {
+  const id = String(tplId || ''), m = id.match(/^([^.]+)\.([0-3])/);
+  // Die tydopwekker se ou kaart-id's benoem die vraagvorm (analoog/digitaal/oond)
+  // en nie die onderwerp nie. Hulle bly doelbewus in die Afrikaanse lyn.
+  const tydBasis = id.match(/^tydBasis\.([0-3])/), tydVlak = tydBasis ? Number(tydBasis[1]) : { 'klokLees.a': 0, 'klokWoorde.a': 0, 'digiWoorde.a': 1, 'oondSom.a': 1 }[id];
+  const cat = tydVlak != null ? 'tyd' : m?.[1], level = tydVlak != null ? tydVlak : Number(m?.[2]);
+  if (!cat || !GENERATORS[cat] || !Number.isInteger(level)) return null;
+  for (let i = 0; i < pogingen; i++) {
+    const q = generate(cat, level);
+    if (q.tpl === id) return q;
+  }
+  return null;
+}
 export function generateLike(cat, level, shape, notText) {
   let last = null;
   for (let i = 0; i < 120; i++) {

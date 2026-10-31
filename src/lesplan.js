@@ -13,44 +13,45 @@ import { kaartVoor, doelVoor } from './uitleg/index.js';
 import { pick } from './util.js';
 
 // Een plaatje dat je in woorden kunt zeggen (de les is alleen tekst): een rechthoek of rooster.
-function inWoorden(q) {
+function inWoorden(q, lang = 'nl') {
   if (!q?.visual) return q;
   const v = q.visual;
-  if (v.kind === 'grid') return { ...q, visual: null, text: `${q.text} (Het is een rechthoek van ${v.w} hokjes breed en ${v.h} hokjes hoog.)` };
-  if (v.kind === 'rect') return { ...q, visual: null, text: `${q.text} (Een rechthoek van ${v.w} ${v.unit || ''} bij ${v.h} ${v.unit || ''}.)`.replace(/\s+\./g, '.').replace(/\s{2,}/g, ' ') };
+  if (v.kind === 'grid') return { ...q, visual: null, text: lang === 'af' ? `${q.text} (Dit is ’n reghoek van ${v.w} blokkies breed en ${v.h} blokkies hoog.)` : `${q.text} (Het is een rechthoek van ${v.w} hokjes breed en ${v.h} hokjes hoog.)` };
+  if (v.kind === 'rect') return { ...q, visual: null, text: (lang === 'af' ? `${q.text} (’n Reghoek van ${v.w} ${v.unit || ''} by ${v.h} ${v.unit || ''}.)` : `${q.text} (Een rechthoek van ${v.w} ${v.unit || ''} bij ${v.h} ${v.unit || ''}.)`).replace(/\s+\./g, '.').replace(/\s{2,}/g, ' ') };
   return q;
 }
 // Een som voor de les: liefst van deze soort, zonder plaatje (de les is alleen tekst) en met tussenstappen.
-function lesSom(tpl, cat, level, { metStappen = true } = {}) {
+function lesSom(tpl, cat, level, { metStappen = true, lang = 'nl' } = {}) {
+  const maak = () => (tpl && generateTpl(tpl)) || (tpl && lang === 'af' ? null : (cat ? generate(cat, level) : null));
   for (let k = 0; k < 12; k++) {
-    const q = inWoorden((tpl && generateTpl(tpl)) || (cat ? generate(cat, level) : null));
+    const q = inWoorden(maak(), lang);
     if (q && !q.visual && (!metStappen || q.guide?.length)) return q;
   }
   // soorten zonder tussenstappen: dan een som zonder tussenstappen (samen = de hele som met een tip)
-  if (metStappen) for (let k = 0; k < 6; k++) { const q = inWoorden((tpl && generateTpl(tpl)) || (cat ? generate(cat, level) : null)); if (q && !q.visual) return q; }
+  if (metStappen) for (let k = 0; k < 6; k++) { const q = inWoorden(maak(), lang); if (q && !q.visual) return q; }
   return null;
 }
 // Welke soort som de les behandelt: de soort waar het kind het laatst fout ging (als die zonder plaatje kan), anders een
 // soort van zijn niveau.
-export function kiesLesSoort(cat, level, recenteFout = null) {
-  const kan = (t) => !!lesSom(t, cat, level);
+export function kiesLesSoort(cat, level, recenteFout = null, lang = 'nl') {
+  const kan = (t) => !!lesSom(t, cat, level, { lang });
   if (recenteFout && kan(recenteFout)) return recenteFout;
   // eerst het eigen niveau, dan een niveau hoger of lager (sommige niveaus hebben alleen sommen met een plaatje)
   for (const lv of [level, level + 1, level - 1].filter((x) => x >= 0 && x <= 3)) {
-    for (let k = 0; k < 25; k++) { const q = inWoorden(generate(cat, lv)); if (q && !q.visual && q.guide?.length) return q.tpl; }
+    for (let k = 0; k < 25; k++) { const q = inWoorden(generate(cat, lv), lang); if (q && !q.visual && q.guide?.length) return q.tpl; }
   }
   for (const lv of [level, level + 1, level - 1].filter((x) => x >= 0 && x <= 3)) for (let k = 0; k < 25; k++) { const q = generate(cat, lv); if (q && !q.visual) return q.tpl; }
   return null;
 }
 
-export function maakLes({ cat, level, tpl }) {
-  const vb = lesSom(tpl, cat, level), samen = lesSom(tpl, cat, level), z1 = lesSom(tpl, cat, level, { metStappen: false }), z2 = lesSom(tpl, cat, level, { metStappen: false });
+export function maakLes({ cat, level, tpl, lang = 'nl' }) {
+  const vb = lesSom(tpl, cat, level, { lang }), samen = lesSom(tpl, cat, level, { lang }), z1 = lesSom(tpl, cat, level, { metStappen: false, lang }), z2 = lesSom(tpl, cat, level, { metStappen: false, lang });
   if (!vb || !samen || !z1 || !z2) return null;
   const vkTpl = voorkennisSjablonen(tpl)[0];
-  const vkSom = vkTpl ? lesSom(vkTpl, null, null, { metStappen: false }) : null;
+  const vkSom = vkTpl ? lesSom(vkTpl, null, null, { metStappen: false, lang }) : null;
   // voorkennis: de eerste tussenstap van een voorkennissom (een kleine, makkelijke vraag), of die som zelf
   const vk = vkSom ? (vkSom.guide?.[0] ? { ...vkSom.guide[0], som: vkSom.text } : { ask: vraagTekst(vkSom), type: vkSom.type, answer: vkSom.answer, display: vkSom.display, options: vkSom.options, tip: vkSom.steps?.[0] || '' }) : null;
-  return { cat, level, tpl, fase: 'start', vk, vb, samen, zelf: [z1, z2], i: 0, k: 0, pogingen: 0, naZelf: false, goedTotaal: 0 };
+  return { cat, level, tpl, lang, fase: 'start', vk, vb, samen, zelf: [z1, z2], i: 0, k: 0, pogingen: 0, naZelf: false, goedTotaal: 0 };
 }
 
 const vraagTekst = (q) => (q.type === 'choice' ? `${q.text} (Kies: ${q.options.join(' / ')})` : q.text);
@@ -72,18 +73,19 @@ export function beoordeel(stap, tekst) {
 // Geeft { les (nieuwe staat), beurt: { soort, reactie, vraag, voorbeeld, verboden, klaar } }.
 export function lesStap(les0, kindTekst) {
   const les = structuredClone(les0);
-  const kaart = kaartVoor('nl', les.tpl);
-  const beurt = { soort: 'vraag', reactie: null, vraag: null, voorbeeld: null, verboden: [], klaar: false, doel: doelVoor('nl', les.tpl), aanpak: kaart?.aanpak || [] };
+  const lang = les.lang === 'af' ? 'af' : 'nl', af = lang === 'af';
+  const kaart = kaartVoor(lang, les.tpl);
+  const beurt = { lang, soort: 'vraag', reactie: null, vraag: null, voorbeeld: null, verboden: [], klaar: false, doel: doelVoor(lang, les.tpl), aanpak: kaart?.aanpak || [] };
   const vraag = (stap, bijSom = stap.som || null, nieuw = false) => { beurt.vraag = { ask: stap.ask, display: stap.display, tip: stap.tip || '', som: bijSom, nieuw }; beurt.verboden = [stap.display]; };
   const zelfVraag = (q) => { beurt.vraag = { ask: vraagTekst(q), display: q.display, tip: '', som: null, zelf: true }; beurt.verboden = [q.display]; };
   const samenStart = () => {
     les.fase = 'samen'; les.i = 0; les.pogingen = 0;
     if (les.samen.guide?.length) vraag(les.samen.guide[0], les.samen.text, true);
-    else vraag({ ask: 'Wat is het antwoord?', display: les.samen.display, tip: les.samen.steps?.[0] || '' }, vraagTekst(les.samen), true);
+    else vraag({ ask: af ? 'Wat is die antwoord?' : 'Wat is het antwoord?', display: les.samen.display, tip: les.samen.steps?.[0] || '' }, vraagTekst(les.samen), true);
   };
   const naarZelf = () => { les.fase = 'zelf'; les.pogingen = 0; if (les.k >= 2) return naarTerug(); zelfVraag(les.zelf[les.k]); };
-  const naarTerug = () => { les.fase = 'terugkijken'; beurt.soort = 'terugkijken'; beurt.vraag = { ask: 'Hoe pak je zo\'n som aan? Zeg het in je eigen woorden.', display: null, tip: '' }; };
-  const voordoen = () => { les.fase = 'voordoen'; beurt.soort = 'voordoen'; beurt.voorbeeld = { som: les.vb.text, stappen: les.vb.steps, uitkomst: les.vb.display }; beurt.vraag = { ask: 'Zullen we er nu samen één doen?', display: null, tip: '' }; };
+  const naarTerug = () => { les.fase = 'terugkijken'; beurt.soort = 'terugkijken'; beurt.vraag = { ask: af ? 'Hoe pak jy so ’n som aan? Sê dit in jou eie woorde.' : 'Hoe pak je zo\'n som aan? Zeg het in je eigen woorden.', display: null, tip: '' }; };
+  const voordoen = () => { les.fase = 'voordoen'; beurt.soort = 'voordoen'; beurt.voorbeeld = { som: les.vb.text, stappen: les.vb.steps, uitkomst: les.vb.display }; beurt.vraag = { ask: af ? 'Sal ons nou een saam doen?' : 'Zullen we er nu samen één doen?', display: null, tip: '' }; };
   const fout = (stap, verder) => {
     // eerste keer fout of geen antwoord: een tip en dezelfde vraag; tweede keer: de app zegt het antwoord en gaat verder
     if (les.pogingen === 0) { les.pogingen = 1; beurt.reactie = { soort: 'tip', tip: stap.tip || '' }; return false; }
@@ -104,12 +106,12 @@ export function lesStap(les0, kindTekst) {
   if (les.fase === 'voordoen') { beurt.reactie = { soort: 'door' }; samenStart(); return { les, beurt }; }
   if (les.fase === 'samen') {
     const q = les.samen, slot = les.i >= q.guide.length;
-    const stap = slot ? { ask: q.guideFinal ? `${q.guideFinal}. Wat is het antwoord van de som?` : 'Wat is het antwoord van de som?', type: q.type, answer: q.answer, display: q.display, options: q.options, tip: 'Kijk naar je tussenstappen: wat moet je er nog mee doen?' } : q.guide[les.i];
+    const stap = slot ? { ask: q.guideFinal ? `${q.guideFinal}. ${af ? 'Wat is die antwoord van die som?' : 'Wat is het antwoord van de som?'}` : (af ? 'Wat is die antwoord van die som?' : 'Wat is het antwoord van de som?'), type: q.type, answer: q.answer, display: q.display, options: q.options, tip: af ? 'Kyk na jou tussenstappe: wat moet jy nog daarmee doen?' : 'Kijk naar je tussenstappen: wat moet je er nog mee doen?' } : q.guide[les.i];
     const verder = () => {
       if (slot) { les.k += les.naZelf ? 1 : 0; les.naZelf = false; return naarZelf(); }
       les.i++;
       if (les.i < q.guide.length) vraag(q.guide[les.i], q.text);
-      else vraag({ ask: q.guideFinal ? `${q.guideFinal}. Wat is het antwoord van de som?` : 'Wat is het antwoord van de som?', display: q.display, tip: 'Kijk naar je tussenstappen: wat moet je er nog mee doen?' }, q.text);
+      else vraag({ ask: q.guideFinal ? `${q.guideFinal}. ${af ? 'Wat is die antwoord van die som?' : 'Wat is het antwoord van de som?'}` : (af ? 'Wat is die antwoord van die som?' : 'Wat is het antwoord van de som?'), display: q.display, tip: af ? 'Kyk na jou tussenstappe: wat moet jy nog daarmee doen?' : 'Kijk naar je tussenstappen: wat moet je er nog mee doen?' }, q.text);
     };
     const r = beoordeel(stap, kindTekst);
     if (r === 'goed') { beurt.reactie = { soort: 'goed' }; les.pogingen = 0; verder(); }
@@ -135,16 +137,19 @@ export function lesStap(les0, kindTekst) {
 
 const kop = (t) => String(t || '').replace(/\s*=\s*\??\s*$/, '');
 // De beurt in vaste woorden (zonder AI, of als Max' bericht niet klopt). Kort en kindvriendelijk.
-export function vasteTekst(beurt, name = '') {
+export function vasteTekst(beurt, name = '', taal = beurt.lang || 'nl') {
+  const af = taal === 'af';
   const delen = [];
   const r = beurt.reactie || {};
-  if (r.soort === 'start') delen.push(`Hoi${name ? ` ${name}` : ''}! ${beurt.doel ? `We gaan dit leren: ${beurt.doel.replace(/^Ik kan /, 'je kunt straks ').replace(/^Ik weet /, 'je weet straks ')}` : 'We gaan samen oefenen.'}${beurt.soort === 'vraag' ? ' Eerst even opwarmen.' : ''}`);
-  if (r.soort === 'goed') delen.push(pick(['Goed zo!', 'Klopt!', 'Precies!', 'Helemaal goed.']));
-  if (r.soort === 'tip') delen.push(`Nog niet helemaal.${r.tip ? ` Tip: ${r.tip}` : ''}`);
-  if (r.soort === 'zeg') delen.push(`Het is ${r.antwoord}. Kijk er nog eens naar; we gaan verder.`);
-  if (r.soort === 'samen_na_fout') delen.push('Nog niet goed. Die doen we samen, stap voor stap.');
-  if (beurt.soort === 'voordoen' && beurt.voorbeeld) delen.push(`${/[?]/.test(beurt.voorbeeld.som) ? `Kijk mee bij deze som: ${beurt.voorbeeld.som}` : `Kijk mee hoe ik ${kop(beurt.voorbeeld.som)} uitreken.`} ${beurt.voorbeeld.stappen.map((x) => (/[.!?:]$/.test(x.trim()) ? x.trim() : `${x.trim()}.`)).join(' ')}`);
-  if (beurt.soort === 'afsluiten') delen.push(`Goed gedaan! Zo pak je het aan: ${beurt.aanpak.slice(0, 3).join(' ')} Je bent klaar om te oefenen.`);
-  if (beurt.vraag) delen.push(beurt.vraag.zelf ? `Nu helemaal zelf: ${beurt.vraag.ask}` : beurt.vraag.nieuw && beurt.vraag.som ? `${r.soort === 'door' || r.soort === 'samen_na_fout' ? 'Samen: ' : ''}${kop(beurt.vraag.som)}${/[?.!]$/.test(kop(beurt.vraag.som)) ? '' : '.'} ${beurt.vraag.ask}` : beurt.vraag.ask);
+  if (r.soort === 'start') delen.push(af
+    ? `Hallo${name ? ` ${name}` : ''}! ${beurt.doel ? `Ons gaan dit leer: ${beurt.doel.replace(/^Ek kan /, 'jy kan netnou ')}` : 'Ons gaan saam oefen.'}${beurt.soort === 'vraag' ? ' Kom ons maak eers gou warm.' : ''}`
+    : `Hoi${name ? ` ${name}` : ''}! ${beurt.doel ? `We gaan dit leren: ${beurt.doel.replace(/^Ik kan /, 'je kunt straks ').replace(/^Ik weet /, 'je weet straks ')}` : 'We gaan samen oefenen.'}${beurt.soort === 'vraag' ? ' Eerst even opwarmen.' : ''}`);
+  if (r.soort === 'goed') delen.push(pick(af ? ['Mooi so!', 'Dis reg!', 'Presies!', 'Heeltemal reg.'] : ['Goed zo!', 'Klopt!', 'Precies!', 'Helemaal goed.']));
+  if (r.soort === 'tip') delen.push(af ? `Nog nie heeltemal nie.${r.tip ? ` Wenk: ${r.tip}` : ''}` : `Nog niet helemaal.${r.tip ? ` Tip: ${r.tip}` : ''}`);
+  if (r.soort === 'zeg') delen.push(af ? `Dit is ${r.antwoord}. Kyk weer daarna; ons gaan verder.` : `Het is ${r.antwoord}. Kijk er nog eens naar; we gaan verder.`);
+  if (r.soort === 'samen_na_fout') delen.push(af ? 'Nog nie reg nie. Ons doen dié een saam, stap vir stap.' : 'Nog niet goed. Die doen we samen, stap voor stap.');
+  if (beurt.soort === 'voordoen' && beurt.voorbeeld) delen.push(`${/[?]/.test(beurt.voorbeeld.som) ? (af ? `Kyk saam na hierdie som: ${beurt.voorbeeld.som}` : `Kijk mee bij deze som: ${beurt.voorbeeld.som}`) : (af ? `Kyk hoe ek ${kop(beurt.voorbeeld.som)} uitwerk.` : `Kijk mee hoe ik ${kop(beurt.voorbeeld.som)} uitreken.`)} ${beurt.voorbeeld.stappen.map((x) => (/[.!?:]$/.test(x.trim()) ? x.trim() : `${x.trim()}.`)).join(' ')}`);
+  if (beurt.soort === 'afsluiten') delen.push(af ? `Mooi gedoen! Só pak jy dit aan: ${beurt.aanpak.slice(0, 3).join(' ')} Jy is gereed om te oefen.` : `Goed gedaan! Zo pak je het aan: ${beurt.aanpak.slice(0, 3).join(' ')} Je bent klaar om te oefenen.`);
+  if (beurt.vraag) delen.push(beurt.vraag.zelf ? (af ? `Nou heeltemal self: ${beurt.vraag.ask}` : `Nu helemaal zelf: ${beurt.vraag.ask}`) : beurt.vraag.nieuw && beurt.vraag.som ? `${r.soort === 'door' || r.soort === 'samen_na_fout' ? (af ? 'Saam: ' : 'Samen: ') : ''}${kop(beurt.vraag.som)}${/[?.!]$/.test(kop(beurt.vraag.som)) ? '' : '.'} ${beurt.vraag.ask}` : beurt.vraag.ask);
   return delen.join(' ').replace(/\s+/g, ' ').trim();
 }

@@ -1,4 +1,6 @@
-// Suid-Afrika: KABV/CAPS en die DBE-werkboeke. Die Afrikaanse pakket (src/za/) volg dit reeds; hier is (nog) niks anders.
+// Suid-Afrika: KABV/CAPS en die DBE-werkboeke.
+import * as HOERSKOOL_LEERPAD from '../za/leerpad.js';
+
 export default {
   id: 'kabv',
   lang: 'af',
@@ -11,4 +13,7 @@ export default {
   taal: {},
   max: '',
   didactiek: {},
+  // Graad 8–12 gebruik ’n afsonderlike leerpadmotor met een nagegaanbare
+  // vraagopwekker per leerknop (src/za/hoerskool-generators.js).
+  hoerskoolLeerpad: HOERSKOOL_LEERPAD,
 };

@@ -242,6 +242,25 @@ const praise = () => L(PRAISE, PRAISE_AF);
 
 let STATE = null;
 
+function setExperience(highSchool = false, theme = 'donker') {
+  document.body.classList.toggle('high-school', !!highSchool);
+  document.body.classList.toggle('hs-light', !!highSchool && theme === 'lig');
+  document.documentElement.lang = highSchool || LANG === 'af' ? 'af' : 'nl';
+  if (highSchool) {
+    $tabs.classList.add('hs-tabs');
+    $tabs.innerHTML = `<a href="#/" data-tab="home"><span>⌂</span>Vandag</a>
+      <a href="#/hoerskool/plan" data-tab="plan"><span>◎</span>My plan</a>
+      <a href="#/hoerskool/onderwerpe" data-tab="onderwerpe"><span>▦</span>Onderwerpe</a>
+      <a href="#/hoerskool/vordering" data-tab="vordering"><span>↗</span>Vordering</a>
+      <a href="#/hoerskool/max" data-tab="max"><span>M</span>Max</a>`;
+  } else {
+    $tabs.classList.remove('hs-tabs');
+    $tabs.innerHTML = `<a href="#/" data-tab="home"><span>🏠</span>${t('Vandaag')}</a>
+      <a href="#/voortgang" data-tab="voortgang"><span>📈</span>${t('Voortgang')}</a>
+      <a href="#/spaarpot" data-tab="spaarpot"><span>🐷</span>${t('Spaarpot')}</a>`;
+  }
+}
+
 // ---------- router ----------
 async function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
@@ -253,6 +272,7 @@ async function route() {
   demoBar();
   try {
     if (!parts.length) return await renderHome();
+    if (parts[0] === 'hoerskool') return await renderHighSchool(parts[1] || null);
     if (parts[0] === 'voortgang') return parts[1] ? await renderCategory(parts[1]) : await renderProgress();
     if (parts[0] === 'spaarpot') return await renderPiggy();
     if (parts[0] === 'sessie') return await openSession(parts[1]);
@@ -521,15 +541,56 @@ async function renderWho() {
   $tabs.hidden = true;
   STATE = null; DEMO = false; demoBar();
   setLang('nl');
+  setExperience(false);
   const { kids, avatars } = await api('/api/kids');
   let avatar = avatars[kids.length % avatars.length];
   // nog geen taal bekend: dit scherm is tweetalig (Nederlands · Afrikaans)
   const prof = { country: 'NL', lang: 'nl', grade: '', age: '' };
-  const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7] : [5, 6, 7, 8]); // groep 3-4: nog niet
+  const gradeOpts = () => (prof.country === 'ZA' ? [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [5, 6, 7, 8]); // groep 3-4: nog niet
   const af = () => prof.lang === 'af';
   // Nieuw kind in stappen: 1 taal · 2 naam, groep en plaatje · 3 uitleg (geef aan je ouder) · 4 ouder vult in
   let step = 1;
   const dots = (n) => `<div class="wiz-dots">${[1, 2, 3, 4].map((k) => `<i class="${k === n ? 'on' : k < n ? 'past' : ''}"></i>`).join('')}</div>`;
+  const createProfile = async (setup) => {
+    await api('/api/kids', { name: prof.name, avatar, country: prof.country, lang: prof.lang, grade: prof.grade, age: prof.age, setup });
+    location.hash = '#/'; route();
+  };
+  const highSchoolSetup = (err = '') => {
+    const today = new Date().toISOString().slice(0, 10);
+    $app.innerHTML = `<form class="stack wiz hs-onboard" style="margin-top:3vh" data-hs-setup>${dots(3)}
+      <div><span class="hs-kicker">Jou eie werkplan</span><h1 style="margin-top:8px">Stel Graad ${esc(prof.grade)} vir jou op</h1>
+        <p class="muted">Geen kinderbelonings word aangeskakel nie. Jy kies jou doel, ritme en hoe Max met jou saamwerk.</p></div>
+      <div class="card stack"><h2>Waarvoor werk jy?</h2>
+        <div class="hs-choice-grid">${[
+          ['bybly', 'Bly by met klaswerk'], ['gapings', 'Herstel ou gapings'], ['toets', 'Berei vir ’n toets voor'],
+          ['punt', 'Verbeter my toets- of eksamenwerk'], ['jaarplan', 'Werk sistematies deur die jaar'],
+        ].map(([value, label], i) => `<label class="hs-radio"><input type="radio" name="aim" value="${value}" ${i ? '' : 'checked'}><span>${label}</span></label>`).join('')}</div>
+        <label class="field"><span class="small" style="font-weight:800">Doeldatum (opsioneel)</span><input type="date" name="targetDate" min="${today}"></label></div>
+      <div class="card stack"><h2>Jou oefenritme</h2>
+        <p class="small muted">Die plan begin op 15 en bou oor vier goeie weke na 30 betekenisvolle vrae per oefendag. Daarna groei die moeilikheid en onafhanklikheid, nie net die hoeveelheid nie.</p>
+        <div><div class="small" style="font-weight:800;margin-bottom:7px">Watter dae pas?</div><div class="seg days">${[['M', 1], ['D', 2], ['W', 3], ['D', 4], ['V', 5], ['S', 6], ['S', 0]].map(([label, day]) => `<button type="button" class="${day >= 1 && day <= 5 ? 'sel' : ''}" data-hs-day="${day}">${label}</button>`).join('')}</div></div>
+        <label class="field"><span class="small" style="font-weight:800">Uiteindelike dagdoel</span><select name="dailyGoal">${[20, 25, 30, 40].map((n) => `<option value="${n}" ${n === 30 ? 'selected' : ''}>${n} betekenisvolle vrae</option>`).join('')}</select></label></div>
+      <div class="card stack"><h2>Hoe moet Max werk?</h2>
+        <label class="hs-radio"><input type="radio" name="coachMode" value="gesels" checked><span><b>Gesels saam</b><small>Max praat, vra waar jy vashaak en werk een stap op ’n slag.</small></span></label>
+        <label class="hs-radio"><input type="radio" name="coachMode" value="stil"><span><b>Stil afrigter</b><small>Max wag totdat jy hulp vra of ’n fout maak.</small></span></label>
+        <div class="row" style="flex-wrap:wrap"><span class="small" style="font-weight:800">Voorkoms</span><label class="chip"><input type="radio" name="theme" value="donker" checked> Donker</label><label class="chip"><input type="radio" name="theme" value="lig"> Lig</label></div></div>
+      <div class="hs-parent-note"><b>Vir ouers:</b> ’n Afsonderlike beloning kan later in die beskermde ouerskerm aangeskakel word. Dit is nie standaard aktief nie.</div>
+      <p class="small" style="color:var(--bad);min-height:18px;text-align:center">${esc(err)}</p>
+      <button class="btn block">Maak my plan</button><button type="button" class="btn ghost block" data-back>‹ Terug</button></form>`;
+    const f = $app.querySelector('[data-hs-setup]');
+    f.querySelector('[data-back]').onclick = () => { step = 2; draw('', true); };
+    f.querySelectorAll('[data-hs-day]').forEach((button) => (button.onclick = () => button.classList.toggle('sel')));
+    f.onsubmit = async (event) => {
+      event.preventDefault();
+      const days = [...f.querySelectorAll('[data-hs-day].sel')].map((button) => Number(button.dataset.hsDay));
+      if (!days.length) return highSchoolSetup('Kies minstens een oefendag.');
+      const setup = { highSchoolPlan: {
+        aim: f.aim.value, targetDate: f.targetDate.value, days, dailyGoal: Number(f.dailyGoal.value), startTarget: 15,
+        gradualBuild: true, coachMode: f.coachMode.value, theme: f.theme.value,
+      }, research: true };
+      try { await createProfile(setup); } catch (er) { highSchoolSetup(er.message); }
+    };
+  };
   // Naam typen: als dit toestel nog geen kinderen kent, of bij "iemand anders?". Hoofdletters tellen niet mee.
   // Bestaat de naam al, dan ga je meteen verder (en hoort dat kind voortaan bij dit toestel); anders maak je een profiel.
   const drawNaam = (err = '') => {
@@ -604,7 +665,7 @@ async function renderWho() {
           <div><div style="font-weight:800;margin-bottom:6px">${tr(`In welke groep zit je?`, `In watter graad is jy?`)}</div>
             <div class="seg grade-pick">${gradeOpts().map((g) => `<button type="button" class="${String(prof.grade) === String(g) ? 'sel' : ''}" data-grade="${g}">${g}</button>`).join('')}</div>${prof.country === 'ZA' ? '' : `<div class="small muted" style="margin-top:6px">${t('Voorlopig voor groep 5 tot en met 8. Groep 3 en 4 komen later.')}</div>`}</div>
           <label class="field"><span style="font-weight:800">${tr('Hoe oud ben je?', 'Hoe oud is jy?')}</span>
-            <select name="age" required><option value="">${tr('Kies…', 'Kies…')}</option>${[7, 8, 9, 10, 11, 12, 13, 14, 15].map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} jaar</option>`).join('')}</select></label>
+            <select name="age" required><option value="">${tr('Kies…', 'Kies…')}</option>${(prof.country === 'ZA' ? [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19] : [7, 8, 9, 10, 11, 12, 13, 14, 15]).map((a) => `<option value="${a}" ${String(prof.age) === String(a) ? 'selected' : ''}>${a} jaar</option>`).join('')}</select></label>
           <div><div style="font-weight:800;margin-bottom:6px">${tr('Kies een plaatje', 'Kies ’n prentjie')}</div>
             <div class="avatar-pick">${avatars.map((a) => `<button type="button" class="${a === avatar ? 'sel' : ''}" data-av="${a}">${a}</button>`).join('')}</div></div>
         </div>
@@ -622,6 +683,7 @@ async function renderWho() {
         if (String(prof.name || '').trim().length < 2) return draw(tr('Hoe heet je? (minstens 2 letters)', 'Wat is jou naam? (minstens 2 letters)'), true);
         if (!prof.grade) return draw(tr(`In welke ${gw.toLowerCase()} zit je?`, 'In watter graad is jy?'), true);
         if (!prof.age) return draw(tr('Hoe oud ben je?', 'Hoe oud is jy?'), true);
+        if (af() && Number(prof.grade) >= 8) return highSchoolSetup();
         step = 3; draw('', true);
       };
       return;
@@ -671,10 +733,8 @@ async function renderWho() {
     const f = $app.querySelector('[data-setup]');
     const get = bindRewardFields(f, cfg, { tr, za });
     const create = async (setup) => {
-      try {
-        await api('/api/kids', { name: prof.name, avatar, country: prof.country, lang: prof.lang, grade: prof.grade, age: prof.age, setup });
-        location.hash = '#/'; route();
-      } catch (er) { if (/naam|name|heet|groep|graad|oud|land/i.test(er.message)) { step = 2; draw(er.message, true); } else parentSetup(er.message); }
+      try { await createProfile(setup); }
+      catch (er) { if (/naam|name|heet|groep|graad|oud|land/i.test(er.message)) { step = 2; draw(er.message, true); } else parentSetup(er.message); }
     };
     f.onsubmit = (e) => {
       e.preventDefault();
@@ -805,6 +865,13 @@ function pinScreen(title, onDone, { demo = false } = {}) {
 async function renderHome() {
   await loadState();
   const s = STATE;
+  if (s.highSchool) {
+    const hs = await api('/api/high-school/state');
+    setExperience(true, hs.personalPlan?.theme);
+    setTab('home');
+    return renderHighSchoolHome(s, hs);
+  }
+  setExperience(false);
   const d = s.today.daily;
   let main = '';
   if (!s.intakeDone) {
@@ -864,6 +931,129 @@ async function renderHome() {
   $app.querySelector('[data-switch]').onclick = async () => { if (DEMO) return stopDemo(); if (await ask(`<div class="big-emoji">👤</div><h2>${t('Ben jij niet {n}?', { n: esc(s.name) })}</h2><p class="muted">${t('Dan kies je je eigen naam.')}</p>`, t('Ander kind kiezen'), t('Ik ben het wel'))) switchKid(); };
   $app.querySelectorAll('[data-coach]').forEach((b) => (b.onclick = () => showCoach(b.dataset.coach)));
   if (s.intakeDone) maybeMop(0.25, 1500);
+}
+
+// =====================================================================
+// GRAAD 8–12: brongekoppelde KABV-leerpad met eie antwoordkontrole
+// =====================================================================
+const HS_AIMS = { bybly: 'Bly by met klaswerk', gapings: 'Herstel ou gapings', toets: 'Berei vir ’n toets voor', punt: 'Verbeter toets- en eksamenwerk', jaarplan: 'Werk sistematies deur die jaar' };
+const hsPct = (done, total) => total ? Math.min(100, Math.round((100 * done) / total)) : 0;
+const hsSwitch = () => { const b = $app.querySelector('[data-switch]'); if (b) b.onclick = () => switchKid(); };
+
+async function renderHighSchoolHome(s = STATE, hs = null) {
+  hs ||= await api('/api/high-school/state');
+  setExperience(true, hs.personalPlan.theme); setTab('home');
+  const d = hs.dashboard, node = hs.nodes.find((n) => n.id === hs.todayNodeId) || hs.nodes[0];
+  const pct = hsPct(d.attemptsToday, d.targetToday);
+  $app.innerHTML = `<div class="stack hs-shell">
+    <div class="hello hs-head"><div><span class="hs-kicker">Graad ${hs.grade} · KABV/CAPS</span><h1>Goeiedag, ${esc(s.name)}</h1><p class="muted small">${esc(HS_AIMS[hs.personalPlan.aim] || 'Jou persoonlike wiskundeplan')}</p></div><button class="switch-kid" data-switch title="Ander leerder">◎</button></div>
+    <section class="hs-today"><div class="row between"><span class="hs-kicker">Vandag</span><span class="hs-status">${d.remainingToday ? `${d.remainingToday} oor` : 'Plan voltooi'}</span></div>
+      <div class="hs-target"><strong>${d.attemptsToday}</strong><span>/ ${d.targetToday} betekenisvolle vrae</span></div>
+      <div class="hs-progress"><i style="width:${pct}%"></i></div>
+      <div class="hs-phase"><span>${esc(d.phaseLabel)}</span><span>${d.accuracyToday == null ? 'Nog geen bewyse vandag' : `${d.accuracyToday}% nagegaanbaar reg`}</span></div>
+      ${node ? `<a class="btn hs-primary block" href="#/hoerskool/${esc(node.id)}">${d.attemptsToday ? 'Gaan voort met vandag se plan' : 'Begin vandag se plan'} <span>→</span></a>` : ''}
+    </section>
+    <div class="hs-grid">
+      <a class="hs-panel" href="#/hoerskool/plan"><span class="hs-panel-label">Hierdie week</span><b>${d.attemptsWeek} / ${d.targetWeek}</b><small>${hs.personalPlan.days.length} beplande oefendae</small></a>
+      <a class="hs-panel" href="#/hoerskool/vordering"><span class="hs-panel-label">Leerpad</span><b>${d.completeNodes} / ${d.totalNodes}</b><small>leerknoppe met drie bewyse</small></a>
+    </div>
+    <section class="card hs-card stack"><div class="row between"><div><span class="hs-panel-label">VOLGENDE FOKUS</span><h2>${esc(node?.concept?.af || 'Jou leerpad')}</h2></div><span class="hs-code">${esc(node?.id || '')}</span></div>
+      <p class="muted">${esc(node?.prerequisite?.af || '')}</p><div class="hs-proof-row"><span>${node?.progress?.variants?.toepassing ? '✓' : '○'} toepassing</span><span>${node?.progress?.variants?.metode ? '✓' : '○'} metode</span><span>${node?.progress?.variants?.bewys ? '✓' : '○'} begrip</span></div></section>
+    <section class="card hs-card stack"><div class="row between"><h2>Jou tempo beteken</h2><a href="#/hoerskool/plan" class="small">Pas aan</a></div>
+      <div class="hs-projection"><div><b>${d.plannedPerWeek}</b><span>pogings per week</span></div><div><b>${d.fourWeekAttempts}</b><span>oor vier weke</span></div><div><b>${d.tenWeekAttempts}</b><span>oor tien weke</span></div></div>
+      ${d.targetAttempts == null ? '' : `<p class="small">Teen jou doeldatum is daar ongeveer <b>${d.targetAttempts}</b> beplande oefenplekke beskikbaar.</p>`}<p class="small muted">${esc(d.note)}</p></section>
+    <a class="hs-max-call" href="#/hoerskool/max"><span class="hs-max-mark">M</span><span><b>Werk saam met Max</b><small>Praat deur die metode, een nagegaanbare stap op ’n slag.</small></span><i>→</i></a>
+    ${hs.rewards.enabled ? `<div class="hs-reward-on"><b>Opsionele ouerbeloning is aan:</b> ${esc(hs.rewards.description || 'voltooi die afgespreekte plan')}</div>` : ''}
+  </div>`;
+  hsSwitch();
+}
+
+function renderHighSchoolTopics(hs) {
+  setTab('onderwerpe');
+  const recommended = hs.nodes.find((n) => n.id === hs.recommendedNodeId);
+  $app.innerHTML = `<div class="stack hs-shell"><header class="hs-page-head"><span class="hs-kicker">Graad ${hs.grade}</span><h1>Onderwerpe</h1><p class="muted">CAPS-volgorde per kwartaal. Elke leerknop vra toepassing, metode en bewys van begrip.</p></header>
+    ${[1, 2, 3, 4].map((term) => `<section class="card hs-card stack"><div class="row between"><h2>Kwartaal ${term}</h2><span class="hs-code">${hs.nodes.filter((n) => n.term === term && n.progress.checkpointPassed).length}/${hs.nodes.filter((n) => n.term === term).length}</span></div><div class="hs-topic-list">
+      ${hs.nodes.filter((n) => n.term === term).map((n) => `<a href="#/hoerskool/${esc(n.id)}" class="hs-topic ${n.id === recommended?.id ? 'current' : ''}"><span>${n.progress.checkpointPassed ? '✓' : n.id === recommended?.id ? '→' : '○'}</span><div><b>${esc(n.concept.af)}</b><small>${esc(n.id)} · ${n.progress.variantsDone}/3 bewyse</small></div></a>`).join('')}</div></section>`).join('')}</div>`;
+}
+
+function renderHighSchoolProgress(hs) {
+  setTab('vordering');
+  const d = hs.dashboard, accuracy = hs.nodes.reduce((a, n) => ({ ok: a.ok + n.progress.correct, n: a.n + n.progress.attempts }), { ok: 0, n: 0 });
+  $app.innerHTML = `<div class="stack hs-shell"><header class="hs-page-head"><span class="hs-kicker">Bewyse, nie punte nie</span><h1>Vordering</h1><p class="muted">Volume, korrektheid, metode en oordrag word apart gewys.</p></header>
+    <div class="hs-grid"><div class="hs-panel"><span class="hs-panel-label">TOTALE POGINGS</span><b>${accuracy.n}</b><small>${accuracy.n ? `${Math.round(100 * accuracy.ok / accuracy.n)}% nagegaanbaar reg` : 'begin met vandag se plan'}</small></div><div class="hs-panel"><span class="hs-panel-label">LEERKNOPPE</span><b>${d.completeNodes}/${d.totalNodes}</b><small>toepassing + metode + begrip</small></div></div>
+    <section class="card hs-card stack"><h2>Vier soorte bewys</h2><div class="hs-evidence"><div><span>1</span><b>Voorstelling</b><small>Herken die begrip en nodige inligting.</small></div><div><span>2</span><b>Metode</b><small>Volg die goedgekeurde stappe korrek.</small></div><div><span>3</span><b>Kontrole</b><small>Toets tekens, beperkings, eenhede of substitusie.</small></div><div><span>4</span><b>Oordrag</b><small>Kies die metode in ’n nuwe of gemengde vraag.</small></div></div></section>
+    <p class="small muted hs-note">${esc(d.note)}</p></div>`;
+}
+
+function renderHighSchoolPlan(hs) {
+  setTab('plan');
+  const p = hs.personalPlan, d = hs.dashboard;
+  $app.innerHTML = `<form class="stack hs-shell" data-hs-plan><header class="hs-page-head"><span class="hs-kicker">Leerderbeheerd</span><h1>My plan</h1><p class="muted">Pas jou doel en ritme aan. Die CAPS-leerpad en metodekontroles bly vas.</p></header>
+    <section class="card hs-card stack"><h2>My doel</h2><label class="field"><select name="aim">${Object.entries(HS_AIMS).map(([v, label]) => `<option value="${v}" ${p.aim === v ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="field"><span class="small" style="font-weight:800">Doeldatum</span><input type="date" name="targetDate" value="${esc(p.targetDate)}"></label></section>
+    <section class="card hs-card stack"><h2>Oefenritme</h2><div class="seg days">${[['M', 1], ['D', 2], ['W', 3], ['D', 4], ['V', 5], ['S', 6], ['S', 0]].map(([label, day]) => `<button type="button" class="${p.days.includes(day) ? 'sel' : ''}" data-hs-day="${day}">${label}</button>`).join('')}</div><label class="field"><span class="small" style="font-weight:800">Uiteindelike dagdoel</span><select name="dailyGoal">${[15, 20, 25, 30, 40].map((n) => `<option value="${n}" ${p.dailyGoal === n ? 'selected' : ''}>${n} vrae</option>`).join('')}</select></label><label class="row"><input type="checkbox" name="gradualBuild" ${p.gradualBuild ? 'checked' : ''}><span>Bou die hoeveelheid geleidelik op</span></label></section>
+    <section class="card hs-card stack"><h2>Max en voorkoms</h2><label class="field"><span class="small" style="font-weight:800">Afrigtermodus</span><select name="coachMode"><option value="gesels" ${p.coachMode === 'gesels' ? 'selected' : ''}>Gesels saam</option><option value="stil" ${p.coachMode === 'stil' ? 'selected' : ''}>Stil afrigter</option><option value="toets" ${p.coachMode === 'toets' ? 'selected' : ''}>Toetsmodus</option></select></label><label class="field"><span class="small" style="font-weight:800">Tema</span><select name="theme"><option value="donker" ${p.theme === 'donker' ? 'selected' : ''}>Donker</option><option value="lig" ${p.theme === 'lig' ? 'selected' : ''}>Lig</option></select></label></section>
+    <section class="hs-plan-math"><b>${d.plannedPerWeek} per week</b><span>· ${d.fourWeekAttempts} oor vier weke · ${d.tenWeekAttempts} oor tien weke</span><small>Dit is oefenvolume, nie ’n beloofde punt nie.</small></section><button class="btn hs-primary block">Stoor my plan</button></form>`;
+  const form = $app.querySelector('[data-hs-plan]');
+  form.querySelectorAll('[data-hs-day]').forEach((button) => (button.onclick = () => button.classList.toggle('sel')));
+  form.onsubmit = async (event) => { event.preventDefault(); const days = [...form.querySelectorAll('[data-hs-day].sel')].map((b) => Number(b.dataset.hsDay)); if (!days.length) return toast('Kies minstens een oefendag.'); await api('/api/high-school/plan', { aim: form.aim.value, targetDate: form.targetDate.value, days, dailyGoal: Number(form.dailyGoal.value), gradualBuild: form.gradualBuild.checked, coachMode: form.coachMode.value, theme: form.theme.value }); STATE = null; toast('Jou plan is gestoor ✓'); route(); };
+}
+
+function renderHighSchoolMaxHome(hs) {
+  setTab('max'); const node = hs.nodes.find((n) => n.id === hs.todayNodeId) || hs.nodes[0];
+  $app.innerHTML = `<div class="stack hs-shell"><header class="hs-page-head"><span class="hs-kicker">Metode-afrigter</span><h1>Max werk saam</h1><p class="muted">Max praat en vra; die bediener bepaal die metode, stapvolgorde en antwoord.</p></header><section class="hs-max-card"><span class="hs-max-mark large">M</span><h2>Waar sit die moeilikheid?</h2><p>Begin by vandag se fokus. Max vra wat jy reeds gedoen het, laat jou die metode kies en kontroleer elke volgende stap.</p><div class="hs-max-rules"><span>Een stap op ’n slag</span><span>Geen nuwe metode</span><span>Geen antwoord vooruit</span><span>Finale kontrole verpligtend</span></div>${node ? `<a class="btn hs-primary block" href="#/hoerskool/${esc(node.id)}">Werk aan ${esc(node.concept.af)} →</a>` : ''}</section></div>`;
+}
+
+function addHsMaxMessage(host, turn, q, coachMode) {
+  if (!turn?.message) return;
+  const m = turn.message;
+  host.insertAdjacentHTML('beforeend', `<div class="hs-max-turn"><div class="hs-max-mark">M</div><div class="hs-max-bubble"><div class="row between"><b>${esc(m.title)}</b><button class="speak sm" data-hs-speak aria-label="Lees Max se boodskap">🔊</button></div>${m.feedback ? `<p class="hs-feedback">${esc(m.feedback)}</p>` : ''}<p>${esc(m.text)}</p>${m.options?.length ? `<div class="hs-max-options">${m.options.map((o) => `<button type="button" data-max-answer="${esc(o.id)}">${esc(o.text)}</button>`).join('')}</div><form class="hs-max-input" data-max-free><input name="text" placeholder="Tik ‘ek weet nie’ of tik ’n stap…"><button>Stuur</button></form>` : `<a class="btn hs-primary block" href="#/">Terug na vandag se plan</a>`}</div></div>`);
+  const turnEl = host.lastElementChild;
+  turnEl.querySelector('[data-hs-speak]')?.addEventListener('click', () => speak(`${m.title}. ${m.feedback || ''} ${m.text}`));
+  const send = async (input, own = '') => {
+    turnEl.querySelectorAll('button,input').forEach((x) => { x.disabled = true; });
+    if (own) host.insertAdjacentHTML('beforeend', `<div class="hs-learner-turn">${esc(own)}</div>`);
+    const next = await api('/api/high-school/max/respond', { questionId: q.id, input });
+    addHsMaxMessage(host, next, q, coachMode);
+    host.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+  turnEl.querySelectorAll('[data-max-answer]').forEach((button) => (button.onclick = () => send(button.dataset.maxAnswer, button.textContent.trim())));
+  const free = turnEl.querySelector('[data-max-free]');
+  if (free) free.onsubmit = (event) => { event.preventDefault(); const value = free.text.value.trim(); if (value) send(value, value); };
+  if (coachMode === 'gesels') setTimeout(() => speak(`${m.title}. ${m.feedback || ''} ${m.text}`), 180);
+}
+
+async function renderHighSchool(nodeId) {
+  await loadState();
+  if (!STATE.highSchool) { setExperience(false); location.hash = '#/'; return; }
+  const hs = await api('/api/high-school/state');
+  setExperience(true, hs.personalPlan.theme);
+  if (!nodeId) { setTab('onderwerpe'); return renderHighSchoolTopics(hs); }
+  if (nodeId === 'plan') return renderHighSchoolPlan(hs);
+  if (nodeId === 'onderwerpe') return renderHighSchoolTopics(hs);
+  if (nodeId === 'vordering') return renderHighSchoolProgress(hs);
+  if (nodeId === 'max') return renderHighSchoolMaxHome(hs);
+  setTab('onderwerpe');
+  const node = hs.nodes.find((n) => n.id === nodeId);
+  if (!node) { location.hash = '#/hoerskool/onderwerpe'; return; }
+  $app.innerHTML = `<div class="stack hs-shell"><a href="#/hoerskool/onderwerpe" class="small hs-back">‹ Onderwerpe</a><header class="hs-page-head"><span class="hs-kicker">Kwartaal ${node.term} · ${esc(node.id)}</span><h1>${esc(node.concept.af)}</h1><p class="muted"><b>Voorvereiste:</b> ${esc(node.prerequisite.af)}</p></header>
+    <details class="card hs-card"><summary><b>Metode en leerstappe</b></summary><div class="stack" style="margin-top:12px"><h3>${esc(node.method.title.af)}</h3><ol>${node.learningSteps.map((x) => `<li>${esc(x.af)}</li>`).join('')}</ol><p class="small muted"><b>Let op:</b> ${esc(node.method.diagnosticWarning.af)}</p></div></details>
+    <div class="hs-proof-row strong"><span>${node.progress.variants.toepassing ? '✓' : '○'} toepassing</span><span>${node.progress.variants.metode ? '✓' : '○'} metode</span><span>${node.progress.variants.bewys ? '✓' : '○'} begrip</span></div><button class="btn hs-primary block" data-question>Maak volgende nagegaanbare vraag</button><div data-hs-question></div></div>`;
+  const host = $app.querySelector('[data-hs-question]');
+  $app.querySelector('[data-question]').onclick = async () => {
+    const data = await api('/api/high-school/question', { nodeId }), q = data.question;
+    const variantName = { toepassing: 'Toepassing', metode: 'Metodevolgorde', bewys: 'Bewys van begrip' }[q.variant] || 'Oefening';
+    host.innerHTML = `<section class="card hs-question stack"><div class="row between"><span class="hs-kicker">${esc(variantName)}</span>${speakBtn(q.text, true)}</div><h2>${esc(q.text)}</h2><div class="hs-answer-grid">${q.options.map((o, i) => `<button data-answer="${i}"><span>${String.fromCharCode(65 + i)}</span>${esc(o)}</button>`).join('')}</div>${hs.personalPlan.coachMode === 'toets' ? '' : '<button class="btn hs-max-button block" data-max-hint><span class="hs-max-mark">M</span> Praat hierdie vraag deur met Max</button>'}<div data-max-chat class="hs-max-chat"></div><div data-result></div></section>`;
+    bindSpeak(host); host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    host.querySelector('[data-max-hint]')?.addEventListener('click', async (event) => { event.currentTarget.remove(); const turn = await api('/api/high-school/max/hint', { questionId: q.id }); addHsMaxMessage(host.querySelector('[data-max-chat]'), turn, q, hs.personalPlan.coachMode); });
+    host.querySelectorAll('[data-answer]').forEach((button) => (button.onclick = async () => {
+      host.querySelectorAll('[data-answer]').forEach((x) => { x.disabled = true; }); host.querySelector('[data-max-hint]')?.remove();
+      host.querySelectorAll('[data-max-chat] button, [data-max-chat] input').forEach((x) => { x.disabled = true; });
+      const result = await api('/api/high-school/answer', { questionId: q.id, answer: button.dataset.answer }); const box = host.querySelector('[data-result]');
+      box.innerHTML = `<div class="hs-result ${result.correct ? 'ok' : 'no'}"><h3>${result.correct ? `Reg · ${esc(result.display)}` : 'Nog nie reg nie'}</h3>${result.misconception ? `<p>${esc(result.misconception.label)}</p>` : ''}${result.correct ? `<ol>${result.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>` : '<p>Max begin nou by jou vassteekpunt en bly binne die gekose metode.</p>'}<p class="small"><b>Bewyse:</b> ${result.progress.variantsDone}/3 · ${result.progress.correct}/${result.progress.attempts} nagegaanbaar reg</p></div>`;
+      if (result.correct) box.insertAdjacentHTML('beforeend', '<a class="btn hs-primary block" href="#/">Volgende beplande vraag →</a>');
+      else addHsMaxMessage(host.querySelector('[data-max-chat]'), { message: result.maxMessage }, q, hs.personalPlan.coachMode);
+    }));
+  };
 }
 
 // ---------- levels voor inzet ----------
@@ -2123,6 +2313,8 @@ async function renderParent() {
   }
   setLang(data.lang);
   DEMO = !!data.demo; demoBar();
+  const highSchool = !!data.highSchool?.enabled;
+  setExperience(highSchool, data.highSchool?.personalPlan?.theme);
   if (!STATE) STATE = { currency: data.country === 'ZA' ? 'ZAR' : 'EUR', kid: { lang: data.lang, demo: DEMO } };
   const accBy = Object.fromEntries(data.acc.map((a) => [a.cat, a]));
   const spark = (cat) => {
@@ -2142,17 +2334,17 @@ async function renderParent() {
   const weak = [...data.skills.filter((x) => x.struggling), ...[...bySc].reverse()].filter((x, i, a) => a.indexOf(x) === i).slice(0, 3);
   const strong = bySc.filter((x) => !weak.includes(x)).slice(0, 3);
   $app.innerHTML = `<div class="stack">
-    <div class="row between"><a href="#/spaarpot" class="small">‹ ${t('Terug')}</a>${DEMO ? '' : `<button class="btn ghost" data-logout>${t('Uitloggen')}</button>`}</div>
+    <div class="row between"><a href="${highSchool ? '#/' : '#/spaarpot'}" class="small">‹ ${t('Terug')}</a>${DEMO ? '' : `<button class="btn ghost" data-logout>${t('Uitloggen')}</button>`}</div>
     <div class="row between"><h1>${t('Ouderoverzicht')}</h1>${DEMO ? '' : `<a href="#/overzicht" class="small">👨‍🏫 ${t('Alle kinderen')}</a>`}</div>
     <div class="ptabs" role="tablist">${PTABS.map(([id, ico, lab]) => `<button type="button" role="tab" data-ptab="${id}" class="${id === tab ? 'on' : ''}"><span>${ico}</span>${lab}${id === 'beloning' && toGive ? `<i class="ptab-dot">${toGive}</i>` : ''}</button>`).join('')}</div>
 
     <section class="stack" data-psec="overzicht">
-    <div class="pstats">
+    ${highSchool ? `<div class="pstats hs-parent-stats"><div><b>${data.highSchool.dashboard.attemptsWeek}</b><span>vrae dié week</span></div><div><b>${data.highSchool.dashboard.targetWeek}</b><span>weekdoel</span></div><div><b>${data.highSchool.dashboard.completeNodes}</b><span>leerknoppe klaar</span></div><div><b>${data.highSchool.dashboard.accuracyToday == null ? '–' : data.highSchool.dashboard.accuracyToday + '%'}</b><span>vandag reg</span></div></div>` : `<div class="pstats">
       <div><b>${euro(data.wallet.balance)}</b><span>${t('Spaarpot')}</span></div>
       <div><b>🔥 ${data.streak}</b><span>${t('dagen op rij')}</span></div>
       <div><b>⭐ ${data.inzet.level}</b><span>${t('Level')}</span></div>
       <div><b>${pct14 == null ? '–' : pct14 + '%'}</b><span>${t('goed · 14 d')}</span></div>
-    </div>
+    </div>`}
     ${toGive ? `<button type="button" class="card gift-nudge" data-goto="beloning">🎁 ${t('{n} cadeau(s) nog te geven', { n: toGive })} ›</button>` : ''}
     <div class="card stack"><h2>🧭 ${t('In het kort')}</h2>
       ${data.profile?.samenvatting ? `<p>${esc(data.profile.samenvatting)}</p>` : ''}
@@ -2200,6 +2392,13 @@ async function renderParent() {
     </section>
 
     <section class="stack" data-psec="beloning">
+    ${highSchool ? `<div class="card hs-card stack"><div class="row between"><div><span class="hs-kicker">Hoërskool</span><h2>Opsionele beloning</h2></div><span class="chip ${data.highSchool.rewards.enabled ? 'good' : ''}">${data.highSchool.rewards.enabled ? 'Aan' : 'Standaard af'}</span></div>
+      <p class="small muted">Die leerder se eie plan en vordering werk sonder ’n beloning. As julle saam ’n beloning wil gebruik, skakel dit hier aan en maak die voorwaarde deursigtig.</p>
+      <form class="stack" data-hs-parent-reward><label class="row"><input type="checkbox" name="enabled" ${data.highSchool.rewards.enabled ? 'checked' : ''}><span>Skakel ’n ouerbeloning aan</span></label>
+        <label class="field"><span class="small" style="font-weight:800">Voorwaarde</span><select name="condition">${[['weekplan', 'Voltooi die weekplan'], ['konsekwentheid', 'Hou by die afgespreekte oefendae'], ['herstel', 'Herstel ’n bepaalde agterstand'], ['toetsplan', 'Voltooi die toetsvoorbereidingsplan']].map(([v, label]) => `<option value="${v}" ${data.highSchool.rewards.condition === v ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+        <label class="field"><span class="small" style="font-weight:800">Wat is afgespreek?</span><input name="description" maxlength="120" value="${esc(data.highSchool.rewards.description || '')}" placeholder="bv. kies Vrydagaand se fliek"></label>
+        <p class="small muted">Beloon planvoltooiing, aandag en konsekwentheid—nie net ’n hoë korrekte telling of vinnige klikke nie.</p><button class="btn ghost block">Stoor beloning</button></form></div>` : ''}
+    <div class="${highSchool ? 'hs-legacy-rewards' : ''}">
     <div class="card coin stack"><div class="row between"><div><div class="small muted">${t('Spaarpot van {n}', { n: esc(data.name) })}</div><div class="money" style="font-size:30px">${euro(data.wallet.balance)}</div></div><div class="small muted" style="text-align:right">${t('verdiend')} ${euro(data.wallet.earned)}<br>${t('uitbetaald')} ${euro(data.wallet.paid)}<br>🔥 ${t('{n} dagen op rij', { n: data.streak })}</div></div>
       <form class="row" data-payout><div class="field" style="flex:1"><input inputmode="decimal" placeholder="${ZAR() ? t('Bedrag in rand, bv. 2,50') : 'Bedrag in €, bijv. 2,50'}" name="amt"></div><button class="btn">${t('Uitbetalen')}</button></form></div>
     <div class="card stack"><h2>⭐ ${t('Levels voor inzet')}</h2>
@@ -2225,6 +2424,7 @@ async function renderParent() {
       <button class="btn ghost block">${t('Opslaan')}</button></form></details>
     <details class="card pacc"><summary><h2>${t('Badges')}</h2></summary><div class="pacc-b stack"><div class="badges">${data.badges.map((b) => `<div class="badge ${b.earned ? 'on' : ''}" title="${esc(b.text)}"><span>${b.earned ? b.icon : '🔒'}</span><small>${esc(b.title)}</small></div>`).join('')}</div></div></details>
     <details class="card pacc"><summary><h2>${t('Geschiedenis van de spaarpot')}</h2></summary><div class="pacc-b stack"><table class="list">${data.ledger.map((l) => `<tr><td>${new Date(l.created_at).toLocaleDateString(LANG === 'af' ? 'af-ZA' : 'nl-NL')}</td><td>${esc(l.note || '')}</td><td style="text-align:right;color:${l.cents < 0 ? 'var(--bad)' : 'var(--good)'}"><b>${l.cents > 0 ? '+' : ''}${l.cents}</b></td></tr>`).join('')}</table></div></details>
+    </div>
     </section>
 
     <section class="stack" data-psec="instellingen">
@@ -2278,6 +2478,12 @@ async function renderParent() {
     e.target.disabled = false; e.target.textContent = t('Profiel bijwerken');
   };
   $app.querySelector('[data-otherkid]').onclick = () => switchKid();
+  const hsReward = $app.querySelector('[data-hs-parent-reward]');
+  if (hsReward) hsReward.onsubmit = async (event) => {
+    event.preventDefault();
+    await api('/api/parent/high-school/rewards', { enabled: hsReward.enabled.checked, condition: hsReward.condition.value, description: hsReward.description.value });
+    toast('Beloninginstelling gestoor ✓'); renderParent();
+  };
   {
     const tr = (nl, a) => (LANG === 'af' ? a : nl);
     const f = $app.querySelector('[data-rewards]');
